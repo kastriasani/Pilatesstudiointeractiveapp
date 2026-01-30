@@ -9,7 +9,7 @@ const getSupabase = () => createClient(
 import { Hono } from "npm:hono";
 import { cors } from "npm:hono/cors";
 import { logger } from "npm:hono/logger";
-import * as kv from "./kv_store.tsx";
+import * as kv from "./kv_store.ts";
 
 const app = new Hono();
 
@@ -226,6 +226,10 @@ async function hashPassword(password: string): Promise<string> {
   return Array.from(new Uint8Array(hash))
     .map(b => b.toString(16).padStart(2, '0'))
     .join('');
+}
+
+function isDevEndpointsEnabled(): boolean {
+  return Deno.env.get("ENABLE_DEV_ENDPOINTS") === "true";
 }
 
 async function verifyPassword(password: string, hash: string): Promise<boolean> {
@@ -736,6 +740,7 @@ app.post("/make-server-b87b0c07/packages", async (c) => {
       } else {
         console.log(`⚠️ Coupon ${normalizedCoupon} not found in redemption_codes table`);
       }
+    }
 
     const activationCode = generateActivationCode();
     const codeKey = `activation_code:${activationCode}`;
@@ -2139,6 +2144,9 @@ app.get("/make-server-b87b0c07/admin/calendar", async (c) => {
 // ============ DEV ENDPOINTS ============
 
 app.post("/make-server-b87b0c07/dev/clear-all-data", async (c) => {
+  if (!isDevEndpointsEnabled()) {
+    return c.json({ error: "Not found" }, 404);
+  }
   try {
     const prefixes = ['user:', 'package:', 'reservation:', 'activation_code:', 'verification_token:', 'session:', 'orphaned_package:', 'booking:', 'payment:'];
     
@@ -2165,6 +2173,9 @@ app.post("/make-server-b87b0c07/dev/clear-all-data", async (c) => {
 });
 
 app.post("/make-server-b87b0c07/dev/generate-mock-data", async (c) => {
+  if (!isDevEndpointsEnabled()) {
+    return c.json({ error: "Not found" }, 404);
+  }
   try {
     const mockPassword = await hashPassword('password123');
     const testUsers = [
