@@ -384,7 +384,9 @@ export function AdminPanel({ onLogout }: AdminPanelProps) {
   };
 
   const getBookingsForTimeSlot = (dateKey: string, timeSlot: string) => {
-    return bookings.filter(booking => booking.dateKey === dateKey && booking.timeSlot === timeSlot);
+    // Extract start time from "09:00 - 10:00" format to match API's "09:00" format
+    const startTime = timeSlot.split(' - ')[0];
+    return bookings.filter(booking => booking.dateKey === dateKey && booking.timeSlot === startTime);
   };
 
   const getTimeSlotCapacity = (dateKey: string, timeSlot: string) => {
