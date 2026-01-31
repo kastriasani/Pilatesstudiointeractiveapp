@@ -1796,23 +1796,55 @@ app.post("/make-server-b87b0c07/admin/resend-activation-code", async (c) => {
 
 // ============ LEGACY ENDPOINTS ============
 
+// GET /bookings - MIGRATED TO SUPABASE
 app.get("/make-server-b87b0c07/bookings", async (c) => {
   try {
     const userId = c.req.query('userId');
     const dateKey = c.req.query('dateKey');
 
-    let reservations = await kv.getByPrefix('reservation:');
+    const supabase = getSupabase();
+    let query = supabase.from('reservations').select('*');
 
     if (userId) {
       const normalizedEmail = normalizeEmail(userId);
-      reservations = reservations.filter((r: any) => r.userId === normalizedEmail);
+      query = query.eq('user_email', normalizedEmail);
     }
 
     if (dateKey) {
-      reservations = reservations.filter((r: any) => r.dateKey === dateKey);
+      query = query.eq('date_key', dateKey);
     }
 
-    return c.json({ success: true, bookings: reservations });
+    const { data, error } = await query.order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching bookings from Supabase:', error);
+      return c.json({ error: 'Failed to fetch bookings', details: error.message }, 500);
+    }
+
+    // Map Supabase fields to expected frontend format
+    const bookings = (data || []).map((r: any) => ({
+      id: r.id,
+      name: r.name,
+      surname: r.surname,
+      mobile: r.mobile,
+      email: r.user_email,
+      date: r.date_key,
+      dateKey: r.date_key,
+      timeSlot: r.time_slot,
+      instructor: r.instructor || 'Rina',
+      selectedPackage: r.package_type,
+      payInStudio: r.payment_status !== 'paid',
+      language: 'EN',
+      status: r.reservation_status || 'pending',
+      createdAt: r.created_at,
+      userId: r.user_email,
+      reservationStatus: r.reservation_status,
+      paymentStatus: r.payment_status,
+    }));
+
+    console.log(`📅 Retrieved ${bookings.length} bookings from Supabase`);
+
+    return c.json({ success: true, bookings });
   } catch (error) {
     console.error('Error fetching bookings:', error);
     return c.json({ error: 'Failed to fetch bookings', details: error.message }, 500);
