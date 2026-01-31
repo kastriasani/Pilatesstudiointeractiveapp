@@ -101,3 +101,25 @@ Rule: phase is not complete unless tests pass
 2. No KV writes for domain data prefixes
 3. Backfill completed and validated
 4. Contract tests exist and pass
+
+## Phase 2: Future Improvements (Post-Migration)
+
+### Supabase Auth Migration
+Target: Replace custom auth with Supabase Auth for better security
+
+Benefits:
+- Built-in Magic Links
+- Secure password hashing (bcrypt)
+- Session management
+- Rate limiting
+- Optional MFA
+
+Scope:
+- POST /auth/register → Supabase Auth signUp
+- POST /auth/login → Supabase Auth signInWithPassword or signInWithOtp
+- GET /auth/verify → Supabase Auth getSession
+- POST /auth/logout → Supabase Auth signOut
+- Remove custom session tokens from KV
+
+Priority: After Phase 0 complete
+Estimated effort: 2-4 hours
