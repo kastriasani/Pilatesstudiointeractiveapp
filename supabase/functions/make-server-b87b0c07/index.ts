@@ -2142,36 +2142,70 @@ app.get("/make-server-b87b0c07/admin/orphaned-packages", async (c) => {
   }
 });
 
+// GET /admin/calendar - MIGRATED TO SUPABASE
 app.get("/make-server-b87b0c07/admin/calendar", async (c) => {
   try {
     const dateKey = c.req.query('dateKey');
-    
+
     if (!dateKey) {
       return c.json({ error: "dateKey parameter required" }, 400);
     }
 
-    const allReservations = await kv.getByPrefix('reservation:');
-    const dateReservations = allReservations.filter((r: any) => r.dateKey === dateKey);
-    
-    const calendarData = await Promise.all(TIME_SLOTS.map(async (timeSlot) => {
-      const slotReservations = dateReservations.filter((r: any) => 
-        r.timeSlot === timeSlot &&
-        (r.reservationStatus === 'confirmed' || r.reservationStatus === 'attended')
+    const supabase = getSupabase();
+    const { data: reservations, error } = await supabase
+      .from('reservations')
+      .select('*')
+      .eq('date_key', dateKey);
+
+    if (error) {
+      console.error('Error fetching calendar from Supabase:', error);
+      return c.json({ error: 'Failed to fetch calendar', details: error.message }, 500);
+    }
+
+    const dateReservations = reservations || [];
+
+    const calendarData = TIME_SLOTS.map((timeSlot) => {
+      // Filter confirmed/attended reservations for this slot
+      const slotReservations = dateReservations.filter((r: any) =>
+        r.time_slot === timeSlot &&
+        (r.reservation_status === 'confirmed' || r.reservation_status === 'attended')
       );
-      
-      const capacity = await calculateSlotCapacity(dateKey, timeSlot);
-      
+
+      // Calculate capacity inline
+      const hasPrivateSession = slotReservations.some((r: any) => r.service_type === 'individual' || r.service_type === 'duo');
+      const seatsOccupied = slotReservations.reduce((total: number, r: any) => {
+        return total + (r.service_type === 'duo' ? 2 : 1);
+      }, 0);
+      const available = hasPrivateSession ? 0 : Math.max(0, 4 - seatsOccupied);
+
+      // Map to frontend format
+      const mappedReservations = slotReservations.map((r: any) => ({
+        id: r.id,
+        userId: r.user_email,
+        name: r.name,
+        surname: r.surname,
+        mobile: r.mobile,
+        email: r.user_email,
+        dateKey: r.date_key,
+        timeSlot: r.time_slot,
+        reservationStatus: r.reservation_status,
+        paymentStatus: r.payment_status,
+        createdAt: r.created_at,
+      }));
+
       return {
         timeSlot,
         endTime: calculateEndTime(timeSlot),
-        capacity: capacity.available,
+        capacity: available,
         maxCapacity: 4,
-        isBlocked: capacity.isBlocked,
-        isPrivate: capacity.isPrivate,
-        reservations: slotReservations,
+        isBlocked: seatsOccupied >= 4 || hasPrivateSession,
+        isPrivate: hasPrivateSession,
+        reservations: mappedReservations,
         count: slotReservations.length
       };
-    }));
+    });
+
+    console.log(`📆 Retrieved calendar for ${dateKey}: ${dateReservations.length} reservations from Supabase`);
 
     return c.json({ success: true, dateKey, slots: calendarData });
   } catch (error) {
