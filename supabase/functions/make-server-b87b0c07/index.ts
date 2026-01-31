@@ -1561,37 +1561,52 @@ app.post("/make-server-b87b0c07/activate", async (c) => {
 
 // ============ ADMIN ENDPOINTS ============
 
-// Get all users with aggregated package and payment data
+// Get all users with aggregated package and payment data - MIGRATED TO SUPABASE
 app.get("/make-server-b87b0c07/admin/users", async (c) => {
   try {
-    const allUsers = await kv.getByPrefix('user:');
-    const allPackages = await kv.getByPrefix('package:');
-    const allReservations = await kv.getByPrefix('reservation:');
+    const supabase = getSupabase();
 
-    // Build user summary with packages and payment status
-    const userSummaries = allUsers.map((user: any) => {
-      const userEmail = user.email;
-      
-      // Find all packages for this user
-      const userPackages = allPackages.filter((pkg: any) => pkg.userId === userEmail);
-      
-      // Find all reservations for this user
-      const userReservations = allReservations.filter((res: any) => res.userId === userEmail);
+    // Fetch users from Supabase
+    const { data: users, error: usersError } = await supabase
+      .from('users')
+      .select('*')
+      .order('created_at', { ascending: false });
 
-      // Determine payment status (paid if any package/reservation has paid status)
-      const hasPaidPackage = userPackages.some((pkg: any) => pkg.paymentStatus === 'paid');
-      const hasPaidReservation = userReservations.some((res: any) => res.paymentStatus === 'paid');
-      const paymentStatus = (hasPaidPackage || hasPaidReservation) ? 'paid' : 'unpaid';
+    if (usersError) {
+      console.error('Error fetching users from Supabase:', usersError);
+      return c.json({ error: 'Failed to fetch users', details: usersError.message }, 500);
+    }
 
-      // Calculate total sessions across all packages
-      const totalSessions = userPackages.reduce((sum: number, pkg: any) => {
-        const sessionCount = parseInt(pkg.packageType.match(/\d+/)?.[0] || '0');
-        return sum + sessionCount;
-      }, 0);
+    // Fetch reservations from Supabase
+    const { data: reservations, error: resError } = await supabase
+      .from('reservations')
+      .select('*')
+      .order('created_at', { ascending: false });
 
-      const usedSessions = userPackages.reduce((sum: number, pkg: any) => {
-        return sum + (pkg.sessionsUsed || 0);
-      }, 0);
+    if (resError) {
+      console.error('Error fetching reservations from Supabase:', resError);
+      return c.json({ error: 'Failed to fetch reservations', details: resError.message }, 500);
+    }
+
+    // Build user summaries with package info from users table
+    const userSummaries = (users || []).map((user: any) => {
+      // Find reservations for this user
+      const userReservations = (reservations || []).filter(
+        (res: any) => res.user_email === user.email
+      );
+
+      // Package info is stored directly on user in Supabase schema
+      const packages = user.package_type ? [{
+        id: user.id,
+        type: user.package_type,
+        status: user.activation_status || 'pending',
+        paymentStatus: user.payment_status || 'unpaid',
+        activationStatus: user.activation_status || 'pending',
+        sessionsUsed: user.used_sessions || 0,
+        createdAt: user.created_at,
+        activationDate: user.activated_at,
+        expiryDate: user.package_expiry_date,
+      }] : [];
 
       return {
         id: user.id,
@@ -1599,40 +1614,32 @@ app.get("/make-server-b87b0c07/admin/users", async (c) => {
         surname: user.surname,
         mobile: user.mobile,
         email: user.email,
-        paymentStatus, // 'paid' or 'unpaid'
-        packages: userPackages.map((pkg: any) => ({
-          id: pkg.id,
-          type: pkg.packageType,
-          status: pkg.packageStatus,
-          paymentStatus: pkg.paymentStatus,
-          activationStatus: pkg.activationStatus,
-          sessionsUsed: pkg.sessionsUsed || 0,
-          createdAt: pkg.createdAt,
-          activationDate: pkg.activationDate,
-          expiryDate: pkg.expiryDate,
-        })),
+        paymentStatus: user.payment_status || 'unpaid',
+        packages,
         reservations: userReservations.map((res: any) => ({
           id: res.id,
-          dateKey: res.dateKey,
-          timeSlot: res.timeSlot,
-          reservationStatus: res.reservationStatus,
-          paymentStatus: res.paymentStatus,
-          createdAt: res.createdAt,
+          dateKey: res.date_key,
+          timeSlot: res.time_slot,
+          reservationStatus: res.reservation_status,
+          paymentStatus: res.payment_status,
+          createdAt: res.created_at,
         })),
-        totalSessions,
-        usedSessions,
-        remainingSessions: totalSessions - usedSessions,
-        createdAt: user.createdAt,
+        totalSessions: user.total_sessions || 0,
+        usedSessions: user.used_sessions || 0,
+        remainingSessions: user.remaining_sessions || 0,
+        createdAt: user.created_at,
         blocked: user.blocked || false,
       };
     });
 
-    return c.json({ 
-      success: true, 
+    console.log(`👥 Retrieved ${userSummaries.length} users from Supabase`);
+
+    return c.json({
+      success: true,
       users: userSummaries,
       total: userSummaries.length,
-      paid: userSummaries.filter(u => u.paymentStatus === 'paid').length,
-      unpaid: userSummaries.filter(u => u.paymentStatus === 'unpaid').length,
+      paid: userSummaries.filter((u: any) => u.paymentStatus === 'paid').length,
+      unpaid: userSummaries.filter((u: any) => u.paymentStatus === 'unpaid').length,
     });
   } catch (error) {
     console.error('Error fetching admin users:', error);
