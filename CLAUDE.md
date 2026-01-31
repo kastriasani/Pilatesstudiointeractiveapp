@@ -93,6 +93,20 @@ Admin sieht 2 Test-User statt 11 echte User
 
 ---
 
+## UI Issues to Fix
+
+1. **Admin Panel: "Send Code" → "Activate User"**
+   - Change button label and behavior per User Activation Flow
+   - Sets `activation_status = 'activated'`
+   - Sets `payment_status = 'paid'`
+   - Sends login email with Magic Link
+   - NO activation code needed
+
+2. **Calendar: Layout redesign (Phase 2)**
+   - See MIGRATION_MASTERPLAN.md for details
+
+---
+
 ## PRODUKT-TYPEN
 
 | Produkt | Sessions | Preis | Gültigkeit |

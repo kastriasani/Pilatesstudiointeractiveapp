@@ -449,9 +449,58 @@ async function sendActivationEmail(
 
   return sendEmail(
     email,
-    firstSessionDetails 
+    firstSessionDetails
       ? `Activate Your ${packageName} Package - ${STUDIO_INFO.name}`
       : `Confirm Your Booking - ${STUDIO_INFO.name}`,
+    content
+  );
+}
+
+// Send login email after admin activation (no activation code needed)
+async function sendLoginEmail(
+  email: string,
+  name: string,
+  verificationToken: string,
+  appUrl: string
+) {
+  const loginUrl = `${appUrl}/set-password?token=${verificationToken}`;
+
+  const content = `
+    <h2 style="margin: 0 0 20px 0; color: #3d2f28; font-size: 24px;">Welcome to ${STUDIO_INFO.name}! 🎉</h2>
+
+    <p style="margin: 0 0 20px 0; color: #6b5949; font-size: 16px; line-height: 1.6;">
+      Hi ${name},<br><br>
+      Great news! Your account has been activated and your payment has been confirmed.
+    </p>
+
+    <div style="background-color: #e8f5e9; border-radius: 12px; padding: 24px; margin: 24px 0; text-align: center;">
+      <p style="margin: 0 0 16px 0; color: #2e7d32; font-size: 18px; font-weight: 600;">Your account is ready!</p>
+      <a href="${loginUrl}" style="display: inline-block; background-color: #6b5949; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-size: 16px; font-weight: 600;">
+        Set Password & Login
+      </a>
+    </div>
+
+    <p style="margin: 0 0 20px 0; color: #6b5949; font-size: 14px; line-height: 1.6;">
+      Or copy this link: <a href="${loginUrl}" style="color: #6b5949;">${loginUrl}</a>
+    </p>
+
+    <div style="background-color: #fff8f0; border-left: 4px solid #9ca571; padding: 16px; margin: 24px 0;">
+      <p style="margin: 0; color: #6b5949; font-size: 14px; line-height: 1.6;">
+        <strong style="color: #3d2f28;">What's next?</strong><br>
+        1. Click the button above to set your password<br>
+        2. Log in to your dashboard<br>
+        3. Book your Pilates sessions!
+      </p>
+    </div>
+
+    <p style="margin: 0; color: #999; font-size: 12px;">
+      This link expires in 24 hours. If you didn't request this, please ignore this email.
+    </p>
+  `;
+
+  return sendEmail(
+    email,
+    `Your ${STUDIO_INFO.name} Account is Activated!`,
     content
   );
 }
@@ -1276,118 +1325,39 @@ app.post("/make-server-b87b0c07/reservations", async (c) => {
       });
 
     } else {
-      const activationCode = generateActivationCode();
-      const codeKey = `activation_code:${activationCode}`;
-      const codeExpiry = new Date();
-      codeExpiry.setHours(codeExpiry.getHours() + 24);
+      // Single session booking - user stays pending until admin activates
+      // NO activation code generated - admin will activate after payment
 
-      const activationCodeData = {
-        id: codeKey,
-        code: activationCode,
-        email: normalizedEmail,
-        packageId: null,
-        reservationId,
-        status: 'active',
-        expiresAt: codeExpiry.toISOString(),
-        usedAt: null,
-        createdAt: new Date().toISOString()
-      };
-
-      await kv.set(codeKey, activationCodeData);
-
-      const userKey = `user:${normalizedEmail}`;
-      let user = await kv.get(userKey);
-      
-      if (!user) {
-        user = {
-          id: userKey,
-          email: normalizedEmail,
-          name,
-          surname,
-          mobile,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          blocked: false,
-          passwordHash: null,
-          verified: false
-        };
-        await kv.set(userKey, user);
-        console.log(`User created for single session booking: ${normalizedEmail}`);
-      }
-
+      // Send booking confirmation email (not activation code)
       try {
-        await sendActivationEmail(
+        const appUrl = c.req.header('origin') || c.req.header('referer') || 'https://app.wellnestpilates.com';
+
+        await sendRegistrationEmail(
           normalizedEmail,
           name,
           surname,
-          activationCode,
+          '', // No verification token yet - will be sent when admin activates
           'single',
-          {
-            date: dateString,
-            timeSlot,
-            endTime,
-            instructor
-          }
+          dateString,
+          timeSlot,
+          endTime,
+          appUrl,
+          language,
+          0, // Single sessions don't have coupons
+          '' // No redemption code for single sessions
         );
       } catch (emailError) {
-        console.error('Failed to send activation email:', emailError);
+        console.error('Error sending booking confirmation email:', emailError);
       }
 
-      try {
-        if (!user || !user.passwordHash) {
-          const verificationToken = `verify_${Date.now()}_${Math.random().toString(36).substr(2, 16)}`;
-          const tokenKey = `verification_token:${verificationToken}`;
-          const tokenExpiry = new Date();
-          tokenExpiry.setHours(tokenExpiry.getHours() + 24);
-
-          const tokenData = {
-            id: tokenKey,
-            token: verificationToken,
-            email: normalizedEmail,
-            expiresAt: tokenExpiry.toISOString(),
-            used: false,
-            createdAt: new Date().toISOString()
-          };
-          await kv.set(tokenKey, tokenData);
-
-          if (user) {
-            user.verificationToken = verificationToken;
-            user.verified = false;
-            user.passwordHash = null;
-            user.updatedAt = new Date().toISOString();
-            await kv.set(userKey, user);
-          }
-
-          const appUrl = c.req.header('origin') || c.req.header('referer') || 'https://app.wellnest-pilates.com';
-          
-          await sendRegistrationEmail(
-            normalizedEmail,
-            name,
-            surname,
-            verificationToken,
-            'single',
-            dateString,
-            timeSlot,
-            endTime,
-            appUrl,
-            language,
-            0, // Single sessions don't have coupons
-            '' // No redemption code for single sessions
-          );
-        }
-      } catch (emailError) {
-        console.error('Error sending registration email:', emailError);
-      }
-
-      console.log(`Single session reserved: ${reservationId}, activation code: ${activationCode}`);
+      console.log(`Single session reserved: ${reservationId} (pending admin activation)`);
 
       return c.json({
         success: true,
         reservation,
         reservationId,
         requiresActivation: true,
-        activationCode,
-        message: "Reservation created! Check your email for activation code and registration link."
+        message: "Reservation created! You will receive a login email after your payment is confirmed in the studio."
       });
     }
 
@@ -1688,97 +1658,118 @@ app.delete("/make-server-b87b0c07/reservations/:id", async (c) => {
 
 // ============ ACTIVATION ENDPOINTS ============
 
+// Admin-triggered activation (no activation code required)
+// Called when admin clicks "Activate User" after cash payment in studio
 app.post("/make-server-b87b0c07/activate", async (c) => {
   try {
     const body = await c.req.json();
-    const { email, activationCode } = body;
+    const { email } = body;
 
-    if (!email || !activationCode) {
-      return c.json({ error: "Email and activation code are required" }, 400);
+    if (!email) {
+      return c.json({ error: "Email is required" }, 400);
     }
 
     const normalizedEmail = normalizeEmail(email);
-    const codeKey = `activation_code:${activationCode}`;
-    const activationData = await kv.get(codeKey);
+    const supabase = getSupabase();
+    const now = new Date().toISOString();
 
-    if (!activationData) {
-      return c.json({ error: "Invalid activation code" }, 400);
+    // 1. Update user in Supabase
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .update({
+        activation_status: 'activated',
+        payment_status: 'paid',
+        updated_at: now
+      })
+      .eq('email', normalizedEmail)
+      .select()
+      .single();
+
+    if (userError || !user) {
+      console.error('Error updating user:', userError);
+      return c.json({ error: 'User not found', details: userError?.message }, 404);
     }
 
-    if (activationData.email !== normalizedEmail) {
-      return c.json({ error: "Activation code does not match email" }, 400);
+    // 2. Activate all pending packages for this user
+    const expiryDate = new Date();
+    expiryDate.setDate(expiryDate.getDate() + 35); // 35 days validity
+
+    const { error: pkgError } = await supabase
+      .from('user_packages')
+      .update({
+        activation_status: 'activated',
+        payment_status: 'paid',
+        activation_date: now,
+        expiry_date: expiryDate.toISOString(),
+        status: 'active',
+        updated_at: now
+      })
+      .eq('user_email', normalizedEmail)
+      .eq('activation_status', 'pending');
+
+    if (pkgError) {
+      console.error('Error updating packages:', pkgError);
+      // Continue anyway - user might not have packages yet
     }
 
-    if (activationData.status !== 'active') {
-      return c.json({ error: "Activation code has already been used" }, 400);
+    // 3. Confirm all pending reservations for this user
+    const { error: resError } = await supabase
+      .from('reservations')
+      .update({
+        reservation_status: 'confirmed',
+        payment_status: 'paid',
+        updated_at: now
+      })
+      .eq('user_email', normalizedEmail)
+      .eq('reservation_status', 'pending');
+
+    if (resError) {
+      console.error('Error updating reservations:', resError);
+      // Continue anyway
     }
 
-    if (new Date(activationData.expiresAt) < new Date()) {
-      return c.json({ error: "Activation code has expired" }, 400);
+    // 4. Generate verification token for password setup
+    const verificationToken = `verify_${Date.now()}_${Math.random().toString(36).substr(2, 16)}`;
+    const tokenKey = `verification_token:${verificationToken}`;
+    const tokenExpiry = new Date();
+    tokenExpiry.setHours(tokenExpiry.getHours() + 24);
+
+    await kv.set(tokenKey, {
+      id: tokenKey,
+      token: verificationToken,
+      email: normalizedEmail,
+      expiresAt: tokenExpiry.toISOString(),
+      used: false,
+      createdAt: now
+    });
+
+    // 5. Send login email with password setup link
+    const appUrl = c.req.header('origin') || 'https://app.wellnestpilates.com';
+    try {
+      await sendLoginEmail(normalizedEmail, user.name || '', verificationToken, appUrl);
+      console.log(`Login email sent to: ${normalizedEmail}`);
+    } catch (emailError) {
+      console.error('Failed to send login email:', emailError);
+      // Don't fail the activation if email fails
     }
 
-    const packageId = activationData.packageId;
-    const reservationId = activationData.reservationId;
-    let activatedItem = null;
-    let itemType = '';
-
-    if (packageId) {
-      const pkg = await kv.get(packageId);
-      if (!pkg) {
-        return c.json({ error: "Package not found" }, 404);
-      }
-
-      pkg.activationDate = new Date().toISOString();
-      pkg.expiryDate = calculateExpiry(pkg.activationDate);
-      pkg.packageStatus = 'active';
-      pkg.activationStatus = 'activated';
-      pkg.updatedAt = new Date().toISOString();
-      await kv.set(packageId, pkg);
-
-      if (pkg.firstReservationId) {
-        const firstReservation = await kv.get(pkg.firstReservationId);
-        if (firstReservation) {
-          firstReservation.reservationStatus = 'confirmed';
-          firstReservation.activatedAt = new Date().toISOString();
-          firstReservation.updatedAt = new Date().toISOString();
-          await kv.set(pkg.firstReservationId, firstReservation);
-        }
-      }
-
-      activatedItem = pkg;
-      itemType = 'package';
-      console.log(`Package activated: ${packageId}`);
-
-    } else if (reservationId) {
-      const reservation = await kv.get(reservationId);
-      if (!reservation) {
-        return c.json({ error: "Reservation not found" }, 404);
-      }
-
-      reservation.reservationStatus = 'confirmed';
-      reservation.activatedAt = new Date().toISOString();
-      reservation.updatedAt = new Date().toISOString();
-      await kv.set(reservationId, reservation);
-
-      activatedItem = reservation;
-      itemType = 'reservation';
-      console.log(`Reservation activated: ${reservationId}`);
-    }
-
-    activationData.status = 'used';
-    activationData.usedAt = new Date().toISOString();
-    await kv.set(codeKey, activationData);
+    console.log(`User activated by admin: ${normalizedEmail}`);
 
     return c.json({
       success: true,
-      message: `${itemType === 'package' ? 'Package' : 'Reservation'} activated successfully!`,
-      itemType,
-      item: activatedItem
+      message: 'User activated successfully! Login email sent.',
+      user: {
+        email: normalizedEmail,
+        name: user.name,
+        surname: user.surname,
+        activation_status: 'activated',
+        payment_status: 'paid'
+      }
     });
 
   } catch (error) {
-    console.error('Error activating:', error);
-    return c.json({ error: 'Activation failed', details: error.message }, 500);
+    console.error('Error activating user:', error);
+    return c.json({ error: 'Activation failed', details: (error as Error).message }, 500);
   }
 });
 
@@ -2607,48 +2598,89 @@ app.post("/make-server-b87b0c07/auth/setup-password", async (c) => {
   }
 });
 
+// POST /auth/register - MIGRATED TO SUPABASE
 app.post("/make-server-b87b0c07/auth/register", async (c) => {
   try {
     const body = await c.req.json();
     const { email, password, name, surname, mobile } = body;
-    
+
     if (!email || !password) {
       return c.json({ error: 'Email and password are required' }, 400);
     }
-    
+
     if (password.length < 6) {
       return c.json({ error: 'Password must be at least 6 characters' }, 400);
     }
-    
+
     const normalizedEmail = normalizeEmail(email);
-    const userKey = `user:${normalizedEmail}`;
-    const existingUser = await kv.get(userKey);
-    
-    if (existingUser && existingUser.passwordHash) {
-      return c.json({ 
+    const supabase = getSupabase();
+
+    // Check if user exists in Supabase
+    const { data: existingUser, error: checkError } = await supabase
+      .from('users')
+      .select('email, password_hash')
+      .eq('email', normalizedEmail)
+      .maybeSingle();
+
+    if (checkError) {
+      console.error('Error checking user:', checkError);
+      return c.json({ error: 'Registration failed', details: checkError.message }, 500);
+    }
+
+    if (existingUser?.password_hash) {
+      return c.json({
         error: 'An account with this email already exists. Please use the login form instead.',
         errorType: 'USER_EXISTS'
       }, 400);
     }
-    
+
     const passwordHash = await hashPassword(password);
-    
-    const user = {
-      id: userKey,
-      email: normalizedEmail,
-      name: name || '',
-      surname: surname || '',
-      mobile: mobile || '',
-      passwordHash,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      blocked: false,
-      verified: true
-    };
-    
-    await kv.set(userKey, user);
-    console.log(`User account created: ${normalizedEmail}`);
-    
+    const now = new Date().toISOString();
+
+    if (existingUser) {
+      // User exists but no password - update with password
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({
+          password_hash: passwordHash,
+          name: name || existingUser.name,
+          surname: surname || existingUser.surname,
+          mobile: mobile || existingUser.mobile,
+          verified: true,
+          updated_at: now
+        })
+        .eq('email', normalizedEmail);
+
+      if (updateError) {
+        console.error('Error updating user:', updateError);
+        return c.json({ error: 'Registration failed', details: updateError.message }, 500);
+      }
+      console.log(`User password set: ${normalizedEmail}`);
+    } else {
+      // Create new user
+      const { error: insertError } = await supabase
+        .from('users')
+        .insert({
+          email: normalizedEmail,
+          name: name || '',
+          surname: surname || '',
+          mobile: mobile || '',
+          password_hash: passwordHash,
+          verified: true,
+          blocked: false,
+          activation_status: 'activated',
+          payment_status: 'unpaid',
+          created_at: now,
+          updated_at: now
+        });
+
+      if (insertError) {
+        console.error('Error creating user:', insertError);
+        return c.json({ error: 'Registration failed', details: insertError.message }, 500);
+      }
+      console.log(`User account created: ${normalizedEmail}`);
+    }
+
     return c.json({
       success: true,
       message: 'Registration successful! You can now login.',
@@ -2658,13 +2690,14 @@ app.post("/make-server-b87b0c07/auth/register", async (c) => {
         surname: surname || ''
       }
     });
-    
+
   } catch (error) {
     console.error('Error during registration:', error);
-    return c.json({ error: 'Registration failed', details: error.message }, 500);
+    return c.json({ error: 'Registration failed', details: (error as Error).message }, 500);
   }
 });
 
+// POST /auth/login - MIGRATED TO SUPABASE (sessions stay in KV)
 app.post("/make-server-b87b0c07/auth/login", async (c) => {
   try {
     const body = await c.req.json();
@@ -2675,10 +2708,16 @@ app.post("/make-server-b87b0c07/auth/login", async (c) => {
     }
 
     const normalizedEmail = normalizeEmail(email);
-    const userKey = `user:${normalizedEmail}`;
-    const user = await kv.get(userKey);
+    const supabase = getSupabase();
 
-    if (!user) {
+    // Fetch user from Supabase
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', normalizedEmail)
+      .single();
+
+    if (userError || !user) {
       return c.json({ error: "Invalid email or password" }, 401);
     }
 
@@ -2686,15 +2725,16 @@ app.post("/make-server-b87b0c07/auth/login", async (c) => {
       return c.json({ error: "This account has been blocked. Please contact support." }, 403);
     }
 
-    if (!user.passwordHash) {
+    if (!user.password_hash) {
       return c.json({ error: "Please complete your registration first. Check your email for the registration link." }, 401);
     }
 
-    const isValidPassword = await verifyPassword(password, user.passwordHash);
+    const isValidPassword = await verifyPassword(password, user.password_hash);
     if (!isValidPassword) {
       return c.json({ error: "Invalid email or password" }, 401);
     }
 
+    // Session stays in KV (ephemeral data)
     const sessionToken = `session_${Date.now()}_${Math.random().toString(36).substr(2, 16)}`;
     const sessionKey = `session:${sessionToken}`;
     const sessionData = {
@@ -2722,7 +2762,7 @@ app.post("/make-server-b87b0c07/auth/login", async (c) => {
 
   } catch (error) {
     console.error('Error logging in:', error);
-    return c.json({ error: 'Login failed', details: error.message }, 500);
+    return c.json({ error: 'Login failed', details: (error as Error).message }, 500);
   }
 });
 
