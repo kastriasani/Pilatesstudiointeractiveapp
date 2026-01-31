@@ -54,13 +54,15 @@ Admin sieht 2 Test-User statt 11 echte User
 
 | # | Bug | Auswirkung |
 |---|-----|------------|
-| 1 | **Admin Users nicht verbunden** | Zeigt 2 Test-User statt 11 echte |
-| 2 | **Admin Kalender nicht verbunden** | Mock-Daten statt 12 echte Reservierungen |
-| 3 | **Waitlist zeigt 0** | Statt 103 echte Einträge |
-| 4 | **Developer Tools in Production** | "Clear All Data" Button sichtbar! |
-| 5 | **User aktivieren fehlt** | Kein Button nach Zahlung |
-| 6 | **Email-Validierung fehlt** | "not-an-email" wird akzeptiert |
-| 7 | **Admin-Aktionen falsch** | "Send Code" statt Activate/Block/Delete |
+| 1 | **Admin Users nicht verbunden** | Zeigt KV-User statt 11 echte aus `users` Tabelle |
+| 2 | **Admin Kalender nicht verbunden** | KV-Daten statt 12 echte Reservierungen |
+| 3 | **Waitlist zeigt 0** | KV statt 103 echte Einträge aus `waitlist_members` |
+| 4 | **Developer Tools in Production** | Settings-Icon öffnet DevTools (Backend geschützt, UI nicht) |
+| 5 | **User aktivieren fehlt** | Nur "Send Code", kein direkter Activate-Button |
+| 6 | **Email-Validierung fehlt** | Nur HTML5 type="email", keine Regex-Validierung |
+| 7 | **Admin-Aktionen falsch** | Nur Send Code/Gift/Delete; fehlt Activate/Block |
+| 8 | **confirmSendCode undefined** | AdminPanel.tsx:1386 - Modal-Button crasht bei Klick |
+| 9 | **Settings = DevTools** | Settings-Icon öffnet nur DevTools, keine echten Settings |
 
 ---
 
@@ -110,6 +112,22 @@ Login → Kalender (Tagesübersicht) → User anklicken → Quick-Actions (✓/�
 
 ---
 
+## User Activation Flow (IMPORTANT)
+
+```
+1. User selects package + books first session → receives confirmation email
+2. User appears in Admin Panel as "pending, unpaid"
+3. User pays cash in studio → Admin clicks "Activate" in Admin Panel
+4. System sends login email with Magic Link or temp password
+```
+
+**Important Notes:**
+- `activation_codes` table is NOT needed
+- Activation happens via Admin Panel action, NOT via code entry
+- `redemption_codes` are for discounts/bonuses at purchase time, NOT for account activation
+
+---
+
 ## AKTUELLE DATENBANK (Supabase)
 
 ```
@@ -119,12 +137,13 @@ Region: eu-central-1
 
 | Tabelle | Records | Status |
 |---------|---------|--------|
-| `users` | 11 | Wird ignoriert (Admin zeigt Mock) |
-| `reservations` | 12 | Wird ignoriert |
-| `waitlist_members` | 103 | Wird ignoriert |
-| `redemption_codes` | 103 | Funktioniert |
-| `kv_store_b87b0c07` | 7 | WIRD FÄLSCHLICH GENUTZT |
-| `user_bookings` | 0 | Leer |
+| `users` | 11+ | ✅ Used by admin/users, packages |
+| `reservations` | 12+ | ✅ Used by admin/calendar, bookings |
+| `waitlist_members` | 103 | ✅ Used by admin/waitlist |
+| `redemption_codes` | 103 | ✅ Used for bonus sessions |
+| `user_packages` | NEW | ✅ Stores purchased packages |
+| `kv_store_b87b0c07` | 7 | ⚠️ Still used for sessions, some writes |
+| `user_bookings` | 0 | Unused |
 
 ---
 
@@ -267,10 +286,12 @@ PACKAGE_VALIDITY_DAYS = 35
 
 ## BEREITS ERLEDIGT (31.01.2026)
 
-- [x] Dev Endpoints geschützt (/dev/clear-all-data, /dev/generate-mock-data)
+- [x] Dev Endpoints Backend geschützt (ENABLE_DEV_ENDPOINTS env var)
 - [x] CORS auf Production Domain beschränkt
 - [x] Integration Tests hinzugefügt
 - [x] Supabase Token rotiert
+
+**Noch offen:** DevTools UI ist noch sichtbar (Settings-Icon) - nur Backend ist geschützt
 
 ---
 
@@ -298,10 +319,10 @@ Settings
 
 ## QUICK WINS (jederzeit)
 
+- [ ] **FIX: confirmSendCode undefined** - AdminPanel.tsx:1386 crasht bei Klick
 - [ ] Typo: "Payed" → "Paid"
-- [ ] Kalender-Design verbessern (CSS)
 - [ ] Developer Tools Button verstecken (UI)
-- [ ] Email-Validierung im Formular
+- [ ] Email-Validierung im Formular (Regex pattern hinzufügen)
 
 ---
 
@@ -343,6 +364,11 @@ Settings
 |------|---------|
 | `src/app/components/MainApp.tsx` | Screen routing & main state |
 | `src/app/components/BookingScreen.tsx` | Date/time slot selection UI |
-| `src/app/components/AdminPanel.tsx` | Admin calendar & user management |
-| `supabase/functions/make-server-b87b0c07/index.ts` | Complete API |
-| `supabase/functions/make-server-b87b0c07/kv_store.ts` | Database interface (to be migrated) |
+| `src/app/components/AdminPanel.tsx` | Admin calendar & user management (BUG: line 1386) |
+| `src/app/components/DevTools.tsx` | Clear/Generate mock data (should be hidden) |
+| `supabase/functions/make-server-b87b0c07/index.ts` | Complete API (~4000 lines, uses KV store) |
+| `supabase/functions/make-server-b87b0c07/kv_store.ts` | KV store interface (to be migrated to SQL) |
+
+**Backend Data Flow (Problem):**
+- All endpoints use `kv.getByPrefix()` instead of Supabase tables
+- Exception: `redemption_codes` table IS used correctly (lines 544-741)
