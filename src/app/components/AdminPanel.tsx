@@ -513,7 +513,7 @@ export function AdminPanel({ onLogout }: AdminPanelProps) {
       setIsSendingEmail(false);
 
       // Refresh user list to show updated status
-      fetchUsers();
+      fetchBookings(); // fetchBookings() fetches both bookings AND users
     } catch (error) {
       console.error('Error activating user:', error);
       alert('Network error. Please check your connection.');

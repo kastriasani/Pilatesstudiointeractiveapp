@@ -44,43 +44,48 @@ const getDayName = (dayOfWeek: number, language: Language): string => {
   return days[dayOfWeek]; // 0 = Monday, 1 = Tuesday, etc.
 };
 
-// Helper function to generate the next 2 weekdays starting from January 29th
+// Helper function to generate the next 2 weekdays starting from today
 const generateWeekdayDates = (language: Language) => {
   const t = translations[language];
   const dates = [];
-  
-  // Start from January 29, 2026
-  let currentDate = new Date(2026, 0, 29); // Month is 0-indexed (0 = January)
+
+  // Start from today (using Skopje timezone)
+  let currentDate = getSkopjeTime();
   currentDate.setHours(0, 0, 0, 0);
-  
+
   let weekdaysFound = 0;
-  const maxDaysToCheck = 10; // Check up to 10 days ahead to find 2 weekdays
+  const maxDaysToCheck = 14; // Check up to 14 days ahead to find 2 weekdays
   let daysChecked = 0;
-  
+
+  // Month names array for dynamic lookup
+  const monthNames = [
+    t.january, t.february, t.march, t.april, t.may, t.june,
+    t.july, t.august, t.september, t.october, t.november, t.december
+  ];
+
   while (weekdaysFound < 2 && daysChecked < maxDaysToCheck) {
     const dayOfWeek = currentDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
-    
+
     // Only include weekdays (Monday to Friday)
     if (dayOfWeek >= 1 && dayOfWeek <= 5) {
       const day = currentDate.getDate();
-      const month = currentDate.getMonth(); // 0 = January, 1 = February
-      const monthName = month === 0 ? t.january : t.february;
-      
+      const month = currentDate.getMonth();
+      const monthName = monthNames[month] || t.january; // Fallback to January
+
       dates.push({
-        day: getDayName(dayOfWeek - 1, language), // Convert to 0-based (Monday = 0)
+        day: getDayName(dayOfWeek - 1, language),
         date: `${day} ${monthName}`,
-        key: `${month + 1}-${day}`, // Format: "1-22", "2-3", etc.
+        key: `${month + 1}-${day}`,
         fullDate: new Date(currentDate),
       });
-      
+
       weekdaysFound++;
     }
-    
-    // Move to next day
+
     currentDate.setDate(currentDate.getDate() + 1);
     daysChecked++;
   }
-  
+
   return dates;
 };
 
