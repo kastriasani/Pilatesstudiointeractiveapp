@@ -1648,6 +1648,7 @@ app.get("/make-server-b87b0c07/admin/users", async (c) => {
 });
 
 // Update payment status for a user's package
+// PATCH /admin/users/:email/payment - MIGRATED TO SUPABASE
 app.patch("/make-server-b87b0c07/admin/users/:email/payment", async (c) => {
   try {
     const email = c.req.param('email');
@@ -1663,34 +1664,45 @@ app.patch("/make-server-b87b0c07/admin/users/:email/payment", async (c) => {
     }
 
     const normalizedEmail = normalizeEmail(email);
-    
-    // Update all packages for this user
-    const allPackages = await kv.getByPrefix('package:');
-    const userPackages = allPackages.filter((pkg: any) => pkg.userId === normalizedEmail);
+    const supabase = getSupabase();
 
-    for (const pkg of userPackages) {
-      pkg.paymentStatus = paymentStatus;
-      pkg.updatedAt = new Date().toISOString();
-      await kv.set(pkg.id, pkg);
+    // Update user payment status
+    const { data: userUpdate, error: userError } = await supabase
+      .from('users')
+      .update({
+        payment_status: paymentStatus,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('email', normalizedEmail)
+      .select();
+
+    if (userError) {
+      console.error('Error updating user payment status:', userError);
+      return c.json({ error: 'Failed to update user', details: userError.message }, 500);
     }
 
     // Update all reservations for this user
-    const allReservations = await kv.getByPrefix('reservation:');
-    const userReservations = allReservations.filter((res: any) => res.userId === normalizedEmail);
+    const { data: resUpdate, error: resError } = await supabase
+      .from('reservations')
+      .update({
+        payment_status: paymentStatus,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('user_email', normalizedEmail)
+      .select();
 
-    for (const res of userReservations) {
-      res.paymentStatus = paymentStatus;
-      res.updatedAt = new Date().toISOString();
-      await kv.set(res.id, res);
+    if (resError) {
+      console.error('Error updating reservations payment status:', resError);
+      // Don't fail - user was updated successfully
     }
 
-    console.log(`Payment status updated to '${paymentStatus}' for user: ${normalizedEmail}`);
+    console.log(`💳 Payment status updated to '${paymentStatus}' for user: ${normalizedEmail} (Supabase)`);
 
     return c.json({
       success: true,
       message: `Payment status updated to '${paymentStatus}'`,
-      packagesUpdated: userPackages.length,
-      reservationsUpdated: userReservations.length,
+      userUpdated: userUpdate?.length || 0,
+      reservationsUpdated: resUpdate?.length || 0,
     });
   } catch (error) {
     console.error('Error updating payment status:', error);
@@ -2682,42 +2694,61 @@ app.get("/make-server-b87b0c07/debug/check-users", async (c) => {
 // ============ WAITLIST ENDPOINTS ============
 
 // Add user to waitlist
+// POST /waitlist - MIGRATED TO SUPABASE
 app.post("/make-server-b87b0c07/waitlist", async (c) => {
   try {
-    const { name, surname, mobile, email } = await c.req.json();
-    
+    const { name, surname, mobile, email, language } = await c.req.json();
+
     if (!name || !surname || !mobile || !email) {
       return c.json({ error: 'Missing required fields' }, 400);
     }
 
     const normalizedEmail = email.toLowerCase().trim();
-    const waitlistId = `waitlist:${normalizedEmail}`;
-    
+    const supabase = getSupabase();
+
     // Check if already in waitlist
-    const existing = await kv.get(waitlistId);
+    const { data: existing } = await supabase
+      .from('waitlist_members')
+      .select('id')
+      .eq('email', normalizedEmail)
+      .maybeSingle();
+
     if (existing) {
       return c.json({ error: 'Already in waitlist' }, 400);
     }
 
-    // Generate unique redemption code
-    const redemptionCode = `WL-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
-    
-    const waitlistUser = {
-      id: waitlistId,
-      name,
-      surname,
-      mobile,
-      email: normalizedEmail,
-      redemptionCode,
-      status: 'pending', // pending, invited, redeemed
-      addedAt: new Date().toISOString(),
-      invitedAt: null,
-      redeemedAt: null,
-      inviteEmailSent: false
-    };
+    // Insert into waitlist_members
+    const { data: inserted, error } = await supabase
+      .from('waitlist_members')
+      .insert({
+        email: normalizedEmail,
+        name,
+        surname,
+        phone: mobile,
+        language: language || 'sq',
+        status: 'pending',
+        signed_up_at: new Date().toISOString(),
+      })
+      .select()
+      .single();
 
-    await kv.set(waitlistId, waitlistUser);
-    console.log(`✅ Added user to waitlist: ${normalizedEmail}`);
+    if (error) {
+      console.error('Error inserting waitlist member:', error);
+      return c.json({ error: 'Failed to add to waitlist', details: error.message }, 500);
+    }
+
+    console.log(`✅ Added user to waitlist (Supabase): ${normalizedEmail}`);
+
+    // Map to frontend format
+    const waitlistUser = {
+      id: inserted.id,
+      name: inserted.name,
+      surname: inserted.surname,
+      mobile: inserted.phone,
+      email: inserted.email,
+      status: inserted.status,
+      addedAt: inserted.signed_up_at,
+    };
 
     return c.json({ success: true, waitlistUser });
   } catch (error) {
@@ -3355,20 +3386,36 @@ app.post("/make-server-b87b0c07/waitlist/redeem", async (c) => {
 });
 
 // Delete waitlist user (admin only)
+// DELETE /admin/waitlist/:email - MIGRATED TO SUPABASE
 app.delete("/make-server-b87b0c07/admin/waitlist/:email", async (c) => {
   try {
     const email = c.req.param('email');
     const normalizedEmail = email.toLowerCase().trim();
-    const waitlistId = `waitlist:${normalizedEmail}`;
+    const supabase = getSupabase();
 
-    const waitlistUser = await kv.get(waitlistId);
-    
-    if (!waitlistUser) {
+    // Check if exists
+    const { data: existing } = await supabase
+      .from('waitlist_members')
+      .select('id')
+      .eq('email', normalizedEmail)
+      .maybeSingle();
+
+    if (!existing) {
       return c.json({ error: 'User not found in waitlist' }, 404);
     }
 
-    await kv.del(waitlistId);
-    console.log(`🗑️ Removed ${normalizedEmail} from waitlist`);
+    // Delete from waitlist_members
+    const { error } = await supabase
+      .from('waitlist_members')
+      .delete()
+      .eq('email', normalizedEmail);
+
+    if (error) {
+      console.error('Error deleting waitlist member:', error);
+      return c.json({ error: 'Failed to delete waitlist user', details: error.message }, 500);
+    }
+
+    console.log(`🗑️ Removed ${normalizedEmail} from waitlist (Supabase)`);
 
     return c.json({ success: true, message: 'User removed from waitlist' });
   } catch (error) {
