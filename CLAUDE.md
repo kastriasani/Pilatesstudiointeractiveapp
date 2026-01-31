@@ -1,3 +1,30 @@
+# Claude Code Instructions
+
+## Hard Rules
+1. Plan mode only until user explicitly approves.
+2. Do not deploy unless explicitly requested.
+3. Do not rename files, move folders, or add config files unless explicitly requested.
+4. Do not modify unrelated code outside the current task scope.
+5. Never output or request secrets (tokens, API keys). Use env vars only.
+6. Non-TTY environment: do NOT run interactive login commands.
+
+## Workflow
+1. Read this file and docs/MIGRATION_MASTERPLAN.md first.
+2. For the requested phase, output a plan with:
+   - files to change
+   - exact route handlers affected
+   - tests to add or run
+   - verification steps
+3. Wait for approval.
+4. Implement minimal diff.
+5. Provide: git diff, commands run, manual verification steps
+
+## Commands
+- Frontend: npm run dev / npm run build
+- Supabase deploy (only when asked): SUPABASE_ACCESS_TOKEN="..." npx supabase functions deploy make-server-b87b0c07 --project-ref azqkguctispoctvmpmci
+
+---
+
 # CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
