@@ -3,6 +3,12 @@ import { ArrowLeft, Check, ChevronDown, ChevronUp, CheckCircle, X, Calendar, Clo
 import { Language, translations } from '@/app/translations';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { logo } from '../../assets/images';
+import {
+  getAvailableBookingDates,
+  formatDateKeyLegacy,
+  isTimeSlotPast,
+  getSkopjeTime
+} from '../../utils/dateUtils';
 
 type PackageOverviewProps = {
   onBack: () => void;
@@ -230,43 +236,22 @@ export function PackageOverview({ onBack, language }: PackageOverviewProps) {
       const data = await response.json();
       const existingBookings = data.bookings || [];
 
-      // Generate next 2 weekdays only, starting from January 29, 2026
+      // Generate next 2 weekdays using centralized utility
       const slots: DateSlot[] = [];
-      const now = new Date();
-      const startDate = new Date(2026, 0, 29); // January 29, 2026 (month is 0-indexed)
-
+      const bookingDates = getAvailableBookingDates(2);
       const timeSlots = ['09:00', '10:00', '16:00', '17:00', '18:00', '19:00', '20:00'];
-      
-      let daysAdded = 0;
-      let daysChecked = 0;
-      const maxDaysToCheck = 10; // Check up to 10 days ahead to find 2 weekdays
-      
-      while (daysAdded < 2 && daysChecked < maxDaysToCheck) {
-        const date = new Date(startDate);
-        date.setDate(startDate.getDate() + daysChecked);
-        daysChecked++;
-        
-        // Skip weekends (Saturday = 6, Sunday = 0)
-        const dayOfWeek = date.getDay();
-        if (dayOfWeek === 0 || dayOfWeek === 6) continue;
 
-        const dateKey = `${date.getMonth() + 1}-${date.getDate()}`;
-        
-        // Get all confirmed/attended bookings for this date (includes single bookings, package bookings, duo, individual)
-        const dayBookings = existingBookings.filter((b: any) => 
-          b.dateKey === dateKey && 
+      for (const bookingDate of bookingDates) {
+        const date = bookingDate.fullDate;
+        const dateKey = formatDateKeyLegacy(date);
+
+        // Get all confirmed/attended bookings for this date
+        const dayBookings = existingBookings.filter((b: any) =>
+          b.dateKey === dateKey &&
           (b.reservationStatus === 'confirmed' || b.reservationStatus === 'attended' || b.reservationStatus === 'pending')
         );
-        
-        // Filter out 09:00 time slot for January 29th
-        const timeSlotsForThisDay = timeSlots.filter(time => {
-          if (dateKey === '1-29' && time === '09:00') {
-            return false; // Remove 09:00 on January 29th
-          }
-          return true;
-        });
-        
-        const availableTimeSlots = timeSlotsForThisDay.map(time => {
+
+        const availableTimeSlots = timeSlots.map(time => {
           // Calculate actual seats occupied for this time slot
           const slotBookings = dayBookings.filter((b: any) => b.timeSlot === time);
           
@@ -282,14 +267,9 @@ export function PackageOverview({ onBack, language }: PackageOverviewProps) {
           const available = hasPrivateSession ? 0 : Math.max(0, maxCapacity - seatsOccupied);
           
           // Filter out past time slots for today
-          const isToday = date.toDateString() === now.toDateString();
-          const isPastTime = isToday && (() => {
-            const [hours, minutes] = time.split(':').map(Number);
-            const slotTime = new Date(now);
-            slotTime.setHours(hours, minutes, 0, 0);
-            return slotTime <= now;
-          })();
-          
+          // Use centralized utility for past time check
+          const isPastTime = isTimeSlotPast(date, time);
+
           return {
             time,
             available: isPastTime ? 0 : available,
@@ -309,7 +289,6 @@ export function PackageOverview({ onBack, language }: PackageOverviewProps) {
             }),
             timeSlots: availableTimeSlots,
           });
-          daysAdded++;
         }
       }
 

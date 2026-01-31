@@ -2,6 +2,12 @@ import { useState, useEffect } from 'react';
 import { ChevronRight, ChevronLeft, User, ArrowLeft, Loader } from 'lucide-react';
 import { Language, translations } from '../translations';
 import { logo } from '../../assets/images';
+import {
+  getSkopjeTime,
+  getAvailableBookingDates,
+  isTimeSlotPast,
+  BookingDate
+} from '../../utils/dateUtils';
 
 const rinaPhoto = 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=400&h=600&fit=crop';
 
@@ -20,73 +26,22 @@ type TimeSlot = {
   isPastOrTooSoon?: boolean;
 };
 
-// Helper function to get current date/time in Skopje timezone
-const getSkopjeTime = (): Date => {
-  const now = new Date();
-  // Convert to Skopje timezone (Europe/Skopje)
-  const skopjeTimeString = now.toLocaleString('en-US', { 
-    timeZone: 'Europe/Skopje',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false
-  });
-  return new Date(skopjeTimeString);
-};
-
-// Helper function to get day name based on day of week
-const getDayName = (dayOfWeek: number, language: Language): string => {
+// Localize booking dates with translated day/month names
+const getLocalizedBookingDates = (language: Language) => {
   const t = translations[language];
-  const days = [t.monday, t.tuesday, t.wednesday, t.thursday, t.friday];
-  return days[dayOfWeek]; // 0 = Monday, 1 = Tuesday, etc.
-};
-
-// Helper function to generate the next 2 weekdays starting from today
-const generateWeekdayDates = (language: Language) => {
-  const t = translations[language];
-  const dates = [];
-
-  // Start from today (using Skopje timezone)
-  let currentDate = getSkopjeTime();
-  currentDate.setHours(0, 0, 0, 0);
-
-  let weekdaysFound = 0;
-  const maxDaysToCheck = 14; // Check up to 14 days ahead to find 2 weekdays
-  let daysChecked = 0;
-
-  // Month names array for dynamic lookup
+  const dates = getAvailableBookingDates(2);
+  const dayNames = [t.monday, t.tuesday, t.wednesday, t.thursday, t.friday];
   const monthNames = [
     t.january, t.february, t.march, t.april, t.may, t.june,
     t.july, t.august, t.september, t.october, t.november, t.december
   ];
 
-  while (weekdaysFound < 2 && daysChecked < maxDaysToCheck) {
-    const dayOfWeek = currentDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
-
-    // Only include weekdays (Monday to Friday)
-    if (dayOfWeek >= 1 && dayOfWeek <= 5) {
-      const day = currentDate.getDate();
-      const month = currentDate.getMonth();
-      const monthName = monthNames[month] || t.january; // Fallback to January
-
-      dates.push({
-        day: getDayName(dayOfWeek - 1, language),
-        date: `${day} ${monthName}`,
-        key: `${month + 1}-${day}`,
-        fullDate: new Date(currentDate),
-      });
-
-      weekdaysFound++;
-    }
-
-    currentDate.setDate(currentDate.getDate() + 1);
-    daysChecked++;
-  }
-
-  return dates;
+  return dates.map(d => ({
+    day: dayNames[d.dayOfWeek] || d.day,
+    date: `${d.fullDate.getDate()} ${monthNames[d.fullDate.getMonth()] || monthNames[0]}`,
+    key: d.key,
+    fullDate: d.fullDate,
+  }));
 };
 
 export function BookingScreen({ trainingType, onBack, onSubmit, onInstructorClick, language }: BookingScreenProps) {
@@ -138,7 +93,7 @@ export function BookingScreen({ trainingType, onBack, onSubmit, onInstructorClic
     return () => clearInterval(interval);
   }, []);
   
-  const allTabs = generateWeekdayDates(language);
+  const allTabs = getLocalizedBookingDates(language);
   
   // Filter out past days (only show current day and future days)
   const tabs = allTabs.filter(tab => {
@@ -193,15 +148,7 @@ export function BookingScreen({ trainingType, onBack, onSubmit, onInstructorClic
     const selectedDate = tabs[dayIndex].fullDate;
     const dayBookings = mockBookings[selectedDateKey] || {};
     
-    // Filter out 09:00 time slot for January 29th
-    const timeSlotsForThisDay = standardTimeSlots.filter(time => {
-      if (selectedDateKey === '1-29' && time === '09:00') {
-        return false; // Remove 09:00 on January 29th
-      }
-      return true;
-    });
-    
-    return timeSlotsForThisDay.map(time => {
+    return standardTimeSlots.map(time => {
       const bookedCount = dayBookings[time] || 0;
       const availableSpots = 4 - bookedCount;
       

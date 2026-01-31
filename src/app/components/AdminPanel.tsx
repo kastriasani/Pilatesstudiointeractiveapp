@@ -3,6 +3,12 @@ import { Calendar, Users, LogOut, Mail, X, CheckCircle, Trash2, Ban, Gift, Shiel
 import { logo } from '../../assets/images';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { DevTools } from './DevTools';
+import {
+  getCalendarDateRange,
+  getCalendarDates,
+  formatDateShort,
+  formatDateKeyLegacy
+} from '../../utils/dateUtils';
 // BulkWaitlistUpload removed - dev functionality not for production
 // import { BulkWaitlistUpload } from './BulkWaitlistUpload';
 
@@ -331,34 +337,15 @@ export function AdminPanel({ onLogout }: AdminPanelProps) {
     }
   };
 
-  // Generate dynamic dates (January 23 - February 28, 2026, weekdays only)
+  // Generate dynamic dates using centralized utility (5 weeks from today)
   const generateAdminDates = () => {
-    const dates = [];
-    const startDate = new Date(2026, 0, 23); // January 23, 2026
-    const endDate = new Date(2026, 1, 28); // February 28, 2026
-    
-    let currentDate = new Date(startDate);
-    
-    while (currentDate <= endDate) {
-      const dayOfWeek = currentDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
-      
-      // Only include weekdays (Monday to Friday)
-      if (dayOfWeek >= 1 && dayOfWeek <= 5) {
-        const day = currentDate.getDate();
-        const month = currentDate.getMonth(); // 0 = January, 1 = February
-        const monthName = month === 0 ? 'Jan' : 'Feb';
-        
-        dates.push({
-          displayDate: `${day}. ${monthName}`,
-          dateKey: `${month + 1}-${day}`, // Format: "1-23", "2-3", etc.
-        });
-      }
-      
-      // Move to next day
-      currentDate.setDate(currentDate.getDate() + 1);
-    }
-    
-    return dates;
+    const { start, end } = getCalendarDateRange(5);
+    const calendarDates = getCalendarDates(start, end);
+
+    return calendarDates.map(date => ({
+      displayDate: `${date.getDate()}. ${formatDateShort(date).split(' ')[1]}`,
+      dateKey: formatDateKeyLegacy(date),
+    }));
   };
 
   const dates = generateAdminDates();
