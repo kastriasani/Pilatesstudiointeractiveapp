@@ -1,8 +1,13 @@
 # WellNest Pilates KV -> Supabase Migration Masterplan
 
 ## Current status
-- Migration progress: 11/35 endpoints (31%)
+- Migration progress: 11/30 endpoints (37%)
 - Project ref: azqkguctispoctvmpmci
+- 6 routes excluded (dev/debug/utility)
+- See: docs/ROUTE_INVENTORY.md for full list
+
+## Known bugs
+- **BUG:** /validate-coupon is registered twice (lines 532 and 577) - remove duplicate
 
 ## Source of truth
 All routes must match those registered in:
