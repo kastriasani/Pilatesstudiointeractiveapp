@@ -1,7 +1,7 @@
 # WellNest Pilates KV -> Supabase Migration Masterplan
 
 ## Current status
-- Migration progress: 11/30 endpoints (37%)
+- Migration progress: 16/30 endpoints (53%)
 - Project ref: azqkguctispoctvmpmci
 - 6 routes excluded (dev/debug/utility)
 - See: docs/ROUTE_INVENTORY.md for full list
@@ -52,19 +52,21 @@ rg -n 'app\.(get|post|patch|delete)\(' supabase/functions/make-server-b87b0c07/i
 | GET /packages/:id | a1f93eb |
 | GET /user/packages | a1f93eb |
 
-### Phase 0D Reservation write endpoints ⬚ NEXT
-Scope:
-- POST /reservations
-- DELETE /reservations/:id
-- PATCH /reservations/:id
-- PATCH /reservations/:id/status
+### Phase 0D Reservation write endpoints ✅ COMPLETE
+| Endpoint | Notes |
+|----------|-------|
+| POST /reservations | Atomic RPC (create_reservation) |
+| GET /reservations | Supabase select with filters |
+| GET /reservations/:id | Supabase select single |
+| PATCH /reservations/:id/status | Supabase update + user_packages |
+| DELETE /reservations/:id | Supabase delete + restore package sessions |
 
-Rule: Reservation creation must be atomic for capacity and duplicates. Implement with transaction or Postgres RPC.
+Migration file: `supabase/migrations/20260131_create_reservation_rpc.sql`
 
-Acceptance:
-- writes go to reservations table only
-- no kv writes for reservation prefix
-- tests pass
+Atomicity solved via Postgres RPC with FOR UPDATE locking:
+- Capacity check + write is atomic
+- Duplicate booking check is atomic
+- Package session decrement is atomic
 
 ### Phase 0E Auth and activation ⬚ PENDING
 | Endpoint | Target Table |

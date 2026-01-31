@@ -1176,7 +1176,8 @@ app.post("/make-server-b87b0c07/reservations", async (c) => {
       mobile,
       partnerName,
       partnerSurname,
-      language
+      language,
+      packageType
     } = body;
 
     if (!userId || !serviceType || !dateKey || !timeSlot || !instructor) {
@@ -1187,84 +1188,66 @@ app.post("/make-server-b87b0c07/reservations", async (c) => {
       return c.json({ error: "Missing personal information" }, 400);
     }
 
+    // DUO validation (keep this check before RPC for better error message)
+    if (serviceType === 'duo' && (!partnerName || !partnerSurname)) {
+      return c.json({ error: "Partner information required for DUO bookings" }, 400);
+    }
+
     const normalizedEmail = normalizeEmail(email);
     const isPackageSession = !!packageId;
-    let pkg = null;
-    let sessionNumber = null;
 
-    if (isPackageSession) {
-      pkg = await kv.get(packageId);
-      if (!pkg) {
-        return c.json({ error: "Package not found" }, 404);
-      }
+    // Call atomic RPC for reservation creation
+    // This handles: capacity check, duplicate check, package decrement - all atomically
+    const supabase = getSupabase();
+    const { data: rpcResult, error: rpcError } = await supabase.rpc('create_reservation', {
+      p_user_email: normalizedEmail,
+      p_package_id: packageId || null,
+      p_service_type: serviceType,
+      p_date_key: dateKey,
+      p_time_slot: timeSlot,
+      p_instructor: instructor,
+      p_name: name,
+      p_surname: surname,
+      p_mobile: mobile,
+      p_package_type: packageType || null,
+      p_partner_name: partnerName || null,
+      p_partner_surname: partnerSurname || null
+    });
 
-      if (pkg.userId !== normalizedEmail) {
-        return c.json({ error: "Package does not belong to this user" }, 403);
-      }
-
-      if (pkg.packageStatus !== 'active') {
-        return c.json({ error: "Package is not active" }, 400);
-      }
-
-      if (pkg.remainingSessions <= 0) {
-        return c.json({ error: "No remaining sessions in package" }, 400);
-      }
-
-      if (pkg.expiryDate && new Date(pkg.expiryDate) < new Date()) {
-        return c.json({ error: "Package has expired" }, 400);
-      }
-
-      sessionNumber = pkg.sessionsBooked.length + 1;
+    if (rpcError) {
+      console.error('RPC error creating reservation:', rpcError);
+      return c.json({ error: 'Failed to create reservation', details: rpcError.message }, 500);
     }
 
-    const capacity = await calculateSlotCapacity(dateKey, timeSlot);
-    
-    if (serviceType === 'individual') {
-      if (capacity.available < 4) {
-        return c.json({ error: "Slot not available for 1-on-1 session (must be empty)" }, 400);
-      }
-    } else if (serviceType === 'duo') {
-      if (capacity.available < 2) {
-        return c.json({ error: "Slot does not have enough space for DUO (requires 2 spots)" }, 400);
-      }
-      if (!partnerName || !partnerSurname) {
-        return c.json({ error: "Partner information required for DUO bookings" }, 400);
-      }
-    } else {
-      if (capacity.available < 1) {
-        return c.json({ error: "Slot is full" }, 400);
-      }
+    if (rpcResult?.error) {
+      // Map RPC errors to user-friendly messages
+      const errorMap: Record<string, string> = {
+        'Slot blocked by private session': 'Slot not available for booking',
+        'Insufficient capacity': 'Slot is full',
+        'Duplicate booking': 'You already have a booking at this time',
+        'Package not found': 'Package not found',
+        'No remaining sessions': 'No remaining sessions in package',
+        'Package not active': 'Package is not active'
+      };
+      const userError = errorMap[rpcResult.error] || rpcResult.error;
+      return c.json({ error: userError }, 400);
     }
 
-    const allReservations = await kv.getByPrefix('reservation:');
-    const duplicateBooking = allReservations.find((r: any) => 
-      r.userId === normalizedEmail &&
-      r.dateKey === dateKey &&
-      r.timeSlot === timeSlot &&
-      (r.reservationStatus === 'pending' || r.reservationStatus === 'confirmed')
-    );
-
-    if (duplicateBooking) {
-      return c.json({ error: "You already have a booking at this time" }, 400);
-    }
-
+    const reservationId = rpcResult.reservation_id;
+    const reservationStatus = rpcResult.status;
     const dateString = formatDateString(dateKey);
-    const reservationId = `reservation:${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    const fullDate = constructFullDate(dateKey, timeSlot);
     const endTime = calculateEndTime(timeSlot);
 
-    const reservationStatus: ReservationStatus = isPackageSession ? 'confirmed' : 'pending';
-    const autoConfirmed = isPackageSession;
+    console.log(`✅ Reservation created via RPC: ${reservationId} (status: ${reservationStatus})`);
 
+    // Build reservation object for response (matches frontend expectations)
     const reservation = {
       id: reservationId,
       userId: normalizedEmail,
       packageId: packageId || null,
-      sessionNumber,
       serviceType,
       dateKey,
       date: dateString,
-      fullDate,
       timeSlot,
       endTime,
       instructor,
@@ -1275,44 +1258,21 @@ app.post("/make-server-b87b0c07/reservations", async (c) => {
       partnerName: partnerName || null,
       partnerSurname: partnerSurname || null,
       reservationStatus,
-      paymentStatus: (pkg?.paymentStatus || 'unpaid') as PaymentStatus,
-      seatsOccupied: serviceType === 'duo' ? 2 : (serviceType === 'individual' ? 4 : 1),
-      isPrivateSession: serviceType === 'individual',
-      isOverbooked: false,
-      isFirstSessionOfPackage: false,
-      autoConfirmed,
-      lateCancellation: false,
-      cancelledAt: null,
-      cancelledBy: null,
-      cancelReason: null,
+      paymentStatus: isPackageSession ? 'paid' : 'unpaid',
       createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      activatedAt: autoConfirmed ? new Date().toISOString() : null,
-      attendedAt: null,
       language: language || 'en'
     };
 
-    await kv.set(reservationId, reservation);
-
     if (isPackageSession) {
-      pkg.remainingSessions--;
-      pkg.sessionsBooked.push(reservationId);
-      pkg.updatedAt = new Date().toISOString();
-      
-      if (pkg.remainingSessions === 0) {
-        pkg.packageStatus = 'fully_used';
-      }
-      
-      await kv.set(packageId, pkg);
-      console.log(`Subsequent package session booked: ${reservationId} (session ${sessionNumber}/${pkg.totalSessions})`);
+      // Package session - reservation already confirmed, package decremented by RPC
+      console.log(`📦 Package session booked: ${reservationId}`);
 
       return c.json({
         success: true,
         reservation,
         reservationId,
         requiresActivation: false,
-        message: "Session booked successfully!",
-        package: pkg
+        message: "Session booked successfully!"
       });
 
     } else {
@@ -1437,6 +1397,7 @@ app.post("/make-server-b87b0c07/reservations", async (c) => {
   }
 });
 
+// GET /reservations - MIGRATED TO SUPABASE
 app.get("/make-server-b87b0c07/reservations", async (c) => {
   try {
     const userId = c.req.query('userId');
@@ -1444,149 +1405,275 @@ app.get("/make-server-b87b0c07/reservations", async (c) => {
     const status = c.req.query('status');
     const paymentStatus = c.req.query('paymentStatus');
 
-    let reservations = await kv.getByPrefix('reservation:');
+    const supabase = getSupabase();
+    let query = supabase.from('reservations').select('*');
 
     if (userId) {
       const normalizedEmail = normalizeEmail(userId);
-      reservations = reservations.filter((r: any) => r.userId === normalizedEmail);
+      query = query.eq('user_email', normalizedEmail);
     }
 
     if (dateKey) {
-      reservations = reservations.filter((r: any) => r.dateKey === dateKey);
+      query = query.eq('date_key', dateKey);
     }
 
     if (status) {
-      reservations = reservations.filter((r: any) => r.reservationStatus === status);
+      query = query.eq('reservation_status', status);
     }
 
     if (paymentStatus) {
-      reservations = reservations.filter((r: any) => r.paymentStatus === paymentStatus);
+      query = query.eq('payment_status', paymentStatus);
     }
 
+    const { data, error } = await query.order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching reservations from Supabase:', error);
+      return c.json({ error: 'Failed to fetch reservations', details: error.message }, 500);
+    }
+
+    // Map Supabase fields to expected frontend format
+    const reservations = (data || []).map((r: any) => ({
+      id: r.id,
+      userId: r.user_email,
+      packageId: r.package_id,
+      serviceType: r.service_type,
+      dateKey: r.date_key,
+      timeSlot: r.time_slot,
+      instructor: r.instructor,
+      name: r.name,
+      surname: r.surname,
+      email: r.user_email,
+      mobile: r.mobile,
+      reservationStatus: r.reservation_status,
+      paymentStatus: r.payment_status,
+      createdAt: r.created_at,
+      updatedAt: r.updated_at
+    }));
+
+    console.log(`📋 Retrieved ${reservations.length} reservations from Supabase`);
     return c.json({ success: true, reservations });
   } catch (error) {
     console.error('Error fetching reservations:', error);
-    return c.json({ error: 'Failed to fetch reservations', details: error.message }, 500);
+    return c.json({ error: 'Failed to fetch reservations', details: (error as Error).message }, 500);
   }
 });
 
+// GET /reservations/:id - MIGRATED TO SUPABASE
 app.get("/make-server-b87b0c07/reservations/:id", async (c) => {
   try {
     const reservationId = c.req.param('id');
-    const reservation = await kv.get(reservationId);
-    
-    if (!reservation) {
+
+    const supabase = getSupabase();
+    const { data, error } = await supabase
+      .from('reservations')
+      .select('*')
+      .eq('id', reservationId)
+      .single();
+
+    if (error || !data) {
       return c.json({ error: 'Reservation not found' }, 404);
     }
+
+    // Map to frontend format
+    const reservation = {
+      id: data.id,
+      userId: data.user_email,
+      packageId: data.package_id,
+      serviceType: data.service_type,
+      dateKey: data.date_key,
+      timeSlot: data.time_slot,
+      instructor: data.instructor,
+      name: data.name,
+      surname: data.surname,
+      email: data.user_email,
+      mobile: data.mobile,
+      reservationStatus: data.reservation_status,
+      paymentStatus: data.payment_status,
+      createdAt: data.created_at,
+      updatedAt: data.updated_at
+    };
 
     return c.json({ success: true, reservation });
   } catch (error) {
     console.error('Error fetching reservation:', error);
-    return c.json({ error: 'Failed to fetch reservation', details: error.message }, 500);
+    return c.json({ error: 'Failed to fetch reservation', details: (error as Error).message }, 500);
   }
 });
 
+// PATCH /reservations/:id/status - MIGRATED TO SUPABASE
 app.patch("/make-server-b87b0c07/reservations/:id/status", async (c) => {
   try {
     const reservationId = c.req.param('id');
     const body = await c.req.json();
     const { reservationStatus, paymentStatus, cancelReason } = body;
 
-    const reservation = await kv.get(reservationId);
-    if (!reservation) {
+    const supabase = getSupabase();
+
+    // Fetch reservation from Supabase
+    const { data: reservation, error: fetchError } = await supabase
+      .from('reservations')
+      .select('*')
+      .eq('id', reservationId)
+      .single();
+
+    if (fetchError || !reservation) {
       return c.json({ error: 'Reservation not found' }, 404);
     }
 
+    // Build update object
+    const updates: Record<string, any> = {
+      updated_at: new Date().toISOString()
+    };
+
     if (reservationStatus) {
-      reservation.reservationStatus = reservationStatus;
-      
-      if (reservationStatus === 'confirmed' && !reservation.activatedAt) {
-        reservation.activatedAt = new Date().toISOString();
-      }
-      
+      updates.reservation_status = reservationStatus;
+
       if (reservationStatus === 'attended') {
-        reservation.attendedAt = new Date().toISOString();
-        
-        if (reservation.packageId) {
-          const pkg = await kv.get(reservation.packageId);
-          if (pkg && !pkg.sessionsAttended.includes(reservationId)) {
-            pkg.sessionsAttended.push(reservationId);
-            await kv.set(reservation.packageId, pkg);
+        // Mark as attended - update package sessions_attended array if linked
+        if (reservation.package_id) {
+          const { data: pkg } = await supabase
+            .from('user_packages')
+            .select('sessions_attended')
+            .eq('id', reservation.package_id)
+            .single();
+
+          if (pkg && !pkg.sessions_attended?.includes(reservationId)) {
+            await supabase
+              .from('user_packages')
+              .update({
+                sessions_attended: [...(pkg.sessions_attended || []), reservationId],
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', reservation.package_id);
           }
-        }
-      }
-      
-      if (reservationStatus === 'cancelled') {
-        reservation.cancelledAt = new Date().toISOString();
-        reservation.cancelReason = cancelReason || 'User cancelled';
-        
-        const sessionTime = new Date(reservation.fullDate);
-        const now = new Date();
-        const hoursUntilSession = (sessionTime.getTime() - now.getTime()) / (1000 * 60 * 60);
-        
-        if (hoursUntilSession < 24) {
-          reservation.lateCancellation = true;
         }
       }
     }
 
     if (paymentStatus) {
-      reservation.paymentStatus = paymentStatus;
-      
-      if (reservation.packageId) {
-        const pkg = await kv.get(reservation.packageId);
-        if (pkg) {
-          pkg.paymentStatus = paymentStatus;
-          await kv.set(reservation.packageId, pkg);
-        }
+      updates.payment_status = paymentStatus;
+
+      // Also update package payment status if linked
+      if (reservation.package_id) {
+        await supabase
+          .from('user_packages')
+          .update({
+            payment_status: paymentStatus,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', reservation.package_id);
       }
     }
 
-    reservation.updatedAt = new Date().toISOString();
-    await kv.set(reservationId, reservation);
+    // Update reservation in Supabase
+    const { data: updated, error: updateError } = await supabase
+      .from('reservations')
+      .update(updates)
+      .eq('id', reservationId)
+      .select()
+      .single();
 
-    console.log(`Reservation ${reservationId} status updated`);
+    if (updateError) {
+      console.error('Error updating reservation:', updateError);
+      return c.json({ error: 'Failed to update reservation', details: updateError.message }, 500);
+    }
+
+    console.log(`✅ Reservation ${reservationId} status updated in Supabase`);
+
+    // Map to frontend format
+    const mappedReservation = {
+      id: updated.id,
+      userId: updated.user_email,
+      packageId: updated.package_id,
+      serviceType: updated.service_type,
+      dateKey: updated.date_key,
+      timeSlot: updated.time_slot,
+      instructor: updated.instructor,
+      name: updated.name,
+      surname: updated.surname,
+      email: updated.user_email,
+      mobile: updated.mobile,
+      reservationStatus: updated.reservation_status,
+      paymentStatus: updated.payment_status,
+      createdAt: updated.created_at,
+      updatedAt: updated.updated_at
+    };
 
     return c.json({
       success: true,
-      reservation,
+      reservation: mappedReservation,
       message: 'Reservation updated successfully'
     });
 
   } catch (error) {
     console.error('Error updating reservation:', error);
-    return c.json({ error: 'Failed to update reservation', details: error.message }, 500);
+    return c.json({ error: 'Failed to update reservation', details: (error as Error).message }, 500);
   }
 });
 
+// DELETE /reservations/:id - MIGRATED TO SUPABASE
 app.delete("/make-server-b87b0c07/reservations/:id", async (c) => {
   try {
     const reservationId = c.req.param('id');
-    const reservation = await kv.get(reservationId);
-    
-    if (!reservation) {
+    const supabase = getSupabase();
+
+    // Fetch reservation from Supabase
+    const { data: reservation, error: fetchError } = await supabase
+      .from('reservations')
+      .select('*')
+      .eq('id', reservationId)
+      .single();
+
+    if (fetchError || !reservation) {
       return c.json({ error: 'Reservation not found' }, 404);
     }
 
-    if (reservation.packageId) {
-      const pkg = await kv.get(reservation.packageId);
+    // If linked to a package, restore the session
+    if (reservation.package_id) {
+      const { data: pkg } = await supabase
+        .from('user_packages')
+        .select('*')
+        .eq('id', reservation.package_id)
+        .single();
+
       if (pkg) {
-        pkg.sessionsBooked = pkg.sessionsBooked.filter((id: string) => id !== reservationId);
-        pkg.sessionsAttended = pkg.sessionsAttended.filter((id: string) => id !== reservationId);
-        
-        if (pkg.firstReservationId === reservationId) {
-          pkg.firstReservationId = null;
-          pkg.packageStatus = 'pending';
+        const newSessionsBooked = (pkg.sessions_booked || []).filter((id: string) => id !== reservationId);
+        const newSessionsAttended = (pkg.sessions_attended || []).filter((id: string) => id !== reservationId);
+        const newRemainingSessionsions = pkg.total_sessions - newSessionsBooked.length;
+
+        const packageUpdates: Record<string, any> = {
+          sessions_booked: newSessionsBooked,
+          sessions_attended: newSessionsAttended,
+          remaining_sessions: newRemainingSessionsions,
+          updated_at: new Date().toISOString()
+        };
+
+        // If this was the first reservation, reset package status
+        if (pkg.first_reservation_id === reservationId) {
+          packageUpdates.first_reservation_id = null;
+          packageUpdates.package_status = 'pending';
         }
-        
-        pkg.remainingSessions = pkg.totalSessions - pkg.sessionsBooked.length;
-        pkg.updatedAt = new Date().toISOString();
-        await kv.set(reservation.packageId, pkg);
+
+        await supabase
+          .from('user_packages')
+          .update(packageUpdates)
+          .eq('id', reservation.package_id);
       }
     }
 
-    await kv.del(reservationId);
-    console.log(`Reservation deleted: ${reservationId}`);
+    // Delete the reservation from Supabase
+    const { error: deleteError } = await supabase
+      .from('reservations')
+      .delete()
+      .eq('id', reservationId);
+
+    if (deleteError) {
+      console.error('Error deleting reservation:', deleteError);
+      return c.json({ error: 'Failed to delete reservation', details: deleteError.message }, 500);
+    }
+
+    console.log(`🗑️ Reservation deleted from Supabase: ${reservationId}`);
 
     return c.json({
       success: true,
@@ -1595,7 +1682,7 @@ app.delete("/make-server-b87b0c07/reservations/:id", async (c) => {
 
   } catch (error) {
     console.error('Error deleting reservation:', error);
-    return c.json({ error: 'Failed to delete reservation', details: error.message }, 500);
+    return c.json({ error: 'Failed to delete reservation', details: (error as Error).message }, 500);
   }
 });
 
