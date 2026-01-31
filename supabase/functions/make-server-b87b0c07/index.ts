@@ -671,25 +671,42 @@ app.post("/make-server-b87b0c07/packages", async (c) => {
     }
 
     const normalizedEmail = normalizeEmail(email);
-    const userKey = `user:${normalizedEmail}`;
-    let user = await kv.get(userKey);
-    
-    if (!user) {
-      user = {
-        id: userKey,
-        email: normalizedEmail,
-        name,
-        surname,
-        mobile,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        blocked: false
-      };
-      await kv.set(userKey, user);
-      console.log(`User created: ${normalizedEmail}`);
+    const supabase = getSupabase();
+    const now = new Date().toISOString();
+
+    // Upsert user in Supabase users table
+    const { data: existingUser, error: userCheckError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', normalizedEmail)
+      .maybeSingle();
+
+    if (userCheckError) {
+      console.error('Error checking user:', userCheckError);
+      return c.json({ error: 'Failed to check user', details: userCheckError.message }, 500);
     }
 
-    const packageId = `package:${normalizedEmail}:${Date.now()}`;
+    if (!existingUser) {
+      // Create new user
+      const { error: userCreateError } = await supabase
+        .from('users')
+        .insert({
+          email: normalizedEmail,
+          name,
+          surname,
+          mobile,
+          created_at: now,
+          updated_at: now,
+          blocked: false
+        });
+
+      if (userCreateError) {
+        console.error('Error creating user:', userCreateError);
+        return c.json({ error: 'Failed to create user', details: userCreateError.message }, 500);
+      }
+      console.log(`User created in Supabase: ${normalizedEmail}`);
+    }
+
     let totalSessions = extractSessionCount(packageType);
     let bonusClasses = 0;
     let redeemedCouponCode = null;
@@ -698,9 +715,7 @@ app.post("/make-server-b87b0c07/packages", async (c) => {
     if (couponCode) {
       const normalizedCoupon = couponCode.trim().toUpperCase();
       console.log(`🔍 Checking coupon for redemption: ${normalizedCoupon}`);
-      
-    // Query redemption_codes table directly (NOT kv_store!)
-      const supabase = getSupabase();
+
       const { data: coupon, error: couponError } = await supabase
         .from('redemption_codes')
         .select('*')
@@ -717,18 +732,18 @@ app.post("/make-server-b87b0c07/packages", async (c) => {
           bonusClasses = 1;
           totalSessions += bonusClasses;
           redeemedCouponCode = normalizedCoupon;
-          
+
+          // Note: package_id will be updated after package is created
           const { error: updateError } = await supabase
             .from('redemption_codes')
             .update({
               used: true,
               status: 'redeemed',
-              used_at: new Date().toISOString(),
-              used_by_email: normalizedEmail,
-              package_id: packageId
+              used_at: now,
+              used_by_email: normalizedEmail
             })
             .eq('id', coupon.id);
-          
+
           if (updateError) {
             console.error('Failed to mark coupon as used:', updateError);
           } else {
@@ -742,38 +757,95 @@ app.post("/make-server-b87b0c07/packages", async (c) => {
       }
     }
 
-    const activationCode = generateActivationCode();
-    const codeKey = `activation_code:${activationCode}`;
-    const codeExpiry = new Date();
-    codeExpiry.setHours(codeExpiry.getHours() + 24);
-
     let paymentStatus: PaymentStatus = 'unpaid';
     let paymentId: string | null = null;
 
+    // Payment token validation (still uses KV for now)
     if (paymentToken) {
       const payment = await kv.get(`payment:token:${paymentToken}`);
       if (payment && !payment.tokenUsed && payment.userId === normalizedEmail) {
         paymentStatus = 'paid';
         paymentId = payment.id;
         payment.tokenUsed = true;
-        payment.packageId = packageId;
-        payment.linkedAt = new Date().toISOString();
+        payment.linkedAt = now;
         await kv.set(payment.id, payment);
       }
     }
 
+    // Insert package into user_packages table
+    const { data: insertedPackage, error: packageError } = await supabase
+      .from('user_packages')
+      .insert({
+        user_email: normalizedEmail,
+        package_type: packageType,
+        total_sessions: totalSessions,
+        base_sessions: extractSessionCount(packageType),
+        bonus_classes: bonusClasses,
+        remaining_sessions: totalSessions,
+        sessions_booked: [],
+        sessions_attended: [],
+        redeemed_coupon_code: redeemedCouponCode,
+        package_status: 'pending',
+        activation_status: 'pending',
+        payment_status: paymentStatus,
+        purchase_date: now,
+        activation_date: null,
+        expiry_date: null,
+        first_reservation_id: null,
+        payment_id: paymentId,
+        name,
+        surname,
+        mobile,
+        email: normalizedEmail,
+        language: language || 'en',
+        created_at: now,
+        updated_at: now
+      })
+      .select()
+      .single();
+
+    if (packageError) {
+      console.error('Error creating package:', packageError);
+      return c.json({ error: 'Failed to create package', details: packageError.message }, 500);
+    }
+
+    const packageId = insertedPackage.id;
+
+    // Update redemption_codes with package_id if coupon was used
+    if (redeemedCouponCode) {
+      await supabase
+        .from('redemption_codes')
+        .update({ package_id: packageId })
+        .eq('code', redeemedCouponCode);
+    }
+
+    // Sync to users table for backwards compatibility with GET /admin/users
+    await supabase
+      .from('users')
+      .update({
+        package_type: packageType,
+        total_sessions: totalSessions,
+        remaining_sessions: totalSessions,
+        used_sessions: 0,
+        payment_status: paymentStatus,
+        activation_status: 'pending',
+        updated_at: now
+      })
+      .eq('email', normalizedEmail);
+
+    // Build response package object (camelCase for frontend compatibility)
     const pkg = {
       id: packageId,
       userId: normalizedEmail,
       packageType,
       totalSessions,
       remainingSessions: totalSessions,
-      baseSessions: extractSessionCount(packageType), // Original sessions without bonus
-      bonusClasses, // Bonus classes from coupon
-      redeemedCouponCode, // The coupon code that was redeemed
+      baseSessions: extractSessionCount(packageType),
+      bonusClasses,
+      redeemedCouponCode,
       sessionsBooked: [],
       sessionsAttended: [],
-      purchaseDate: new Date().toISOString(),
+      purchaseDate: now,
       activationDate: null,
       expiryDate: null,
       packageStatus: 'pending' as PackageStatus,
@@ -781,42 +853,25 @@ app.post("/make-server-b87b0c07/packages", async (c) => {
       paymentStatus,
       firstReservationId: null,
       paymentId,
-      activationCodeId: codeKey,
       name,
       surname,
       mobile,
       email: normalizedEmail,
       language: language || 'en',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      createdAt: now,
+      updatedAt: now
     };
 
-    await kv.set(packageId, pkg);
-
-    const activationCodeData = {
-      id: codeKey,
-      code: activationCode,
-      email: normalizedEmail,
-      packageId,
-      reservationId: null,
-      status: 'active',
-      expiresAt: codeExpiry.toISOString(),
-      usedAt: null,
-      createdAt: new Date().toISOString()
-    };
-
-    await kv.set(codeKey, activationCodeData);
-    console.log(`Package created: ${packageId}, activation code: ${activationCode}`);
+    console.log(`📦 Package created in Supabase: ${packageId}`);
 
     return c.json({
       success: true,
       package: pkg,
       packageId,
-      activationCode,
       requiresFirstSessionBooking: true,
       bonusClasses,
       redeemedCoupon: redeemedCouponCode,
-      message: bonusClasses > 0 
+      message: bonusClasses > 0
         ? `Package created with +${bonusClasses} bonus class! Please select date and time for your first session.`
         : "Package created. Please select date and time for your first session."
     });
@@ -991,15 +1046,56 @@ app.post("/make-server-b87b0c07/packages/:id/first-session", async (c) => {
 app.get("/make-server-b87b0c07/packages", async (c) => {
   try {
     const userId = c.req.query('userId');
-    
+    const supabase = getSupabase();
+
+    let query = supabase
+      .from('user_packages')
+      .select('*')
+      .order('created_at', { ascending: false });
+
     if (userId) {
       const normalizedEmail = normalizeEmail(userId);
-      const allPackages = await kv.getByPrefix(`package:${normalizedEmail}:`);
-      return c.json({ success: true, packages: allPackages });
-    } else {
-      const allPackages = await kv.getByPrefix('package:');
-      return c.json({ success: true, packages: allPackages });
+      query = query.eq('user_email', normalizedEmail);
     }
+
+    const { data: packages, error } = await query;
+
+    if (error) {
+      console.error('Error fetching packages from Supabase:', error);
+      return c.json({ error: 'Failed to fetch packages', details: error.message }, 500);
+    }
+
+    // Map snake_case to camelCase for frontend compatibility
+    const mappedPackages = (packages || []).map((pkg: any) => ({
+      id: pkg.id,
+      userId: pkg.user_email,
+      packageType: pkg.package_type,
+      totalSessions: pkg.total_sessions,
+      remainingSessions: pkg.remaining_sessions,
+      baseSessions: pkg.base_sessions,
+      bonusClasses: pkg.bonus_classes,
+      redeemedCouponCode: pkg.redeemed_coupon_code,
+      sessionsBooked: pkg.sessions_booked || [],
+      sessionsAttended: pkg.sessions_attended || [],
+      purchaseDate: pkg.purchase_date,
+      activationDate: pkg.activation_date,
+      expiryDate: pkg.expiry_date,
+      packageStatus: pkg.package_status,
+      activationStatus: pkg.activation_status,
+      paymentStatus: pkg.payment_status,
+      firstReservationId: pkg.first_reservation_id,
+      paymentId: pkg.payment_id,
+            name: pkg.name,
+      surname: pkg.surname,
+      mobile: pkg.mobile,
+      email: pkg.email,
+      language: pkg.language,
+      createdAt: pkg.created_at,
+      updatedAt: pkg.updated_at
+    }));
+
+    console.log(`📦 Retrieved ${mappedPackages.length} packages from Supabase`);
+    return c.json({ success: true, packages: mappedPackages });
   } catch (error) {
     console.error('Error fetching packages:', error);
     return c.json({ error: 'Failed to fetch packages', details: error.message }, 500);
@@ -1009,13 +1105,53 @@ app.get("/make-server-b87b0c07/packages", async (c) => {
 app.get("/make-server-b87b0c07/packages/:id", async (c) => {
   try {
     const packageId = c.req.param('id');
-    const pkg = await kv.get(packageId);
-    
+    const supabase = getSupabase();
+
+    const { data: pkg, error } = await supabase
+      .from('user_packages')
+      .select('*')
+      .eq('id', packageId)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Error fetching package from Supabase:', error);
+      return c.json({ error: 'Failed to fetch package', details: error.message }, 500);
+    }
+
     if (!pkg) {
       return c.json({ error: 'Package not found' }, 404);
     }
 
-    return c.json({ success: true, package: pkg });
+    // Map to camelCase for frontend compatibility
+    const mappedPackage = {
+      id: pkg.id,
+      userId: pkg.user_email,
+      packageType: pkg.package_type,
+      totalSessions: pkg.total_sessions,
+      remainingSessions: pkg.remaining_sessions,
+      baseSessions: pkg.base_sessions,
+      bonusClasses: pkg.bonus_classes,
+      redeemedCouponCode: pkg.redeemed_coupon_code,
+      sessionsBooked: pkg.sessions_booked || [],
+      sessionsAttended: pkg.sessions_attended || [],
+      purchaseDate: pkg.purchase_date,
+      activationDate: pkg.activation_date,
+      expiryDate: pkg.expiry_date,
+      packageStatus: pkg.package_status,
+      activationStatus: pkg.activation_status,
+      paymentStatus: pkg.payment_status,
+      firstReservationId: pkg.first_reservation_id,
+      paymentId: pkg.payment_id,
+            name: pkg.name,
+      surname: pkg.surname,
+      mobile: pkg.mobile,
+      email: pkg.email,
+      language: pkg.language,
+      createdAt: pkg.created_at,
+      updatedAt: pkg.updated_at
+    };
+
+    return c.json({ success: true, package: mappedPackage });
   } catch (error) {
     console.error('Error fetching package:', error);
     return c.json({ error: 'Failed to fetch package', details: error.message }, 500);
@@ -2097,7 +2233,6 @@ app.post("/make-server-b87b0c07/migrate-bookings", async (c) => {
             paymentStatus: 'unpaid' as PaymentStatus,
             firstReservationId: null,
             paymentId: null,
-            activationCodeId: null,
             name: booking.name,
             surname: booking.surname,
             mobile: booking.mobile,
@@ -2574,6 +2709,7 @@ app.get("/make-server-b87b0c07/user/packages", async (c) => {
       return c.json({ error: "No session token provided" }, 401);
     }
 
+    // Session validation still uses KV
     const sessionKey = `session:${sessionToken}`;
     const session = await kv.get(sessionKey);
 
@@ -2581,14 +2717,80 @@ app.get("/make-server-b87b0c07/user/packages", async (c) => {
       return c.json({ error: "Invalid or expired session" }, 401);
     }
 
-    const allPackages = await kv.getByPrefix(`package:${session.email}:`);
-    const allReservations = await kv.getByPrefix('reservation:');
-    const userReservations = allReservations.filter((r: any) => r.userId === session.email);
+    const supabase = getSupabase();
 
+    // Fetch packages from Supabase
+    const { data: packages, error: pkgError } = await supabase
+      .from('user_packages')
+      .select('*')
+      .eq('user_email', session.email)
+      .order('created_at', { ascending: false });
+
+    if (pkgError) {
+      console.error('Error fetching user packages from Supabase:', pkgError);
+      return c.json({ error: 'Failed to fetch packages', details: pkgError.message }, 500);
+    }
+
+    // Fetch reservations from Supabase
+    const { data: reservations, error: resError } = await supabase
+      .from('reservations')
+      .select('*')
+      .eq('user_email', session.email)
+      .order('created_at', { ascending: false });
+
+    if (resError) {
+      console.error('Error fetching user reservations from Supabase:', resError);
+      return c.json({ error: 'Failed to fetch reservations', details: resError.message }, 500);
+    }
+
+    // Map packages to camelCase
+    const mappedPackages = (packages || []).map((pkg: any) => ({
+      id: pkg.id,
+      userId: pkg.user_email,
+      packageType: pkg.package_type,
+      totalSessions: pkg.total_sessions,
+      remainingSessions: pkg.remaining_sessions,
+      baseSessions: pkg.base_sessions,
+      bonusClasses: pkg.bonus_classes,
+      redeemedCouponCode: pkg.redeemed_coupon_code,
+      sessionsBooked: pkg.sessions_booked || [],
+      sessionsAttended: pkg.sessions_attended || [],
+      purchaseDate: pkg.purchase_date,
+      activationDate: pkg.activation_date,
+      expiryDate: pkg.expiry_date,
+      packageStatus: pkg.package_status,
+      activationStatus: pkg.activation_status,
+      paymentStatus: pkg.payment_status,
+      firstReservationId: pkg.first_reservation_id,
+      paymentId: pkg.payment_id,
+            name: pkg.name,
+      surname: pkg.surname,
+      mobile: pkg.mobile,
+      email: pkg.email,
+      language: pkg.language,
+      createdAt: pkg.created_at,
+      updatedAt: pkg.updated_at
+    }));
+
+    // Map reservations to camelCase
+    const mappedReservations = (reservations || []).map((res: any) => ({
+      id: res.id,
+      userId: res.user_email,
+      packageId: res.package_id,
+      dateKey: res.date_key,
+      timeSlot: res.time_slot,
+      instructor: res.instructor,
+      reservationStatus: res.reservation_status,
+      paymentStatus: res.payment_status,
+      createdAt: res.created_at,
+      updatedAt: res.updated_at
+    }));
+
+    console.log(`📦 User ${session.email}: ${mappedPackages.length} packages, ${mappedReservations.length} reservations`);
     return c.json({
       success: true,
-      packages: allPackages,
-      reservations: userReservations
+      packages: mappedPackages,
+      reservations: mappedReservations
     });
 
   } catch (error) {
