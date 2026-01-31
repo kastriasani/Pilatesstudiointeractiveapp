@@ -3,7 +3,8 @@ import { Calendar, Users, LogOut, Mail, X, CheckCircle, Trash2, Ban, Gift, Shiel
 import { logo } from '../../assets/images';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { DevTools } from './DevTools';
-import { BulkWaitlistUpload } from './BulkWaitlistUpload';
+// BulkWaitlistUpload removed - dev functionality not for production
+// import { BulkWaitlistUpload } from './BulkWaitlistUpload';
 
 export type UserStatus = 'pending' | 'confirmed' | 'cancelled';
 
@@ -1223,8 +1224,7 @@ export function AdminPanel({ onLogout }: AdminPanelProps) {
               )}
             </div>
 
-            {/* Bulk Waitlist Upload */}
-            <BulkWaitlistUpload onUploadComplete={fetchWaitlistUsers} />
+            {/* Bulk Waitlist Upload - removed for production */}
 
             {/* Instructions */}
             <div className="bg-gradient-to-br from-[#f8f9f4] to-[#f5f0ed] rounded-xl p-4 border border-[#e8e6e3]">
