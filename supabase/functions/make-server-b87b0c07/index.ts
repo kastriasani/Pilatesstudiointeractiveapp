@@ -2653,21 +2653,35 @@ app.post("/make-server-b87b0c07/waitlist", async (c) => {
   }
 });
 
-// Get all waitlist users (admin only)
+// Get all waitlist users (admin only) - MIGRATED TO SUPABASE
 app.get("/make-server-b87b0c07/admin/waitlist", async (c) => {
   try {
-    const waitlistUsers = await kv.getByPrefix('waitlist:');
-    
-    // Sort by addedAt date (newest first)
-    waitlistUsers.sort((a, b) => {
-      const dateA = new Date(a.addedAt || 0).getTime();
-      const dateB = new Date(b.addedAt || 0).getTime();
-      return dateB - dateA;
-    });
+    const supabase = getSupabase();
+    const { data, error } = await supabase
+      .from('waitlist_members')
+      .select('*')
+      .order('signed_up_at', { ascending: false });
 
-    console.log(`📋 Retrieved ${waitlistUsers.length} waitlist users`);
-    
-    return c.json({ success: true, users: waitlistUsers });
+    if (error) {
+      console.error('Error fetching waitlist from Supabase:', error);
+      return c.json({ error: 'Failed to fetch waitlist', details: error.message }, 500);
+    }
+
+    // Map Supabase fields to expected frontend format
+    const users = (data || []).map(member => ({
+      email: member.email,
+      name: member.name,
+      surname: member.surname,
+      phone: member.phone,
+      language: member.language,
+      status: member.status,
+      addedAt: member.signed_up_at || member.imported_at,
+      invitedAt: member.invited_at,
+    }));
+
+    console.log(`📋 Retrieved ${users.length} waitlist users from Supabase`);
+
+    return c.json({ success: true, users });
   } catch (error) {
     console.error('Error fetching waitlist:', error);
     return c.json({ error: 'Failed to fetch waitlist', details: error.message }, 500);
