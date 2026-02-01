@@ -40,7 +40,7 @@ const VALID_PACKAGE_TYPES = [
 ];
 
 const PACKAGE_PRICING = {
-  single: { price: 500, label: 'Single Session', description: '500 DEN per session' },
+  single: { price: 600, label: 'Single Session', description: '600 DEN per session' },
   package8: { price: 3500, label: '8 Classes Package', description: '438 DEN per session' },
   package10: { price: 4200, label: '10 Classes Package', description: '420 DEN per session' },
   package12: { price: 4800, label: '12 Classes Package', description: '400 DEN per session' },
