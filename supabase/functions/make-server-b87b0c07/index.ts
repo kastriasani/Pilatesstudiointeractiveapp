@@ -41,15 +41,15 @@ const VALID_PACKAGE_TYPES = [
 
 const PACKAGE_PRICING = {
   single: { price: 600, label: 'Single Session', description: '600 DEN per session' },
-  package8: { price: 3500, label: '8 Classes Package', description: '438 DEN per session' },
-  package10: { price: 4200, label: '10 Classes Package', description: '420 DEN per session' },
-  package12: { price: 4800, label: '12 Classes Package', description: '400 DEN per session' },
+  package8: { price: 3500, label: '8 Classes Package', description: '8 group classes' },
+  package10: { price: 4200, label: '10 Classes Package', description: '10 group classes' },
+  package12: { price: 4800, label: '12 Classes Package', description: '12 group classes' },
   individual1: { price: 1600, label: '1-on-1 Single Session', description: 'Private training' },
-  individual8: { price: 12000, label: '1-on-1 8 Sessions', description: '1500 DEN per session' },
-  individual12: { price: 16800, label: '1-on-1 12 Sessions', description: '1400 DEN per session' },
+  individual8: { price: 12000, label: '1-on-1 8 Sessions', description: '8 private sessions' },
+  individual12: { price: 16800, label: '1-on-1 12 Sessions', description: '12 private sessions' },
   duo1: { price: 1200, label: 'DUO Single Session', description: 'For 2 people' },
-  duo8: { price: 8800, label: 'DUO 8 Sessions', description: '1100 DEN per session' },
-  duo12: { price: 12000, label: 'DUO 12 Sessions', description: '1000 DEN per session' },
+  duo8: { price: 8800, label: 'DUO 8 Sessions', description: '8 duo sessions' },
+  duo12: { price: 12000, label: 'DUO 12 Sessions', description: '12 duo sessions' },
 };
 
 const STUDIO_INFO = {
