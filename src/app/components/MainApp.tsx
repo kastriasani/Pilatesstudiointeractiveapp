@@ -45,6 +45,7 @@ export function MainApp() {
   const [currentRoute, setCurrentRoute] = useState<string>('');
   const [userSession, setUserSession] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [adminSessionToken, setAdminSessionToken] = useState<string | null>(null);
 
   // Handle hash-based routing for authentication pages
   useEffect(() => {
@@ -388,12 +389,23 @@ export function MainApp() {
       {screen.type === 'adminLogin' && (
         <AdminLogin
           onBack={handleBack}
-          onLogin={() => setScreen({ type: 'adminPanel' })}
+          onLogin={(sessionToken) => {
+            setAdminSessionToken(sessionToken);
+            setScreen({ type: 'adminPanel' });
+          }}
         />
       )}
 
       {screen.type === 'adminPanel' && (
-        <AdminPanel onLogout={handleBack} />
+        <AdminPanel
+          onLogout={() => {
+            // Clear admin session
+            localStorage.removeItem('adminSessionToken');
+            setAdminSessionToken(null);
+            handleBack();
+          }}
+          sessionToken={adminSessionToken || undefined}
+        />
       )}
 
       {/* Member Activation Modal */}

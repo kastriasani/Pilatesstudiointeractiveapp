@@ -60,6 +60,7 @@ type TimeSlot = {
 
 type AdminPanelProps = {
   onLogout: () => void;
+  sessionToken?: string;
 };
 
 // Mock data for demonstration
@@ -81,7 +82,10 @@ type WaitlistUser = {
   inviteEmailSent: boolean;
 };
 
-export function AdminPanel({ onLogout }: AdminPanelProps) {
+export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPanelProps) {
+  // Get session token from props or localStorage
+  const getSessionToken = () => propSessionToken || localStorage.getItem('adminSessionToken') || '';
+
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState<'calendar' | 'users' | 'waitlist'>('calendar');
   const [userSubTab, setUserSubTab] = useState<'confirmed' | 'pending'>('confirmed');
@@ -129,7 +133,9 @@ export function AdminPanel({ onLogout }: AdminPanelProps) {
       const bookingsResponse = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/bookings`, {
         method: 'GET',
         headers: {
+          'Content-Type': 'application/json',
           'Authorization': `Bearer ${publicAnonKey}`,
+          'X-Session-Token': getSessionToken(),
         },
       });
 
@@ -146,7 +152,9 @@ export function AdminPanel({ onLogout }: AdminPanelProps) {
       const usersResponse = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/admin/users`, {
         method: 'GET',
         headers: {
+          'Content-Type': 'application/json',
           'Authorization': `Bearer ${publicAnonKey}`,
+          'X-Session-Token': getSessionToken(),
         },
       });
 
@@ -196,7 +204,9 @@ export function AdminPanel({ onLogout }: AdminPanelProps) {
       const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/admin/waitlist`, {
         method: 'GET',
         headers: {
+          'Content-Type': 'application/json',
           'Authorization': `Bearer ${publicAnonKey}`,
+          'X-Session-Token': getSessionToken(),
         },
       });
 
@@ -228,6 +238,7 @@ export function AdminPanel({ onLogout }: AdminPanelProps) {
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${publicAnonKey}`,
+          'X-Session-Token': getSessionToken(),
         },
         body: JSON.stringify({ emails, bulk }),
       });
@@ -288,7 +299,9 @@ export function AdminPanel({ onLogout }: AdminPanelProps) {
       const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/admin/waitlist/${email}`, {
         method: 'DELETE',
         headers: {
+          'Content-Type': 'application/json',
           'Authorization': `Bearer ${publicAnonKey}`,
+          'X-Session-Token': getSessionToken(),
         },
       });
 
@@ -310,8 +323,9 @@ export function AdminPanel({ onLogout }: AdminPanelProps) {
       const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/waitlist`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${publicAnonKey}`,
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${publicAnonKey}`,
+          'X-Session-Token': getSessionToken(),
         },
         body: JSON.stringify({
           name: 'Besa',
@@ -429,6 +443,7 @@ export function AdminPanel({ onLogout }: AdminPanelProps) {
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${publicAnonKey}`,
+            'X-Session-Token': getSessionToken(),
           },
           body: JSON.stringify({ paymentStatus }),
         }
@@ -472,6 +487,7 @@ export function AdminPanel({ onLogout }: AdminPanelProps) {
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${publicAnonKey}`,
+          'X-Session-Token': getSessionToken(),
         },
         body: JSON.stringify({
           email: user.email,
@@ -518,7 +534,9 @@ export function AdminPanel({ onLogout }: AdminPanelProps) {
       const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/users/${encodeURIComponent(user.email)}`, {
         method: 'DELETE',
         headers: {
+          'Content-Type': 'application/json',
           'Authorization': `Bearer ${publicAnonKey}`,
+          'X-Session-Token': getSessionToken(),
         },
       });
 

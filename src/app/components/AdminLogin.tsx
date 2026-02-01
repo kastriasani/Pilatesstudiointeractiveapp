@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Lock, ArrowLeft } from 'lucide-react';
 import { logo } from '../../assets/images';
+import { projectId, publicAnonKey } from '/utils/supabase/info';
 
 type AdminLoginProps = {
-  onLogin: () => void;
+  onLogin: (sessionToken: string) => void;
   onBack: () => void;
 };
 
@@ -11,16 +12,51 @@ export function AdminLogin({ onLogin, onBack }: AdminLoginProps) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleLogin = () => {
-    if (
-      (username === 'admin' || username === 'admin@admin.com') && 
-      password === 'admin'
-    ) {
-      onLogin();
-    } else {
-      setError('Invalid credentials');
+  const handleLogin = async () => {
+    if (!username || !password) {
+      setError('Please enter both username and password');
       setTimeout(() => setError(''), 3000);
+      return;
+    }
+
+    setIsLoading(true);
+    setError('');
+
+    try {
+      const response = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/auth/admin/login`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${publicAnonKey}`,
+          },
+          body: JSON.stringify({ username, password }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.error || 'Invalid credentials');
+        setTimeout(() => setError(''), 3000);
+        return;
+      }
+
+      // Store session token in localStorage (API returns 'session')
+      const sessionToken = data.session;
+      localStorage.setItem('adminSessionToken', sessionToken);
+
+      // Call onLogin with the session token
+      onLogin(sessionToken);
+    } catch (err) {
+      console.error('Login error:', err);
+      setError('Network error. Please try again.');
+      setTimeout(() => setError(''), 3000);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -89,9 +125,10 @@ export function AdminLogin({ onLogin, onBack }: AdminLoginProps) {
 
             <button
               onClick={handleLogin}
-              className="w-full bg-[#6b5949] text-white py-3 rounded-lg text-sm hover:bg-[#5a4838] transition-colors"
+              disabled={isLoading}
+              className="w-full bg-[#6b5949] text-white py-3 rounded-lg text-sm hover:bg-[#5a4838] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Login
+              {isLoading ? 'Logging in...' : 'Login'}
             </button>
           </div>
 
