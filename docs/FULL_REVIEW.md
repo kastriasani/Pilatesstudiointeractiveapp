@@ -116,20 +116,19 @@ Breakdown:
 
 ## Critical Frontend Bugs
 
-### 1. **CRITICAL: Hardcoded Date in BookingScreen.tsx**
+### 1. ~~CRITICAL: Hardcoded Date in BookingScreen.tsx~~
+**STATUS: ✅ FIXED in commit 1cdb283**
 ```typescript
-// Line 53 - THIS WILL BREAK!
-let currentDate = new Date(2026, 0, 29); // Hardcoded to Jan 29, 2026
+// WAS: let currentDate = new Date(2026, 0, 29);
+// NOW: Uses getAvailableBookingDates() from centralized dateUtils.ts
 ```
-**Impact:** After Jan 29, 2026, users cannot book future dates.
-**Fix:** Use dynamic date calculation based on current date.
 
-### 2. **BUG: fetchUsers() doesn't exist (AdminPanel.tsx:516)**
+### 2. ~~BUG: fetchUsers() doesn't exist (AdminPanel.tsx:516)~~
+**STATUS: ✅ FIXED in commit 327428e**
 ```typescript
-// Line 516 - Introduced in Phase 0E
-fetchUsers(); // This function doesn't exist!
+// WAS: fetchUsers();
+// NOW: fetchBookings(); // which fetches both bookings and users
 ```
-**Fix:** Should be `fetchBookings()` which fetches both bookings and users.
 
 ### 3. **Typo: "Payed" instead of "Paid" (AdminPanel.tsx)**
 ```typescript
@@ -353,8 +352,8 @@ Proposed:
 
 ## Must Fix NOW (Breaking)
 
-1. **BookingScreen.tsx:53** - Hardcoded date will break after Jan 29
-2. **AdminPanel.tsx:516** - fetchUsers() doesn't exist
+1. ~~**BookingScreen.tsx:53** - Hardcoded date will break after Jan 29~~ ✅ DONE (commit 1cdb283)
+2. ~~**AdminPanel.tsx:516** - fetchUsers() doesn't exist~~ ✅ DONE (commit 327428e)
 
 ## Should Fix Soon (Bugs)
 
