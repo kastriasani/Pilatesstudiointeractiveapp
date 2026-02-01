@@ -102,7 +102,8 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
   const [giftNote, setGiftNote] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [showDevTools, setShowDevTools] = useState(false);
-  
+  const [processingBookingId, setProcessingBookingId] = useState<string | null>(null);
+
   // Waitlist state
   const [waitlistUsers, setWaitlistUsers] = useState<WaitlistUser[]>([]);
   const [selectedWaitlistUsers, setSelectedWaitlistUsers] = useState<string[]>([]);
@@ -563,6 +564,34 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
     }
   };
 
+  // Handle booking status change (Attended, No Show, Cancel)
+  const handleBookingStatusChange = async (bookingId: string, newStatus: string) => {
+    setProcessingBookingId(bookingId);
+    try {
+      const response = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/reservations/${bookingId}/status`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${publicAnonKey}`,
+            'X-Session-Token': getSessionToken(),
+          },
+          body: JSON.stringify({ reservationStatus: newStatus }),
+        }
+      );
+      if (response.ok) {
+        await fetchBookings();
+      } else {
+        console.error('Failed to update booking status');
+      }
+    } catch (error) {
+      console.error('Error updating booking status:', error);
+    } finally {
+      setProcessingBookingId(null);
+    }
+  };
+
   return (
     <div className="h-full flex flex-col bg-[#f5f0ed]">
       {/* Header */}
@@ -722,7 +751,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                       <div className={`relative z-10 flex flex-col items-center justify-center h-full ${isSelected ? 'text-white' : ''}`}>
                         <div className={`text-xs ${isSelected ? '' : 'text-[#3d2f28]'}`}>{date.displayDate}</div>
                         <div className={`text-[10px] mt-1 font-bold ${isSelected ? '' : textColorClass}`}>
-                          {percentage}%
+                          {bookingsCount}/{maxDailyCapacity}
                         </div>
                       </div>
                     </button>
@@ -765,29 +794,36 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                 })()}
 
                 {/* Compact Horizontal Time Slot Grid */}
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-4 gap-1.5">
                   {timeSlots.map((timeSlot) => {
                     const bookingsCount = getTimeSlotCapacity(selectedDate, timeSlot.time);
                     const isSelected = selectedTimeSlot === timeSlot.time;
                     const fillPercentage = (bookingsCount / timeSlot.maxCapacity) * 100;
+                    const slotBookings = getBookingsForTimeSlot(selectedDate, timeSlot.time);
+                    const hasPending = slotBookings.some(b => b.status === 'pending');
 
-                    // Customer-centric color coding: Green = available, Red = full
-                    let bgColor = 'bg-green-100';
+                    // Visual state clarity: Green = available, Yellow = pending, Red = full
+                    let bgColor = 'bg-green-50';
                     let borderColor = 'border-green-400';
                     let textColor = 'text-green-700';
 
-                    if (fillPercentage >= 75) {
-                      // 75-100%: Red (nearly/fully booked)
-                      bgColor = 'bg-red-100';
-                      borderColor = 'border-red-400';
-                      textColor = 'text-red-700';
-                    } else if (fillPercentage > 25) {
-                      // 25-75%: Yellow (moderate availability)
-                      bgColor = 'bg-yellow-100';
+                    if (hasPending) {
+                      // Has pending bookings - yellow
+                      bgColor = 'bg-yellow-50';
                       borderColor = 'border-yellow-400';
                       textColor = 'text-yellow-700';
+                    } else if (fillPercentage >= 100) {
+                      // Full - red
+                      bgColor = 'bg-red-50';
+                      borderColor = 'border-red-400';
+                      textColor = 'text-red-700';
+                    } else if (fillPercentage >= 75) {
+                      // Nearly full - orange
+                      bgColor = 'bg-orange-50';
+                      borderColor = 'border-orange-400';
+                      textColor = 'text-orange-700';
                     }
-                    // 0-25%: Green (lots of availability) - default
+                    // 0-74%, no pending: Green (default)
 
                     const startTime = timeSlot.time.split(' - ')[0];
 
@@ -806,34 +842,53 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
 
                 {/* Show bookings when slot is selected */}
                 {selectedTimeSlot && getTimeSlotCapacity(selectedDate, selectedTimeSlot) > 0 && (
-                  <div className="mt-4 space-y-2">
+                  <div className="mt-3 space-y-1.5">
                     <h3 className="text-xs text-[#8b7764] font-medium">
                       Bookings for {selectedTimeSlot}
                     </h3>
                     {getBookingsForTimeSlot(selectedDate, selectedTimeSlot).map((booking) => {
-                      // Calculate bonus sessions for display
                       const baseCount = booking.selectedPackage === 'package8' ? 8
                         : booking.selectedPackage === 'package10' ? 10
                         : booking.selectedPackage === 'package12' ? 12 : 0;
+                      const isProcessing = processingBookingId === booking.id;
 
                       return (
                         <div
                           key={booking.id}
-                          className="flex items-center justify-between p-3 bg-white border-2 border-[#e8dfd8] rounded-xl shadow-sm"
+                          className="flex items-center justify-between p-2 bg-white border border-[#e8dfd8] rounded-lg"
                         >
-                          <div>
-                            <p className="text-sm text-[#3d2f28] font-medium">{booking.name} {booking.surname}</p>
-                            <p className="text-xs text-[#8b7764] mt-0.5">
-                              {baseCount > 0 ? `${baseCount} Sessions` : 'Single Session'}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm text-[#3d2f28] font-medium truncate">{booking.name} {booking.surname}</p>
+                            <p className="text-xs text-[#8b7764]">
+                              {baseCount > 0 ? `${baseCount} Sessions` : 'Single'}
                             </p>
                           </div>
-                          <span
-                            className={`px-2 py-1 rounded-full text-xs ${getStatusColor(
-                              booking.status
-                            )}`}
-                          >
-                            {getStatusText(booking.status)}
-                          </span>
+                          <div className="flex items-center gap-1 ml-2">
+                            <button
+                              onClick={() => handleBookingStatusChange(booking.id, 'attended')}
+                              disabled={isProcessing}
+                              className="p-1.5 rounded hover:bg-green-100 text-green-600 disabled:opacity-50"
+                              title="Mark Attended"
+                            >
+                              <CheckCircle className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleBookingStatusChange(booking.id, 'no_show')}
+                              disabled={isProcessing}
+                              className="p-1.5 rounded hover:bg-red-100 text-red-600 disabled:opacity-50"
+                              title="Mark No Show"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleBookingStatusChange(booking.id, 'cancelled')}
+                              disabled={isProcessing}
+                              className="p-1.5 rounded hover:bg-gray-100 text-gray-500 disabled:opacity-50"
+                              title="Cancel"
+                            >
+                              <Ban className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
                       );
                     })}
