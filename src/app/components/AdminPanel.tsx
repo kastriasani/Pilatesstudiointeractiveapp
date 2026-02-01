@@ -964,7 +964,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                 {user.packageType === 'package12' && (
                                   bonusSessions > 0 ? `12 + ${bonusSessions} Bonus Sessions` : '12 Sessions (4800 DEN)'
                                 )}
-                                {user.packageType === 'single' && 'Single (500 DEN)'}
+                                {user.packageType === 'single' && 'Single (600 DEN)'}
                               </div>
                             </div>
 
