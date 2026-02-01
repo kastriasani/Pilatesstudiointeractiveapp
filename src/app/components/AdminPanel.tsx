@@ -668,91 +668,46 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
       </div>
 
       {/* Content */}
-      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-4">
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-4 bg-stone-50">
         {activeTab === 'calendar' ? (
           <div className="space-y-4">
-            {/* Date Selection */}
-            <div className="bg-white rounded-xl p-4 shadow-sm">
-              <h2 className="text-sm text-[#3d2f28] mb-3">Select Date</h2>
-              <div className="grid grid-cols-7 gap-2">
+            {/* Date Selection - Clean Week Strip */}
+            <div className="bg-white rounded-xl p-3 shadow-sm">
+              <div className="flex gap-2 overflow-x-auto pb-1 snap-x snap-mandatory scrollbar-hide">
                 {dates.map((date) => {
                   const bookingsCount = getBookingsForDate(date.dateKey).length;
-                  const percentage = Math.round((bookingsCount / maxDailyCapacity) * 100);
-                  
-                  // Determine water color based on percentage (GREEN = full/good, RED = empty/bad)
-                  let waterColor = '#ef4444'; // red for empty
-                  let borderColor = '#dc2626';
-                  let textColorClass = 'text-[#dc2626]';
-                  
-                  if (percentage === 100) {
-                    waterColor = '#10b981'; // green for full
-                    borderColor = '#059669';
-                    textColorClass = 'text-[#059669]';
-                  } else if (percentage >= 75) {
-                    waterColor = '#84cc16'; // lime for 75%+
-                    borderColor = '#65a30d';
-                    textColorClass = 'text-[#65a30d]';
-                  } else if (percentage >= 50) {
-                    waterColor = '#fbbf24'; // yellow for 50%+
-                    borderColor = '#ca8a04';
-                    textColorClass = 'text-[#ca8a04]';
-                  } else if (percentage >= 25) {
-                    waterColor = '#f59e0b'; // orange for 25%+
-                    borderColor = '#d97706';
-                    textColorClass = 'text-[#d97706]';
-                  } else if (percentage > 0) {
-                    waterColor = '#ef4444'; // red for less than 25%
-                    borderColor = '#dc2626';
-                    textColorClass = 'text-[#dc2626]';
-                  } else {
-                    waterColor = '#e5e7eb'; // gray for 0%
-                    borderColor = '#e8dfd8';
-                    textColorClass = 'text-[#8b7764]';
-                  }
-                  
+                  const hasBookings = bookingsCount > 0;
                   const isSelected = selectedDate === date.dateKey;
-                  
+                  const todayKey = formatDateKeyLegacy(new Date());
+                  const isToday = date.dateKey === todayKey;
+
                   return (
                     <button
                       key={date.dateKey}
                       onClick={() => setSelectedDate(date.dateKey)}
-                      className="relative overflow-hidden rounded-lg h-14 transition-all hover:shadow-md"
-                      style={{
-                        border: `2px solid ${isSelected ? '#6b5949' : borderColor}`,
-                        backgroundColor: isSelected ? '#6b5949' : 'white'
-                      }}
+                      className={`
+                        flex-shrink-0 min-w-[52px] h-16 rounded-xl flex flex-col items-center justify-center
+                        transition-all snap-center
+                        ${isSelected
+                          ? 'bg-stone-600 text-white'
+                          : 'bg-white hover:bg-stone-100'
+                        }
+                        ${isToday && !isSelected ? 'ring-1 ring-stone-400' : ''}
+                      `}
                     >
-                      {/* Water fill effect */}
-                      {!isSelected && (
-                        <div
-                          className="absolute bottom-0 left-0 right-0 transition-all duration-500 ease-out"
-                          style={{
-                            height: `${percentage}%`,
-                            backgroundColor: waterColor,
-                            opacity: 0.3,
-                          }}
-                        />
-                      )}
-                      
-                      {/* Wave effect */}
-                      {!isSelected && percentage > 0 && percentage < 100 && (
-                        <div
-                          className="absolute left-0 right-0 transition-all duration-500 ease-out"
-                          style={{
-                            bottom: `${percentage}%`,
-                            height: '2px',
-                            backgroundColor: waterColor,
-                            opacity: 0.5,
-                          }}
-                        />
-                      )}
-                      
-                      {/* Content */}
-                      <div className={`relative z-10 flex flex-col items-center justify-center h-full ${isSelected ? 'text-white' : ''}`}>
-                        <div className={`text-xs ${isSelected ? '' : 'text-[#3d2f28]'}`}>{date.displayDate}</div>
-                        <div className={`text-[10px] mt-1 font-bold ${isSelected ? '' : textColorClass}`}>
+                      <span className={`text-[10px] uppercase tracking-wide ${isSelected ? 'text-stone-300' : 'text-stone-500'}`}>
+                        {date.displayDate.split(' ')[1]}
+                      </span>
+                      <span className={`text-lg font-semibold ${isSelected ? '' : 'text-stone-800'}`}>
+                        {date.displayDate.split('.')[0]}
+                      </span>
+                      <div className="flex items-center gap-1 mt-0.5">
+                        {hasBookings && (
+                          <div className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white' : 'bg-green-500'}`} />
+                        )}
+                        <span className={`text-[10px] ${isSelected ? 'text-stone-300' : 'text-stone-400'}`}>
                           {bookingsCount}/{maxDailyCapacity}
-                        </div>
+                        </span>
                       </div>
                     </button>
                   );
@@ -760,13 +715,9 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
               </div>
             </div>
 
-            {/* Selected Date Time Slots */}
+            {/* Selected Date - Timeline View */}
             {selectedDate && (
-              <div className="bg-white rounded-xl p-4 shadow-sm">
-                <h2 className="text-sm text-[#3d2f28] mb-3">
-                  Time Slots for {dates.find(date => date.dateKey === selectedDate)?.displayDate}
-                </h2>
-
+              <div className="bg-white rounded-xl shadow-sm overflow-hidden">
                 {/* Quick Stats Bar */}
                 {(() => {
                   const dayBookings = getBookingsForDate(selectedDate);
@@ -779,124 +730,134 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                   const eveningMax = eveningSlots.length * 4;
 
                   return (
-                    <div className="flex flex-wrap gap-3 mb-4 text-xs font-medium">
-                      <div className="px-3 py-1.5 bg-[#f5f0ed] rounded-lg text-[#3d2f28]">
-                        Total: <span className="font-bold">{totalBooked}/{maxDailyCapacity}</span> booked
+                    <div className="flex gap-2 p-3 border-b border-stone-200 text-xs">
+                      <div className="px-3 py-1.5 bg-stone-100 rounded-lg text-stone-700">
+                        Total: <span className="font-semibold">{totalBooked}/{maxDailyCapacity}</span>
                       </div>
-                      <div className="px-3 py-1.5 bg-blue-50 rounded-lg text-blue-700">
-                        Morning: <span className="font-bold">{morningBooked}/{morningMax}</span>
+                      <div className="px-3 py-1.5 bg-stone-100 rounded-lg text-stone-700">
+                        AM: <span className="font-semibold">{morningBooked}/{morningMax}</span>
                       </div>
-                      <div className="px-3 py-1.5 bg-orange-50 rounded-lg text-orange-700">
-                        Evening: <span className="font-bold">{eveningBooked}/{eveningMax}</span>
+                      <div className="px-3 py-1.5 bg-stone-100 rounded-lg text-stone-700">
+                        PM: <span className="font-semibold">{eveningBooked}/{eveningMax}</span>
                       </div>
                     </div>
                   );
                 })()}
 
-                {/* Compact Horizontal Time Slot Grid */}
-                <div className="grid grid-cols-4 gap-1.5">
+                {/* Timeline List */}
+                <div className="divide-y divide-stone-100">
                   {timeSlots.map((timeSlot) => {
                     const bookingsCount = getTimeSlotCapacity(selectedDate, timeSlot.time);
                     const isSelected = selectedTimeSlot === timeSlot.time;
-                    const fillPercentage = (bookingsCount / timeSlot.maxCapacity) * 100;
                     const slotBookings = getBookingsForTimeSlot(selectedDate, timeSlot.time);
                     const hasPending = slotBookings.some(b => b.status === 'pending');
 
-                    // Visual state clarity: Green = available, Yellow = pending, Red = full
-                    let bgColor = 'bg-green-50';
-                    let borderColor = 'border-green-400';
-                    let textColor = 'text-green-700';
-
-                    if (hasPending) {
-                      // Has pending bookings - yellow
-                      bgColor = 'bg-yellow-50';
-                      borderColor = 'border-yellow-400';
-                      textColor = 'text-yellow-700';
-                    } else if (fillPercentage >= 100) {
-                      // Full - red
-                      bgColor = 'bg-red-50';
-                      borderColor = 'border-red-400';
-                      textColor = 'text-red-700';
-                    } else if (fillPercentage >= 75) {
-                      // Nearly full - orange
-                      bgColor = 'bg-orange-50';
-                      borderColor = 'border-orange-400';
-                      textColor = 'text-orange-700';
-                    }
-                    // 0-74%, no pending: Green (default)
+                    // Status dot color
+                    let dotColor = 'bg-green-500'; // empty/available
+                    if (hasPending) dotColor = 'bg-blue-500';
+                    else if (bookingsCount >= 4) dotColor = 'bg-stone-500';
+                    else if (bookingsCount > 0) dotColor = 'bg-amber-500';
 
                     const startTime = timeSlot.time.split(' - ')[0];
 
                     return (
-                      <button
-                        key={timeSlot.time}
-                        onClick={() => setSelectedTimeSlot(isSelected ? null : timeSlot.time)}
-                        className={`h-12 rounded-lg border-2 transition-all hover:shadow-md flex flex-col items-center justify-center ${bgColor} ${borderColor} ${isSelected ? 'ring-2 ring-[#6b5949] ring-offset-1' : ''}`}
-                      >
-                        <div className={`text-xs font-medium ${textColor}`}>{startTime}</div>
-                        <div className={`text-lg font-bold ${textColor}`}>{bookingsCount}/{timeSlot.maxCapacity}</div>
-                      </button>
+                      <div key={timeSlot.time}>
+                        <button
+                          onClick={() => setSelectedTimeSlot(isSelected ? null : timeSlot.time)}
+                          className={`
+                            w-full flex items-center gap-3 px-4 py-3 min-h-[52px]
+                            border-l-2 transition-all
+                            ${isSelected ? 'border-l-stone-600 bg-stone-50' : 'border-l-transparent hover:bg-stone-50'}
+                          `}
+                        >
+                          {/* Status Dot */}
+                          <div className={`w-2 h-2 rounded-full flex-shrink-0 ${dotColor}`} />
+
+                          {/* Time */}
+                          <span className="text-sm font-medium text-stone-800 w-12">{startTime}</span>
+
+                          {/* Info */}
+                          <div className="flex-1 text-left">
+                            <span className="text-sm text-stone-600">
+                              {bookingsCount === 0 ? 'Available' : `${bookingsCount} booked`}
+                            </span>
+                          </div>
+
+                          {/* Capacity */}
+                          <span className="text-sm text-stone-400">{bookingsCount}/{timeSlot.maxCapacity}</span>
+                        </button>
+
+                        {/* Expanded bookings */}
+                        {isSelected && bookingsCount > 0 && (
+                          <div className="px-4 pb-3 space-y-2 bg-stone-50">
+                            {slotBookings.map((booking) => {
+                              const baseCount = booking.selectedPackage === 'package8' ? 8
+                                : booking.selectedPackage === 'package10' ? 10
+                                : booking.selectedPackage === 'package12' ? 12 : 0;
+                              const isProcessing = processingBookingId === booking.id;
+
+                              // Booking status dot
+                              let bookingDotColor = 'bg-stone-400';
+                              if (booking.status === 'confirmed') bookingDotColor = 'bg-stone-500';
+                              else if (booking.status === 'pending') bookingDotColor = 'bg-blue-500';
+
+                              return (
+                                <div
+                                  key={booking.id}
+                                  className="flex items-center gap-3 p-3 bg-white border border-stone-200 rounded-lg"
+                                >
+                                  {/* Status Dot */}
+                                  <div className={`w-2 h-2 rounded-full flex-shrink-0 ${bookingDotColor}`} />
+
+                                  {/* Info */}
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium text-stone-800 truncate">
+                                      {booking.name} {booking.surname}
+                                    </p>
+                                    <p className="text-xs text-stone-500">
+                                      {baseCount > 0 ? `${baseCount} Sessions` : 'Single'}
+                                    </p>
+                                  </div>
+
+                                  {/* Quick Actions - 44px touch targets */}
+                                  <div className="flex items-center gap-1">
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); handleBookingStatusChange(booking.id, 'attended'); }}
+                                      disabled={isProcessing}
+                                      className="w-10 h-10 rounded-lg flex items-center justify-center hover:bg-green-50 text-green-600 disabled:opacity-50"
+                                      title="Attended"
+                                    >
+                                      <CheckCircle className="w-5 h-5" />
+                                    </button>
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); handleBookingStatusChange(booking.id, 'no_show'); }}
+                                      disabled={isProcessing}
+                                      className="w-10 h-10 rounded-lg flex items-center justify-center hover:bg-amber-50 text-amber-600 disabled:opacity-50"
+                                      title="No Show"
+                                    >
+                                      <X className="w-5 h-5" />
+                                    </button>
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); handleBookingStatusChange(booking.id, 'cancelled'); }}
+                                      disabled={isProcessing}
+                                      className="w-10 h-10 rounded-lg flex items-center justify-center hover:bg-stone-100 text-stone-500 disabled:opacity-50"
+                                      title="Cancel"
+                                    >
+                                      <Ban className="w-5 h-5" />
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
                     );
                   })}
                 </div>
 
-                {/* Show bookings when slot is selected */}
-                {selectedTimeSlot && getTimeSlotCapacity(selectedDate, selectedTimeSlot) > 0 && (
-                  <div className="mt-3 space-y-1.5">
-                    <h3 className="text-xs text-[#8b7764] font-medium">
-                      Bookings for {selectedTimeSlot}
-                    </h3>
-                    {getBookingsForTimeSlot(selectedDate, selectedTimeSlot).map((booking) => {
-                      const baseCount = booking.selectedPackage === 'package8' ? 8
-                        : booking.selectedPackage === 'package10' ? 10
-                        : booking.selectedPackage === 'package12' ? 12 : 0;
-                      const isProcessing = processingBookingId === booking.id;
-
-                      return (
-                        <div
-                          key={booking.id}
-                          className="flex items-center justify-between p-2 bg-white border border-[#e8dfd8] rounded-lg"
-                        >
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm text-[#3d2f28] font-medium truncate">{booking.name} {booking.surname}</p>
-                            <p className="text-xs text-[#8b7764]">
-                              {baseCount > 0 ? `${baseCount} Sessions` : 'Single'}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-1 ml-2">
-                            <button
-                              onClick={() => handleBookingStatusChange(booking.id, 'attended')}
-                              disabled={isProcessing}
-                              className="p-1.5 rounded hover:bg-green-100 text-green-600 disabled:opacity-50"
-                              title="Mark Attended"
-                            >
-                              <CheckCircle className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => handleBookingStatusChange(booking.id, 'no_show')}
-                              disabled={isProcessing}
-                              className="p-1.5 rounded hover:bg-red-100 text-red-600 disabled:opacity-50"
-                              title="Mark No Show"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => handleBookingStatusChange(booking.id, 'cancelled')}
-                              disabled={isProcessing}
-                              className="p-1.5 rounded hover:bg-gray-100 text-gray-500 disabled:opacity-50"
-                              title="Cancel"
-                            >
-                              <Ban className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
                 {getBookingsForDate(selectedDate).length === 0 && (
-                  <p className="text-sm text-[#8b7764] text-center py-4 mt-4">
+                  <p className="text-sm text-stone-500 text-center py-8">
                     No bookings for this date
                   </p>
                 )}
