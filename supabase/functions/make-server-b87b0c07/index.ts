@@ -1841,22 +1841,25 @@ app.post("/make-server-b87b0c07/activate", async (c) => {
     const expiryDate = new Date();
     expiryDate.setDate(expiryDate.getDate() + 35); // 35 days validity
 
-    const { error: pkgError } = await supabase
+    const { data: updatedPackages, error: pkgError } = await supabase
       .from('user_packages')
       .update({
         activation_status: 'activated',
         payment_status: 'paid',
+        package_status: 'active',
         activation_date: now,
         expiry_date: expiryDate.toISOString(),
-        status: 'active',
         updated_at: now
       })
       .eq('user_email', normalizedEmail)
-      .eq('activation_status', 'pending');
+      .eq('activation_status', 'pending')
+      .select();
 
     if (pkgError) {
       console.error('Error updating packages:', pkgError);
       // Continue anyway - user might not have packages yet
+    } else {
+      console.log(`Updated ${updatedPackages?.length || 0} packages for ${normalizedEmail}`);
     }
 
     // 3. Confirm all pending reservations for this user
