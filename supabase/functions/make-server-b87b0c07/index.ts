@@ -3557,16 +3557,17 @@ app.post("/make-server-b87b0c07/waitlist/redeem", async (c) => {
       console.log(`User created from waitlist: ${normalizedEmail}`);
     }
 
-    // Create 8-class package in Supabase (not KV)
+    // Create package: 8 paid classes + 1 FREE bonus = 9 total
+    // After first booking (the free class), remaining = 8
     const { data: insertedPackage, error: packageError } = await supabase
       .from('user_packages')
       .insert({
         user_email: normalizedEmail,
         package_type: 'package8',
-        total_sessions: 8,
-        base_sessions: 8,
-        bonus_classes: 0,
-        remaining_sessions: 8, // First class is FREE bonus, doesn't count against package
+        total_sessions: 9,  // 8 paid + 1 free bonus
+        base_sessions: 8,   // What user paid for
+        bonus_classes: 1,   // The free class from waitlist offer
+        remaining_sessions: 8, // After first free class is booked
         sessions_booked: [],
         sessions_attended: [],
         package_status: 'active',
