@@ -1,14 +1,23 @@
 # Full Phase 0 Review - Backend, Frontend, and Documentation
 
-**Date:** 2026-01-31
+> **Purpose:** Audit snapshot of what was true on that date.
+> **Read when:** Need context, prioritization, or understanding why something is in plan.
+
+**Date:** 2026-02-01 (Updated)
 **Reviewer:** Claude Code
-**Status:** Post Phase 0E
+**Status:** Post Phase 0E + Critical Fixes
 
 ---
 
 ## Executive Summary
 
-Phase 0 (KV → Supabase migration) is approximately **60% complete**. Critical backend migrations are done, but several endpoints still use KV store. Frontend has multiple bugs including a **hardcoded date** that will break the app. Documentation is partially outdated.
+Phase 0 (KV → Supabase migration) is approximately **70% complete** (21/30 endpoints). Critical backend migrations are done. Frontend critical bugs have been fixed (hardcoded dates, fetchUsers). Documentation has been restructured.
+
+### Fixed Since Initial Review
+- ✅ Hardcoded date (Jan 29, 2026) → Dynamic dates
+- ✅ fetchUsers() undefined → fetchBookings()
+- ✅ Centralized date utilities created
+- ✅ Documentation restructured
 
 ---
 

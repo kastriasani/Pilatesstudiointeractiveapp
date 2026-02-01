@@ -1,35 +1,42 @@
-# WellNest Pilates KV -> Supabase Migration Masterplan
+# WellNest Pilates KV → Supabase Migration Masterplan
 
-## Current status
-- Migration progress: 16/30 endpoints (53%)
-- Project ref: azqkguctispoctvmpmci
-- 6 routes excluded (dev/debug/utility)
-- See: docs/ROUTE_INVENTORY.md for full list
+> **Purpose:** Single source of truth for migration work.
+> **Read when:** Doing backend migration or deciding next tasks.
 
-## Known bugs
-- **BUG:** /validate-coupon is registered twice (lines 532 and 577) - remove duplicate
+## Current Status
 
-## Source of truth
+- **Migration progress:** 21/30 endpoints (70%)
+- **Project ref:** azqkguctispoctvmpmci
+- **Excluded:** 6 routes (dev/debug/utility)
+- **See:** docs/ROUTE_INVENTORY.md for full list
+
+## Source of Truth
+
 All routes must match those registered in:
-- supabase/functions/make-server-b87b0c07/index.ts
+- `supabase/functions/make-server-b87b0c07/index.ts`
 
 Verification command:
+```bash
 rg -n 'app\.(get|post|patch|delete)\(' supabase/functions/make-server-b87b0c07/index.ts
+```
 
-## Tables
+## Database Tables
+
 | Table | Records | Status | Used By |
-|---|---:|---|---|
-| users | 11+ | active | admin/users, packages, auth |
-| reservations | 12+ | active | admin/calendar, bookings |
-| waitlist_members | 104 | active | admin/waitlist |
-| redemption_codes | 103 | active | coupon validation |
-| user_packages | 0 | active | package management |
-| kv_store_b87b0c07 | legacy | legacy | sessions, payments |
-| user_bookings | 0 | unused | - |
+|-------|--------:|--------|---------|
+| users | 11+ | ✅ active | admin/users, packages, auth |
+| reservations | 12+ | ✅ active | admin/calendar, bookings |
+| waitlist_members | 104 | ✅ active | admin/waitlist |
+| redemption_codes | 103 | ✅ active | coupon validation |
+| user_packages | active | ✅ active | package management |
+| kv_store_b87b0c07 | legacy | ⚠️ legacy | sessions only |
 
-## Phases
+---
 
-### Phase 0A Read endpoints ✅ COMPLETE
+## Completed Phases
+
+### Phase 0A: Read Endpoints ✅ COMPLETE
+
 | Endpoint | Commit |
 |----------|--------|
 | GET /admin/waitlist | 7a7eb65 |
@@ -37,14 +44,16 @@ rg -n 'app\.(get|post|patch|delete)\(' supabase/functions/make-server-b87b0c07/i
 | GET /bookings | c7cbb0b |
 | GET /admin/calendar | e490f8a |
 
-### Phase 0B Write endpoints ✅ COMPLETE
+### Phase 0B: Write Endpoints ✅ COMPLETE
+
 | Endpoint | Commit |
 |----------|--------|
 | POST /waitlist | cd4c3eb |
 | DELETE /admin/waitlist/:email | cd4c3eb |
 | PATCH /admin/users/:email/payment | cd4c3eb |
 
-### Phase 0C Package endpoints ✅ COMPLETE
+### Phase 0C: Package Endpoints ✅ COMPLETE
+
 | Endpoint | Commit |
 |----------|--------|
 | POST /packages | a1f93eb |
@@ -52,76 +61,106 @@ rg -n 'app\.(get|post|patch|delete)\(' supabase/functions/make-server-b87b0c07/i
 | GET /packages/:id | a1f93eb |
 | GET /user/packages | a1f93eb |
 
-### Phase 0D Reservation write endpoints ✅ COMPLETE
-| Endpoint | Notes |
-|----------|-------|
-| POST /reservations | Atomic RPC (create_reservation) |
-| GET /reservations | Supabase select with filters |
-| GET /reservations/:id | Supabase select single |
-| PATCH /reservations/:id/status | Supabase update + user_packages |
-| DELETE /reservations/:id | Supabase delete + restore package sessions |
+### Phase 0D: Reservation Endpoints ✅ COMPLETE
+
+| Endpoint | Commit | Notes |
+|----------|--------|-------|
+| POST /reservations | 5281960 | Atomic RPC |
+| GET /reservations | 5281960 | Supabase select |
+| GET /reservations/:id | 5281960 | Supabase select |
+| PATCH /reservations/:id/status | 5281960 | + user_packages |
+| DELETE /reservations/:id | 5281960 | + restore sessions |
 
 Migration file: `supabase/migrations/20260131_create_reservation_rpc.sql`
 
-Atomicity solved via Postgres RPC with FOR UPDATE locking:
-- Capacity check + write is atomic
-- Duplicate booking check is atomic
-- Package session decrement is atomic
+### Phase 0E: Auth & Activation ✅ COMPLETE
 
-### Phase 0E Auth and activation ⬚ PENDING
-| Endpoint | Target Table |
-|----------|--------------|
-| POST /auth/register | users |
-| POST /auth/login | users |
-| /auth/verify | VERIFY IN CODE (GET or POST), KV sessions ok |
-| POST /auth/setup-password | users |
-| POST /activate | users + user_packages |
+| Endpoint | Commit | Notes |
+|----------|--------|-------|
+| POST /activate | 66e22c7 | Admin-triggered, no code |
+| POST /auth/register | 66e22c7 | Supabase users table |
+| POST /auth/login | 66e22c7 | Supabase users table |
 
-### Phase 0F-J Remaining endpoints ⬚ PENDING
-- First session booking
-- User dashboard
-- Admin actions
-- Schedule config
-- Payments
+Additional commits:
+- 327428e: Critical bug fixes (dynamic dates, fetchUsers)
+- 1cdb283: Centralized date utilities
 
-### Phase 0K Data backfill ⬚ PENDING
-KV prefix to table mapping:
-- user: → users
-- package: → user_packages
-- reservation: → reservations
-- waitlist: → waitlist_members
+---
 
-### Phase 0L KV decommission rules
-Allowed: temporary tokens only (session:, payment:token:)
-Forbidden: domain writes for user, reservation, package, waitlist
+## Remaining Phases
 
-### Phase 0M Contract tests ⬚ PENDING
-Rule: phase is not complete unless tests pass
+### Phase 0F: First Session & Reschedule ⬚ PENDING
 
-## Definition of complete
-1. Every registered route in make-server-b87b0c07/index.ts is in this plan
-2. No KV writes for domain data prefixes
-3. Backfill completed and validated
-4. Contract tests exist and pass
+| Endpoint | Current | Target |
+|----------|---------|--------|
+| POST /packages/:id/first-session | KV | Supabase |
+| POST /user/packages/:id/reschedule | KV | Supabase |
 
-## Phase 2: Future Improvements (Post-Migration)
+### Phase 0G: Auth Completion ⬚ PENDING
 
-### Supabase Auth Migration
-Target: Replace custom auth with Supabase Auth for better security
+| Endpoint | Current | Target |
+|----------|---------|--------|
+| POST /auth/setup-password | KV | Supabase |
+| GET /auth/verify | KV | OK (sessions) |
+| POST /auth/logout | KV | OK (sessions) |
 
-Benefits:
-- Built-in Magic Links
-- Secure password hashing (bcrypt)
-- Session management
-- Rate limiting
-- Optional MFA
+### Phase 0H: Cleanup & Removal ⬚ PENDING
 
-Scope:
-- POST /auth/register → Supabase Auth signUp
-- POST /auth/login → Supabase Auth signInWithPassword or signInWithOtp
-- GET /auth/verify → Supabase Auth getSession
-- POST /auth/logout → Supabase Auth signOut
-- Remove custom session tokens from KV
+| Endpoint | Action |
+|----------|--------|
+| POST /admin/resend-activation-code | REMOVE (obsolete) |
+| POST /activate-member | REMOVE (obsolete) |
+| POST /validate-coupon (line 626) | REMOVE (duplicate) |
+| POST /migrate-bookings | REMOVE (one-time tool) |
+| GET /admin/orphaned-packages | REMOVE (cleanup tool) |
 
-Priority: After Phase 0 complete
-Estimated effort: 2-4 hours
+### Phase 0I: Remaining KV Endpoints ⬚ PENDING
+
+| Endpoint | Priority |
+|----------|----------|
+| POST /bookings | LOW (may duplicate /reservations) |
+| POST /admin/waitlist/send-invite | MEDIUM |
+| POST /waitlist/redeem | MEDIUM |
+
+---
+
+## KV Usage Remaining
+
+Endpoints still using `kv.*` calls:
+
+| Endpoint | KV Calls | Notes |
+|----------|----------|-------|
+| POST /packages/:id/first-session | kv.get, kv.set | HIGH priority |
+| POST /auth/setup-password | kv.get, kv.set | HIGH priority |
+| POST /user/packages/:id/reschedule | kv.get, kv.set | MEDIUM |
+| POST /admin/resend-activation-code | kv.getByPrefix | REMOVE |
+| POST /bookings | kv.getByPrefix, kv.set | LOW |
+| POST /activate-member | kv.get | REMOVE |
+| GET /admin/orphaned-packages | kv.getByPrefix | REMOVE |
+| POST /admin/waitlist/send-invite | kv.get, kv.set | MEDIUM |
+| POST /waitlist/redeem | kv.get, kv.set | MEDIUM |
+| GET /debug/check-users | kv.getByPrefix | N/A (debug) |
+| GET /auth/verify | kv.get | OK (sessions) |
+| POST /auth/logout | kv.del | OK (sessions) |
+
+**Allowed KV usage:** Session tokens only (`session:*`)
+**Forbidden:** Domain data (user, package, reservation, waitlist)
+
+---
+
+## Definition of Complete
+
+1. ✅ Every route in index.ts is in this plan
+2. ⬚ No KV writes for domain data prefixes
+3. ⬚ Backfill completed and validated
+4. ⬚ Contract tests exist and pass
+
+---
+
+## Known Bugs
+
+| Bug | Location | Status |
+|-----|----------|--------|
+| Duplicate /validate-coupon | index.ts:581,626 | ⬚ To fix in 0H |
+| POST /admin/resend-activation-code | index.ts:1928 | ⬚ To remove in 0H |
+| POST /activate-member | index.ts:2214 | ⬚ To remove in 0H |
