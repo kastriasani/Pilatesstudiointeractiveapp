@@ -113,29 +113,82 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
     }
   }, [activeSessionToken]);
 
-  // Load available slots for rescheduling
+  // Load available slots for rescheduling - uses /bookings endpoint like PackageOverview
   const loadAvailableSlots = async () => {
     try {
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/slots/available`,
+        `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/bookings`,
         {
           method: 'GET',
           headers: {
-            'Content-Type': 'application/json',
             'Authorization': `Bearer ${publicAnonKey}`,
           },
         }
       );
 
       if (!response.ok) {
-        console.error('Failed to load slots');
+        console.error('Failed to load bookings for slots');
         return;
       }
 
       const data = await response.json();
-      if (data.success) {
-        setAvailableSlots(data.slots);
+      const existingBookings = data.bookings || [];
+
+      // Generate next 7 weekdays
+      const slots: DateSlot[] = [];
+      const timeSlotList = ['09:00', '10:00', '16:00', '17:00', '18:00', '19:00', '20:00'];
+
+      for (let i = 0; i < 7; i++) {
+        const date = new Date();
+        date.setDate(date.getDate() + i);
+
+        // Skip weekends
+        if (date.getDay() === 0 || date.getDay() === 6) continue;
+
+        const dateKey = date.toISOString().split('T')[0];
+
+        // Get bookings for this date
+        const dayBookings = existingBookings.filter((b: any) =>
+          b.dateKey === dateKey &&
+          (b.reservationStatus === 'confirmed' || b.reservationStatus === 'attended' || b.reservationStatus === 'pending')
+        );
+
+        const availableTimeSlots = timeSlotList.map(time => {
+          const slotBookings = dayBookings.filter((b: any) => b.timeSlot === time);
+          const seatsOccupied = slotBookings.reduce((total: number, booking: any) => {
+            return total + (booking.seatsOccupied || 1);
+          }, 0);
+          const hasPrivateSession = slotBookings.some((b: any) => b.isPrivateSession);
+          const available = hasPrivateSession ? 0 : Math.max(0, 4 - seatsOccupied);
+
+          // Filter out past time slots for today
+          const now = new Date();
+          const [hours] = time.split(':').map(Number);
+          const isPastTime = i === 0 && hours <= now.getHours();
+
+          return {
+            time,
+            available: isPastTime ? 0 : available,
+            isBooked: available <= 0 || isPastTime,
+          };
+        });
+
+        if (availableTimeSlots.some(slot => slot.available > 0)) {
+          slots.push({
+            date,
+            dateKey,
+            displayDate: date.toLocaleDateString(language === 'sq' ? 'sq-AL' : 'en-US', {
+              weekday: 'short',
+              day: 'numeric',
+              month: 'short'
+            }),
+            timeSlots: availableTimeSlots,
+          });
+        }
       }
+
+      setAvailableSlots(slots);
+      console.log('📅 Loaded', slots.length, 'available dates for rescheduling');
     } catch (error) {
       console.error('Error loading slots:', error);
     }
@@ -347,12 +400,14 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
                 </div>
               )}
 
-              {/* Package Info Footer */}
-              <div className="pt-3 border-t border-[#e8e6e3]">
-                <p className="text-xs text-[#8b7764]">
-                  {t.activationCode || 'Activation Code'}: {pkg.activationCodeId || 'Pending'}
-                </p>
-              </div>
+              {/* Package Info Footer - only show activation code if not yet activated */}
+              {pkg.activationStatus !== 'activated' && (
+                <div className="pt-3 border-t border-[#e8e6e3]">
+                  <p className="text-xs text-[#8b7764]">
+                    {t.activationCode || 'Activation Code'}: {pkg.activationCodeId || 'Pending'}
+                  </p>
+                </div>
+              )}
             </div>
           ))}
         </div>

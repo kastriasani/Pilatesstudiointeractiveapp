@@ -365,13 +365,13 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
   const dates = generateAdminDates();
 
   const timeSlots: TimeSlot[] = [
-    { time: '09:00 - 10:00', maxCapacity: 4 },
-    { time: '10:00 - 11:00', maxCapacity: 4 },
-    { time: '16:00 - 17:00', maxCapacity: 4 },
-    { time: '17:00 - 18:00', maxCapacity: 4 },
-    { time: '18:00 - 19:00', maxCapacity: 4 },
-    { time: '19:00 - 20:00', maxCapacity: 4 },
-    { time: '20:00 - 21:00', maxCapacity: 4 },
+    { time: '09:00 - 09:50', maxCapacity: 4 },
+    { time: '10:00 - 10:50', maxCapacity: 4 },
+    { time: '16:00 - 16:50', maxCapacity: 4 },
+    { time: '17:00 - 17:50', maxCapacity: 4 },
+    { time: '18:00 - 18:50', maxCapacity: 4 },
+    { time: '19:00 - 19:50', maxCapacity: 4 },
+    { time: '20:00 - 20:50', maxCapacity: 4 },
   ];
 
   const maxDailyCapacity = timeSlots.length * 4; // 7 slots × 4 capacity = 28 max bookings per day
@@ -407,7 +407,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
   const getStatusText = (status: UserStatus) => {
     switch (status) {
       case 'confirmed':
-        return 'Payed';
+        return 'Paid';
       case 'pending':
         return 'Pending';
       case 'cancelled':
@@ -867,7 +867,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                 <p className="text-sm text-[#8b7764]">Total users: {users.length}</p>
               </div>
 
-              {/* Payed / Pending Tabs */}
+              {/* Paid / Pending Tabs */}
               <div className="flex border-b border-[#e8dfd8] px-4">
                 <button
                   onClick={() => setUserSubTab('confirmed')}
@@ -877,7 +877,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                       : 'text-[#8b7764] hover:text-[#6b5949]'
                   }`}
                 >
-                  Payed
+                  Paid
                   {userSubTab === 'confirmed' && (
                     <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-green-700" />
                   )}
