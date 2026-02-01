@@ -665,51 +665,6 @@ app.post("/make-server-b87b0c07/validate-coupon", async (c) => {
     const { code } = body;
 
     if (!code || typeof code !== 'string') {
-      return c.json({ valid: false, error: "Invalid coupon code format" });
-    }
-
-    const normalizedCode = code.trim().toUpperCase();
-    console.log(`🔍 Looking for coupon: ${normalizedCode}`);
-    
-    // Query redemption_codes table DIRECTLY (not kv_store!)
-    const supabase = getSupabase();
-    const { data: coupon, error } = await supabase
-      .from('redemption_codes')
-      .select('*')
-      .eq('code', normalizedCode)
-      .maybeSingle();
-
-    if (error) {
-      console.error('❌ Database error:', error);
-      return c.json({ valid: false, error: "Database error" }, 500);
-    }
-
-    if (!coupon) {
-      return c.json({ valid: false, error: "Coupon not found" });
-    }
-
-    console.log(`✅ Coupon found:`, coupon);
-    
-    return c.json({ 
-      valid: true, 
-      message: "Valid coupon! You'll receive +1 free class",
-      bonusClasses: 1
-    });
-
-  } catch (error) {
-    console.error('Error:', error);
-    return c.json({ valid: false, error: 'Server error' }, 500);
-  }
-});
-
-// ============ COUPON VALIDATION ENDPOINT ============
-
-app.post("/make-server-b87b0c07/validate-coupon", async (c) => {
-  try {
-    const body = await c.req.json();
-    const { code } = body;
-
-    if (!code || typeof code !== 'string') {
       console.log('❌ Coupon validation failed: Invalid format');
       return c.json({ valid: false, error: "Invalid coupon code format" });
     }
@@ -731,7 +686,45 @@ app.post("/make-server-b87b0c07/validate-coupon", async (c) => {
     }
 
     if (!coupon) {
-      console.log(`❌ Coupon not found in redemption_codes table: ${normalizedCode}`);
+      // Not found in redemption_codes, check waitlist_members table
+      console.log(`🔍 Not in redemption_codes, checking waitlist_members for: ${normalizedCode}`);
+
+      const { data: waitlistMember, error: wlError } = await supabase
+        .from('waitlist_members')
+        .select('*')
+        .eq('code', normalizedCode)
+        .maybeSingle();
+
+      if (wlError) {
+        console.error('❌ Waitlist lookup error:', wlError);
+        return c.json({ valid: false, error: "Database error" }, 500);
+      }
+
+      if (waitlistMember) {
+        console.log(`📋 Found in waitlist_members:`, JSON.stringify(waitlistMember, null, 2));
+
+        if (waitlistMember.status === 'redeemed') {
+          console.log(`❌ Waitlist code already redeemed: ${normalizedCode}`);
+          return c.json({ valid: false, error: "Code already redeemed" });
+        }
+
+        if (waitlistMember.status === 'invited') {
+          console.log(`✅ Valid waitlist code: ${normalizedCode}`);
+          return c.json({
+            valid: true,
+            message: "Valid code! You'll receive your first class FREE with an 8-class package",
+            bonusClasses: 1,
+            offerType: 'first_class_free_with_8pack',
+            isWaitlistCode: true
+          });
+        }
+
+        // Status is not 'invited' (e.g., 'pending')
+        console.log(`❌ Waitlist code not yet activated: ${normalizedCode}, status: ${waitlistMember.status}`);
+        return c.json({ valid: false, error: "Code not yet activated" });
+      }
+
+      console.log(`❌ Coupon not found in any table: ${normalizedCode}`);
       return c.json({ valid: false, error: "Coupon not found" });
     }
 
@@ -3573,7 +3566,7 @@ app.post("/make-server-b87b0c07/waitlist/redeem", async (c) => {
         total_sessions: 8,
         base_sessions: 8,
         bonus_classes: 0,
-        remaining_sessions: 7, // First session used
+        remaining_sessions: 8, // First class is FREE bonus, doesn't count against package
         sessions_booked: [],
         sessions_attended: [],
         package_status: 'active',
