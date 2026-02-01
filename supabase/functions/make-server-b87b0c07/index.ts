@@ -3335,7 +3335,7 @@ app.get("/make-server-b87b0c07/admin/waitlist", async (c) => {
   }
 });
 
-// Send invite email to waitlist user(s)
+// Send invite email to waitlist user(s) - MIGRATED TO SUPABASE
 app.post("/make-server-b87b0c07/admin/waitlist/send-invite", async (c) => {
   try {
     // Verify admin session
@@ -3352,16 +3352,39 @@ app.post("/make-server-b87b0c07/admin/waitlist/send-invite", async (c) => {
 
     const emailList = Array.isArray(emails) ? emails : [emails];
     const results = [];
+    const supabase = getSupabase();
 
     for (const email of emailList) {
       const normalizedEmail = email.toLowerCase().trim();
-      const waitlistId = `waitlist:${normalizedEmail}`;
-      
-      const waitlistUser = await kv.get(waitlistId);
-      
-      if (!waitlistUser) {
+
+      // Read from Supabase instead of KV
+      const { data: waitlistUser, error: fetchError } = await supabase
+        .from('waitlist_members')
+        .select('*')
+        .eq('email', normalizedEmail)
+        .maybeSingle();
+
+      if (fetchError || !waitlistUser) {
         results.push({ email, success: false, error: 'Not found in waitlist' });
         continue;
+      }
+
+      // Generate code if missing
+      let redemptionCode = waitlistUser.code;
+      if (!redemptionCode) {
+        redemptionCode = generateActivationCode();
+        // Store the generated code in Supabase
+        const { error: codeUpdateError } = await supabase
+          .from('waitlist_members')
+          .update({ code: redemptionCode, updated_at: new Date().toISOString() })
+          .eq('id', waitlistUser.id);
+
+        if (codeUpdateError) {
+          console.error(`Failed to save code for ${normalizedEmail}:`, codeUpdateError);
+          results.push({ email, success: false, error: 'Failed to generate code' });
+          continue;
+        }
+        console.log(`Generated new code for ${normalizedEmail}: ${redemptionCode}`);
       }
 
       // Detect language based on name/surname
@@ -3388,19 +3411,27 @@ app.post("/make-server-b87b0c07/admin/waitlist/send-invite", async (c) => {
         const emailResult = await sendWaitlistInviteEmail(
           normalizedEmail,
           waitlistUser.name,
-          waitlistUser.redemptionCode,
+          redemptionCode,
           language
         );
 
         if (emailResult.success) {
-          // Update waitlist user status
-          waitlistUser.status = 'invited';
-          waitlistUser.invitedAt = new Date().toISOString();
-          waitlistUser.inviteEmailSent = true;
-          await kv.set(waitlistId, waitlistUser);
+          // Update waitlist user status in Supabase
+          const { error: updateError } = await supabase
+            .from('waitlist_members')
+            .update({
+              status: 'invited',
+              invited_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', waitlistUser.id);
 
-          results.push({ email, success: true, redemptionCode: waitlistUser.redemptionCode });
-          console.log(`Sent invite email to ${normalizedEmail}`);
+          if (updateError) {
+            console.error(`Failed to update status for ${normalizedEmail}:`, updateError);
+          }
+
+          results.push({ email, success: true, redemptionCode });
+          console.log(`✅ Sent invite email to ${normalizedEmail} (Supabase)`);
         } else {
           results.push({ email, success: false, error: emailResult.error });
           console.error(`Failed to send email to ${normalizedEmail}:`, emailResult.error);
