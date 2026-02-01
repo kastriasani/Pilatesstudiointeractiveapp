@@ -232,6 +232,36 @@ function isDevEndpointsEnabled(): boolean {
   return Deno.env.get("ENABLE_DEV_ENDPOINTS") === "true";
 }
 
+// Admin credentials (from env or defaults for development)
+const ADMIN_USERNAME = Deno.env.get("ADMIN_USERNAME") || "admin";
+const ADMIN_PASSWORD = Deno.env.get("ADMIN_PASSWORD") || "admin";
+
+// Helper to verify admin session from request
+async function verifyAdminSession(c: any): Promise<{ valid: boolean; error?: string }> {
+  const sessionToken = c.req.header('X-Session-Token') || c.req.header('Authorization')?.replace('Bearer ', '');
+
+  if (!sessionToken) {
+    return { valid: false, error: 'No session token provided' };
+  }
+
+  const sessionKey = `session:${sessionToken}`;
+  const session = await kv.get(sessionKey);
+
+  if (!session) {
+    return { valid: false, error: 'Invalid session' };
+  }
+
+  if (new Date(session.expiresAt) < new Date()) {
+    return { valid: false, error: 'Session expired' };
+  }
+
+  if (!session.isAdmin) {
+    return { valid: false, error: 'Admin access required' };
+  }
+
+  return { valid: true };
+}
+
 async function verifyPassword(password: string, hash: string): Promise<boolean> {
   const passwordHash = await hashPassword(password);
   return passwordHash === hash;
@@ -931,6 +961,7 @@ app.post("/make-server-b87b0c07/packages", async (c) => {
   }
 });
 
+// POST /packages/:id/first-session - MIGRATED TO SUPABASE
 app.post("/make-server-b87b0c07/packages/:id/first-session", async (c) => {
   try {
     const packageId = c.req.param('id');
@@ -945,22 +976,31 @@ app.post("/make-server-b87b0c07/packages/:id/first-session", async (c) => {
       return c.json({ error: "Missing app URL for email link" }, 400);
     }
 
-    const pkg = await kv.get(packageId);
-    if (!pkg) {
+    const supabase = getSupabase();
+    const now = new Date().toISOString();
+
+    // Read package from Supabase (not KV)
+    const { data: pkg, error: pkgError } = await supabase
+      .from('user_packages')
+      .select('*')
+      .eq('id', packageId)
+      .single();
+
+    if (pkgError || !pkg) {
       return c.json({ error: "Package not found" }, 404);
     }
 
-    if (pkg.firstReservationId !== null) {
+    if (pkg.first_reservation_id !== null) {
       return c.json({ error: "First session already booked for this package" }, 400);
     }
 
-    if (pkg.packageStatus !== 'pending') {
+    if (pkg.package_status !== 'pending') {
       return c.json({ error: "Package is not in pending state" }, 400);
     }
 
-    const serviceType = extractServiceType(pkg.packageType);
+    const serviceType = extractServiceType(pkg.package_type);
     const capacity = await calculateSlotCapacity(dateKey, timeSlot);
-    
+
     if (serviceType === 'individual') {
       if (capacity.available < 4) {
         return c.json({ error: "Slot not available for 1-on-1 session (must be empty)" }, 400);
@@ -979,116 +1019,146 @@ app.post("/make-server-b87b0c07/packages/:id/first-session", async (c) => {
     }
 
     const dateString = formatDateString(dateKey);
-    const reservationId = `reservation:${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    const fullDate = constructFullDate(dateKey, timeSlot);
     const endTime = calculateEndTime(timeSlot);
 
-    const reservation = {
-      id: reservationId,
-      userId: pkg.email,
-      packageId: pkg.id,
-      sessionNumber: 1,
-      serviceType,
-      dateKey,
-      date: dateString,
-      fullDate,
-      timeSlot,
-      endTime,
-      instructor,
-      name: pkg.name,
-      surname: pkg.surname,
-      email: pkg.email,
-      mobile: pkg.mobile,
-      partnerName: partnerName || null,
-      partnerSurname: partnerSurname || null,
-      reservationStatus: 'pending' as ReservationStatus,
-      paymentStatus: pkg.paymentStatus,
-      seatsOccupied: serviceType === 'duo' ? 2 : (serviceType === 'individual' ? 4 : 1),
-      isPrivateSession: serviceType === 'individual',
-      isOverbooked: false,
-      isFirstSessionOfPackage: true,
-      autoConfirmed: false,
-      lateCancellation: false,
-      cancelledAt: null,
-      cancelledBy: null,
-      cancelReason: null,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      activatedAt: null,
-      attendedAt: null,
-      language: pkg.language
-    };
+    // Insert reservation into Supabase (not KV)
+    const { data: insertedReservation, error: resError } = await supabase
+      .from('reservations')
+      .insert({
+        user_email: pkg.user_email,
+        package_id: pkg.id,
+        date_key: dateKey,
+        time_slot: timeSlot,
+        reservation_status: 'pending',
+        payment_status: pkg.payment_status || 'unpaid',
+        name: pkg.name,
+        surname: pkg.surname,
+        mobile: pkg.mobile,
+        instructor,
+        package_type: pkg.package_type,
+        service_type: serviceType,
+        created_at: now,
+        updated_at: now
+      })
+      .select()
+      .single();
 
-    await kv.set(reservationId, reservation);
+    if (resError || !insertedReservation) {
+      console.error('Error creating reservation in Supabase:', resError);
+      return c.json({ error: 'Failed to create reservation', details: resError?.message }, 500);
+    }
 
-    pkg.firstReservationId = reservationId;
-    pkg.sessionsBooked = [reservationId];
-    pkg.updatedAt = new Date().toISOString();
-    await kv.set(packageId, pkg);
+    const reservationId = insertedReservation.id;
 
+    // Update user_packages in Supabase (not KV)
+    const { error: updatePkgError } = await supabase
+      .from('user_packages')
+      .update({
+        first_reservation_id: reservationId,
+        updated_at: now
+      })
+      .eq('id', packageId);
+
+    if (updatePkgError) {
+      console.error('Error updating package in Supabase:', updatePkgError);
+    }
+
+    // Check user from Supabase and send email if needed
     try {
-      const user = await kv.get(`user:${pkg.email}`);
-      
-      if (!user || !user.passwordHash) {
+      const { data: user } = await supabase
+        .from('users')
+        .select('*')
+        .eq('email', pkg.user_email)
+        .single();
+
+      if (!user || !user.password_hash) {
         const verificationToken = `verify_${Date.now()}_${Math.random().toString(36).substr(2, 16)}`;
         const tokenKey = `verification_token:${verificationToken}`;
         const tokenExpiry = new Date();
         tokenExpiry.setHours(tokenExpiry.getHours() + 24);
 
+        // Token stays in KV (acceptable for temporary tokens)
         const tokenData = {
           id: tokenKey,
           token: verificationToken,
-          email: pkg.email,
+          email: pkg.user_email,
           expiresAt: tokenExpiry.toISOString(),
           used: false,
-          createdAt: new Date().toISOString()
+          createdAt: now
         };
         await kv.set(tokenKey, tokenData);
 
-        if (user) {
-          user.verificationToken = verificationToken;
-          user.verified = false;
-          user.passwordHash = null;
-          user.updatedAt = new Date().toISOString();
-          await kv.set(`user:${pkg.email}`, user);
-        }
-
         await sendRegistrationEmail(
-          pkg.email,
+          pkg.user_email,
           pkg.name,
           pkg.surname,
           verificationToken,
-          pkg.packageType,
+          pkg.package_type,
           dateString,
           timeSlot,
           endTime,
           appUrl,
-          pkg.language,
-          pkg.bonusClasses || 0,
-          pkg.redeemedCouponCode || ''
+          pkg.language || 'en',
+          pkg.bonus_classes || 0,
+          pkg.redeemed_coupon_code || ''
         );
-        console.log(`Registration email sent to: ${pkg.email} in language: ${pkg.language}`);
+        console.log(`Registration email sent to: ${pkg.user_email} in language: ${pkg.language}`);
       }
     } catch (emailError) {
       console.error('Error sending registration email:', emailError);
     }
 
-    console.log(`First session booked for package ${packageId}: ${reservationId}`);
+    console.log(`First session booked for package ${packageId}: ${reservationId} (Supabase)`);
+
+    // Build response in camelCase for frontend compatibility
+    const reservation = {
+      id: reservationId,
+      userId: pkg.user_email,
+      packageId: pkg.id,
+      serviceType,
+      dateKey,
+      date: dateString,
+      timeSlot,
+      endTime,
+      instructor,
+      name: pkg.name,
+      surname: pkg.surname,
+      email: pkg.user_email,
+      mobile: pkg.mobile,
+      partnerName: partnerName || null,
+      partnerSurname: partnerSurname || null,
+      reservationStatus: 'pending',
+      paymentStatus: pkg.payment_status || 'unpaid',
+      createdAt: now,
+      language: pkg.language || 'en'
+    };
+
+    const pkgResponse = {
+      id: pkg.id,
+      userId: pkg.user_email,
+      packageType: pkg.package_type,
+      totalSessions: pkg.total_sessions,
+      remainingSessions: pkg.remaining_sessions,
+      firstReservationId: reservationId,
+      name: pkg.name,
+      surname: pkg.surname,
+      email: pkg.user_email,
+      mobile: pkg.mobile,
+      language: pkg.language || 'en',
+      bonusClasses: pkg.bonus_classes || 0,
+      redeemedCouponCode: pkg.redeemed_coupon_code || null
+    };
 
     return c.json({
       success: true,
-      package: pkg,
+      package: pkgResponse,
       reservation,
-      message: pkg.isPreviewMode 
-        ? "Booking successful! (Preview mode - registration link shown below)" 
-        : "Booking successful! Check your email to complete registration.",
-      isPreviewMode: pkg.isPreviewMode || false,
-      previewRegistrationLink: pkg.previewRegistrationLink || null
+      message: "Booking successful! Check your email to complete registration."
     });
 
   } catch (error) {
     console.error('Error booking first session:', error);
-    return c.json({ error: 'Failed to book first session', details: error.message }, 500);
+    return c.json({ error: 'Failed to book first session', details: (error as Error).message }, 500);
   }
 });
 
@@ -1662,6 +1732,12 @@ app.delete("/make-server-b87b0c07/reservations/:id", async (c) => {
 // Called when admin clicks "Activate User" after cash payment in studio
 app.post("/make-server-b87b0c07/activate", async (c) => {
   try {
+    // Verify admin session
+    const adminAuth = await verifyAdminSession(c);
+    if (!adminAuth.valid) {
+      return c.json({ error: adminAuth.error }, 401);
+    }
+
     const body = await c.req.json();
     const { email } = body;
 
@@ -1778,6 +1854,12 @@ app.post("/make-server-b87b0c07/activate", async (c) => {
 // Get all users with aggregated package and payment data - MIGRATED TO SUPABASE
 app.get("/make-server-b87b0c07/admin/users", async (c) => {
   try {
+    // Verify admin session
+    const adminAuth = await verifyAdminSession(c);
+    if (!adminAuth.valid) {
+      return c.json({ error: adminAuth.error }, 401);
+    }
+
     const supabase = getSupabase();
 
     // Fetch users from Supabase
@@ -1865,6 +1947,12 @@ app.get("/make-server-b87b0c07/admin/users", async (c) => {
 // PATCH /admin/users/:email/payment - MIGRATED TO SUPABASE
 app.patch("/make-server-b87b0c07/admin/users/:email/payment", async (c) => {
   try {
+    // Verify admin session
+    const adminAuth = await verifyAdminSession(c);
+    if (!adminAuth.valid) {
+      return c.json({ error: adminAuth.error }, 401);
+    }
+
     const email = c.req.param('email');
     const body = await c.req.json();
     const { paymentStatus } = body; // 'paid' or 'unpaid'
@@ -1924,9 +2012,15 @@ app.patch("/make-server-b87b0c07/admin/users/:email/payment", async (c) => {
   }
 });
 
-// Resend activation code email for a user
+// Resend activation code email for a user (OBSOLETE - kept for backwards compatibility)
 app.post("/make-server-b87b0c07/admin/resend-activation-code", async (c) => {
   try {
+    // Verify admin session
+    const adminAuth = await verifyAdminSession(c);
+    if (!adminAuth.valid) {
+      return c.json({ error: adminAuth.error }, 401);
+    }
+
     const body = await c.req.json();
     const { email } = body;
 
@@ -2370,6 +2464,12 @@ app.get("/make-server-b87b0c07/admin/orphaned-packages", async (c) => {
 // GET /admin/calendar - MIGRATED TO SUPABASE
 app.get("/make-server-b87b0c07/admin/calendar", async (c) => {
   try {
+    // Verify admin session
+    const adminAuth = await verifyAdminSession(c);
+    if (!adminAuth.valid) {
+      return c.json({ error: adminAuth.error }, 401);
+    }
+
     const dateKey = c.req.query('dateKey');
 
     if (!dateKey) {
@@ -2516,6 +2616,7 @@ app.post("/make-server-b87b0c07/dev/generate-mock-data", async (c) => {
 
 // ============ AUTH ENDPOINTS ============
 
+// POST /auth/setup-password - MIGRATED TO SUPABASE
 app.post("/make-server-b87b0c07/auth/setup-password", async (c) => {
   try {
     const body = await c.req.json();
@@ -2529,6 +2630,7 @@ app.post("/make-server-b87b0c07/auth/setup-password", async (c) => {
       return c.json({ error: "Password must be at least 6 characters" }, 400);
     }
 
+    // Token stays in KV (acceptable for temporary tokens)
     const tokenKey = `verification_token:${token}`;
     const tokenData = await kv.get(tokenKey);
 
@@ -2545,41 +2647,58 @@ app.post("/make-server-b87b0c07/auth/setup-password", async (c) => {
     }
 
     const normalizedEmail = normalizeEmail(tokenData.email);
-    const userKey = `user:${normalizedEmail}`;
-    const user = await kv.get(userKey);
+    const supabase = getSupabase();
 
-    if (!user) {
+    // Read user from Supabase (not KV)
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', normalizedEmail)
+      .single();
+
+    if (userError || !user) {
       return c.json({ error: "User not found" }, 404);
     }
 
-    if (user.passwordHash) {
+    if (user.password_hash) {
       return c.json({ error: "Password already set. Please log in instead." }, 400);
     }
 
     const passwordHash = await hashPassword(password);
+    const now = new Date().toISOString();
 
-    user.passwordHash = passwordHash;
-    user.verified = true;
-    user.verificationToken = null;
-    user.updatedAt = new Date().toISOString();
-    await kv.set(userKey, user);
+    // Update password_hash in Supabase (not KV)
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({
+        password_hash: passwordHash,
+        updated_at: now
+      })
+      .eq('email', normalizedEmail);
 
+    if (updateError) {
+      console.error('Error updating password in Supabase:', updateError);
+      return c.json({ error: 'Failed to set password', details: updateError.message }, 500);
+    }
+
+    // Mark token as used (stays in KV)
     tokenData.used = true;
-    tokenData.usedAt = new Date().toISOString();
+    tokenData.usedAt = now;
     await kv.set(tokenKey, tokenData);
 
+    // Session stays in KV (acceptable for ephemeral session data)
     const sessionToken = `session_${Date.now()}_${Math.random().toString(36).substr(2, 16)}`;
     const sessionKey = `session:${sessionToken}`;
     const sessionData = {
       id: sessionKey,
       token: sessionToken,
       email: normalizedEmail,
-      createdAt: new Date().toISOString(),
+      createdAt: now,
       expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
     };
     await kv.set(sessionKey, sessionData);
 
-    console.log(`Password set for user: ${normalizedEmail}`);
+    console.log(`Password set for user (Supabase): ${normalizedEmail}`);
 
     return c.json({
       success: true,
@@ -2594,7 +2713,7 @@ app.post("/make-server-b87b0c07/auth/setup-password", async (c) => {
 
   } catch (error) {
     console.error('Error setting up password:', error);
-    return c.json({ error: 'Failed to set up password', details: error.message }, 500);
+    return c.json({ error: 'Failed to set up password', details: (error as Error).message }, 500);
   }
 });
 
@@ -2822,7 +2941,53 @@ app.post("/make-server-b87b0c07/auth/logout", async (c) => {
 
   } catch (error) {
     console.error('Error logging out:', error);
-    return c.json({ error: 'Logout failed', details: error.message }, 500);
+    return c.json({ error: 'Logout failed', details: (error as Error).message }, 500);
+  }
+});
+
+// ============ ADMIN AUTH ============
+
+// Admin login - creates session with isAdmin: true
+app.post("/make-server-b87b0c07/auth/admin/login", async (c) => {
+  try {
+    const body = await c.req.json();
+    const { username, password } = body;
+
+    if (!username || !password) {
+      return c.json({ error: "Username and password are required" }, 400);
+    }
+
+    // Verify admin credentials
+    if (username !== ADMIN_USERNAME || password !== ADMIN_PASSWORD) {
+      return c.json({ error: "Invalid admin credentials" }, 401);
+    }
+
+    // Create admin session in KV
+    const sessionToken = `admin_session_${Date.now()}_${Math.random().toString(36).substr(2, 16)}`;
+    const sessionKey = `session:${sessionToken}`;
+    const now = new Date().toISOString();
+    const sessionData = {
+      id: sessionKey,
+      token: sessionToken,
+      email: 'admin@wellnestpilates.com',
+      isAdmin: true,
+      createdAt: now,
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // 24 hours
+    };
+    await kv.set(sessionKey, sessionData);
+
+    console.log(`Admin logged in: ${username}`);
+
+    return c.json({
+      success: true,
+      message: "Admin login successful",
+      session: sessionToken,
+      isAdmin: true
+    });
+
+  } catch (error) {
+    console.error('Error admin login:', error);
+    return c.json({ error: 'Admin login failed', details: (error as Error).message }, 500);
   }
 });
 
@@ -3089,6 +3254,12 @@ app.post("/make-server-b87b0c07/waitlist", async (c) => {
 // Get all waitlist users (admin only) - MIGRATED TO SUPABASE
 app.get("/make-server-b87b0c07/admin/waitlist", async (c) => {
   try {
+    // Verify admin session
+    const adminAuth = await verifyAdminSession(c);
+    if (!adminAuth.valid) {
+      return c.json({ error: adminAuth.error }, 401);
+    }
+
     const supabase = getSupabase();
     const { data, error } = await supabase
       .from('waitlist_members')
@@ -3124,8 +3295,14 @@ app.get("/make-server-b87b0c07/admin/waitlist", async (c) => {
 // Send invite email to waitlist user(s)
 app.post("/make-server-b87b0c07/admin/waitlist/send-invite", async (c) => {
   try {
+    // Verify admin session
+    const adminAuth = await verifyAdminSession(c);
+    if (!adminAuth.valid) {
+      return c.json({ error: adminAuth.error }, 401);
+    }
+
     const { emails, bulk = false } = await c.req.json();
-    
+
     if (!emails || (Array.isArray(emails) && emails.length === 0)) {
       return c.json({ error: 'No emails provided' }, 400);
     }
@@ -3536,20 +3713,25 @@ app.post("/make-server-b87b0c07/admin/waitlist/send-invite", async (c) => {
   }
 });
 
-// Verify redemption code and get waitlist user details
+// Verify redemption code and get waitlist user details - MIGRATED TO SUPABASE
 app.get("/make-server-b87b0c07/waitlist/verify/:code", async (c) => {
   try {
     const code = c.req.param('code');
-    
+
     if (!code) {
       return c.json({ error: 'No code provided' }, 400);
     }
 
-    // Find waitlist user by redemption code
-    const allWaitlistUsers = await kv.getByPrefix('waitlist:');
-    const waitlistUser = allWaitlistUsers.find(u => u.redemptionCode === code);
+    const supabase = getSupabase();
 
-    if (!waitlistUser) {
+    // Find waitlist user by redemption code in Supabase
+    const { data: waitlistUser, error } = await supabase
+      .from('waitlist_members')
+      .select('*')
+      .eq('code', code)
+      .single();
+
+    if (error || !waitlistUser) {
       return c.json({ error: 'Invalid redemption code' }, 404);
     }
 
@@ -3557,23 +3739,23 @@ app.get("/make-server-b87b0c07/waitlist/verify/:code", async (c) => {
       return c.json({ error: 'Code already redeemed' }, 400);
     }
 
-    return c.json({ 
-      success: true, 
+    return c.json({
+      success: true,
       user: {
         name: waitlistUser.name,
         surname: waitlistUser.surname,
         email: waitlistUser.email,
         mobile: waitlistUser.mobile,
-        redemptionCode: waitlistUser.redemptionCode
+        redemptionCode: waitlistUser.code
       }
     });
   } catch (error) {
     console.error('Error verifying redemption code:', error);
-    return c.json({ error: 'Failed to verify code', details: error.message }, 500);
+    return c.json({ error: 'Failed to verify code', details: (error as Error).message }, 500);
   }
 });
 
-// Redeem waitlist offer (purchase 8-pack with free first session)
+// Redeem waitlist offer (purchase 8-pack with free first session) - MIGRATED TO SUPABASE
 app.post("/make-server-b87b0c07/waitlist/redeem", async (c) => {
   try {
     const { code, dateKey, timeSlot, instructor = 'Besa' } = await c.req.json();
@@ -3582,11 +3764,18 @@ app.post("/make-server-b87b0c07/waitlist/redeem", async (c) => {
       return c.json({ error: 'Missing required fields' }, 400);
     }
 
-    // Find and verify waitlist user
-    const allWaitlistUsers = await kv.getByPrefix('waitlist:');
-    const waitlistUser = allWaitlistUsers.find(u => u.redemptionCode === code);
+    const supabase = getSupabase();
+    const now = new Date().toISOString();
+    const expiryDate = new Date(Date.now() + 35 * 24 * 60 * 60 * 1000).toISOString();
 
-    if (!waitlistUser) {
+    // Find and verify waitlist user in Supabase
+    const { data: waitlistUser, error: wlError } = await supabase
+      .from('waitlist_members')
+      .select('*')
+      .eq('code', code)
+      .single();
+
+    if (wlError || !waitlistUser) {
       return c.json({ error: 'Invalid redemption code' }, 404);
     }
 
@@ -3596,62 +3785,143 @@ app.post("/make-server-b87b0c07/waitlist/redeem", async (c) => {
 
     const { name, surname, email, mobile } = waitlistUser;
     const normalizedEmail = email.toLowerCase().trim();
-    const userKey = `user:${normalizedEmail}`;
 
-    // Create or update user account
-    let user = await kv.get(userKey);
-    
-    if (!user) {
-      user = {
-        id: userKey,
-        email: normalizedEmail,
+    // Create or update user in Supabase (not KV)
+    const { data: existingUser } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', normalizedEmail)
+      .maybeSingle();
+
+    if (!existingUser) {
+      const { error: userCreateError } = await supabase
+        .from('users')
+        .insert({
+          email: normalizedEmail,
+          name,
+          surname,
+          mobile,
+          activation_status: 'activated',
+          payment_status: 'paid',
+          created_at: now,
+          updated_at: now,
+          blocked: false
+        });
+
+      if (userCreateError) {
+        console.error('Error creating user:', userCreateError);
+        return c.json({ error: 'Failed to create user', details: userCreateError.message }, 500);
+      }
+      console.log(`User created from waitlist: ${normalizedEmail}`);
+    }
+
+    // Create 8-class package in Supabase (not KV)
+    const { data: insertedPackage, error: packageError } = await supabase
+      .from('user_packages')
+      .insert({
+        user_email: normalizedEmail,
+        package_type: 'package8',
+        total_sessions: 8,
+        base_sessions: 8,
+        bonus_classes: 0,
+        remaining_sessions: 7, // First session used
+        sessions_booked: [],
+        sessions_attended: [],
+        package_status: 'active',
+        activation_status: 'activated',
+        payment_status: 'paid',
+        purchase_date: now,
+        activation_date: now,
+        expiry_date: expiryDate,
         name,
         surname,
         mobile,
-        role: 'user',
-        status: 'active',
-        hasPassword: false,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        isWaitlistUser: true,
-        waitlistRedemptionCode: code
-      };
-      await kv.set(userKey, user);
+        email: normalizedEmail,
+        language: 'en',
+        created_at: now,
+        updated_at: now
+      })
+      .select()
+      .single();
+
+    if (packageError || !insertedPackage) {
+      console.error('Error creating package:', packageError);
+      return c.json({ error: 'Failed to create package', details: packageError?.message }, 500);
     }
 
-    // Create 8-class package
-    const packageId = `package:${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    const package8 = {
+    const packageId = insertedPackage.id;
+
+    // Create reservation in Supabase (not KV)
+    const dateString = formatDateString(dateKey);
+    const endTime = calculateEndTime(timeSlot);
+
+    const { data: insertedReservation, error: resError } = await supabase
+      .from('reservations')
+      .insert({
+        user_email: normalizedEmail,
+        package_id: packageId,
+        date_key: dateKey,
+        time_slot: timeSlot,
+        reservation_status: 'confirmed',
+        payment_status: 'paid',
+        name,
+        surname,
+        mobile,
+        instructor,
+        package_type: 'package8',
+        service_type: 'group',
+        created_at: now,
+        updated_at: now
+      })
+      .select()
+      .single();
+
+    if (resError || !insertedReservation) {
+      console.error('Error creating reservation:', resError);
+      return c.json({ error: 'Failed to create reservation', details: resError?.message }, 500);
+    }
+
+    // Update package with first_reservation_id
+    await supabase
+      .from('user_packages')
+      .update({ first_reservation_id: insertedReservation.id })
+      .eq('id', packageId);
+
+    // Mark waitlist user as redeemed in Supabase (not KV)
+    const { error: updateWlError } = await supabase
+      .from('waitlist_members')
+      .update({
+        status: 'redeemed',
+        updated_at: now
+      })
+      .eq('id', waitlistUser.id);
+
+    if (updateWlError) {
+      console.error('Error updating waitlist status:', updateWlError);
+    }
+
+    console.log(`✅ Waitlist offer redeemed by ${normalizedEmail} - First session FREE (Supabase)`);
+
+    // Build response in camelCase for frontend
+    const packageResponse = {
       id: packageId,
       userId: normalizedEmail,
       packageType: 'package8',
       totalSessions: 8,
-      usedSessions: 0,
-      remainingSessions: 8,
-      purchasedDate: new Date().toISOString(),
-      activatedDate: new Date().toISOString(),
-      expiryDate: new Date(Date.now() + 35 * 24 * 60 * 60 * 1000).toISOString(),
-      isWaitlistPackage: true,
-      waitlistRedemptionCode: code,
+      usedSessions: 1,
+      remainingSessions: 7,
+      purchasedDate: now,
+      activatedDate: now,
+      expiryDate,
       status: 'active'
     };
-    await kv.set(packageId, package8);
 
-    // Book first session (FREE)
-    const dateString = formatDateString(dateKey);
-    const reservationId = `reservation:${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    const fullDate = constructFullDate(dateKey, timeSlot);
-    const endTime = calculateEndTime(timeSlot);
-
-    const reservation = {
-      id: reservationId,
+    const reservationResponse = {
+      id: insertedReservation.id,
       userId: normalizedEmail,
       packageId,
-      sessionNumber: 1,
-      serviceType: 'package8' as ServiceType,
       dateKey,
       date: dateString,
-      fullDate,
       timeSlot,
       endTime,
       instructor,
@@ -3659,48 +3929,16 @@ app.post("/make-server-b87b0c07/waitlist/redeem", async (c) => {
       surname,
       email: normalizedEmail,
       mobile,
-      partnerName: null,
-      partnerSurname: null,
-      reservationStatus: 'confirmed' as ReservationStatus,
-      paymentStatus: 'paid' as PaymentStatus, // First session is FREE
-      seatsOccupied: 1,
-      isPrivateSession: false,
-      isOverbooked: false,
-      isFirstSessionOfPackage: true,
-      isFreeWaitlistSession: true,
-      waitlistRedemptionCode: code,
-      autoConfirmed: true,
-      lateCancellation: false,
-      cancelledAt: null,
-      cancelledBy: null,
-      cancelReason: null,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      activatedAt: new Date().toISOString(),
-      attendedAt: null,
-      language: 'en'
+      reservationStatus: 'confirmed',
+      paymentStatus: 'paid',
+      createdAt: now
     };
-
-    await kv.set(reservationId, reservation);
-
-    // Update package to reflect first session booked
-    package8.usedSessions = 1;
-    package8.remainingSessions = 7;
-    await kv.set(packageId, package8);
-
-    // Mark waitlist user as redeemed
-    waitlistUser.status = 'redeemed';
-    waitlistUser.redeemedAt = new Date().toISOString();
-    waitlistUser.packageId = packageId;
-    await kv.set(waitlistUser.id, waitlistUser);
-
-    console.log(`✅ Waitlist offer redeemed by ${normalizedEmail} - First session FREE`);
 
     return c.json({
       success: true,
       message: 'Welcome package activated! Your first session is FREE.',
-      package: package8,
-      reservation,
+      package: packageResponse,
+      reservation: reservationResponse,
       user: {
         email: normalizedEmail,
         name,
@@ -3710,7 +3948,7 @@ app.post("/make-server-b87b0c07/waitlist/redeem", async (c) => {
     });
   } catch (error) {
     console.error('Error redeeming waitlist offer:', error);
-    return c.json({ error: 'Failed to redeem offer', details: error.message }, 500);
+    return c.json({ error: 'Failed to redeem offer', details: (error as Error).message }, 500);
   }
 });
 
@@ -3718,6 +3956,12 @@ app.post("/make-server-b87b0c07/waitlist/redeem", async (c) => {
 // DELETE /admin/waitlist/:email - MIGRATED TO SUPABASE
 app.delete("/make-server-b87b0c07/admin/waitlist/:email", async (c) => {
   try {
+    // Verify admin session
+    const adminAuth = await verifyAdminSession(c);
+    if (!adminAuth.valid) {
+      return c.json({ error: adminAuth.error }, 401);
+    }
+
     const email = c.req.param('email');
     const normalizedEmail = email.toLowerCase().trim();
     const supabase = getSupabase();
