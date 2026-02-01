@@ -3494,7 +3494,7 @@ app.get("/make-server-b87b0c07/waitlist/verify/:code", async (c) => {
         name: waitlistUser.name,
         surname: waitlistUser.surname,
         email: waitlistUser.email,
-        mobile: waitlistUser.mobile,
+        mobile: waitlistUser.phone,
         redemptionCode: waitlistUser.code
       }
     });
@@ -3532,7 +3532,7 @@ app.post("/make-server-b87b0c07/waitlist/redeem", async (c) => {
       return c.json({ error: 'Code already redeemed' }, 400);
     }
 
-    const { name, surname, email, mobile } = waitlistUser;
+    const { name, surname, email, phone: mobile } = waitlistUser;
     const normalizedEmail = email.toLowerCase().trim();
 
     // Create or update user in Supabase (not KV)
