@@ -12,7 +12,7 @@ import {
 // BulkWaitlistUpload removed - dev functionality not for production
 // import { BulkWaitlistUpload } from './BulkWaitlistUpload';
 
-export type UserStatus = 'pending' | 'confirmed' | 'cancelled';
+export type UserStatus = 'pending' | 'confirmed' | 'cancelled' | 'attended' | 'no_show';
 
 export type User = {
   id: string;
@@ -596,32 +596,34 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
     }
   };
 
-  // Handle marking payment as paid
-  const handleMarkAsPaid = async (email: string) => {
-    console.log('💰 Marking as paid:', email);
+  // Handle activation from calendar booking card (reuses same API as Users tab)
+  const handleActivateFromCalendar = async (email: string, name: string) => {
+    console.log('💰 Activating user from calendar:', email);
     setPaymentUpdatingEmail(email);
     try {
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/admin/users/${encodeURIComponent(email)}/payment`,
+        `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/activate`,
         {
-          method: 'PATCH',
+          method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${publicAnonKey}`,
             'X-Session-Token': getSessionToken(),
           },
-          body: JSON.stringify({ paymentStatus: 'paid' }),
+          body: JSON.stringify({ email }),
         }
       );
       if (response.ok) {
-        console.log('✅ Payment marked as paid');
+        console.log('✅ User activated successfully');
         await fetchBookings();
       } else {
         const errorData = await response.text();
-        console.error('❌ Failed to mark as paid:', response.status, errorData);
+        console.error('❌ Failed to activate user:', response.status, errorData);
+        alert(`Failed to activate ${name}. Check console for details.`);
       }
     } catch (error) {
-      console.error('❌ Error marking as paid:', error);
+      console.error('❌ Error activating user:', error);
+      alert('Network error. Please check your connection.');
     } finally {
       setPaymentUpdatingEmail(null);
     }
@@ -825,22 +827,22 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                     </span>
                                     {/* Payment Badge */}
                                     {isPaid ? (
-                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs text-green-600 bg-green-50">
-                                        <CheckCircle className="w-3 h-3" />
+                                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium text-green-700 bg-green-100">
+                                        <CheckCircle className="w-3.5 h-3.5" />
                                         Paid
                                       </span>
                                     ) : (
                                       <button
-                                        onClick={(e) => { e.stopPropagation(); handleMarkAsPaid(booking.email); }}
+                                        onClick={(e) => { e.stopPropagation(); handleActivateFromCalendar(booking.email, booking.name); }}
                                         disabled={isUpdatingPayment}
-                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs text-amber-600 bg-amber-50 hover:bg-amber-100 disabled:opacity-50"
+                                        className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium text-amber-700 bg-amber-100 border border-amber-300 hover:bg-amber-200 transition-colors disabled:opacity-50 cursor-pointer"
                                       >
                                         {isUpdatingPayment ? (
-                                          <Loader2 className="w-3 h-3 animate-spin" />
+                                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
                                         ) : (
-                                          <AlertCircle className="w-3 h-3" />
+                                          <AlertCircle className="w-3.5 h-3.5" />
                                         )}
-                                        Unpaid
+                                        Not Paid
                                       </button>
                                     )}
                                   </div>
@@ -850,12 +852,15 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                     Sessions: {baseCount > 0 ? baseCount : 'Single'}
                                   </p>
 
-                                  {/* Quick Actions - 44px touch targets */}
+                                  {/* Quick Actions - 44px touch targets with status highlighting */}
                                   <div className="flex items-center gap-1 ml-4">
                                     <button
                                       onClick={(e) => { e.stopPropagation(); handleBookingStatusChange(booking.id, 'attended'); }}
                                       disabled={isProcessing}
-                                      className="w-10 h-10 rounded-lg flex items-center justify-center hover:bg-green-50 text-green-600 disabled:opacity-50"
+                                      className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors disabled:opacity-50
+                                        ${booking.status === 'attended'
+                                          ? 'bg-green-100 text-green-700'
+                                          : 'hover:bg-green-50 text-green-600'}`}
                                       title="Attended"
                                     >
                                       <CheckCircle className="w-5 h-5" />
@@ -863,7 +868,10 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                     <button
                                       onClick={(e) => { e.stopPropagation(); handleBookingStatusChange(booking.id, 'no_show'); }}
                                       disabled={isProcessing}
-                                      className="w-10 h-10 rounded-lg flex items-center justify-center hover:bg-amber-50 text-amber-600 disabled:opacity-50"
+                                      className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors disabled:opacity-50
+                                        ${booking.status === 'no_show'
+                                          ? 'bg-amber-100 text-amber-700'
+                                          : 'hover:bg-amber-50 text-amber-600'}`}
                                       title="No Show"
                                     >
                                       <X className="w-5 h-5" />
@@ -871,7 +879,10 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                     <button
                                       onClick={(e) => { e.stopPropagation(); handleBookingStatusChange(booking.id, 'cancelled'); }}
                                       disabled={isProcessing}
-                                      className="w-10 h-10 rounded-lg flex items-center justify-center hover:bg-stone-100 text-stone-500 disabled:opacity-50"
+                                      className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors disabled:opacity-50
+                                        ${booking.status === 'cancelled'
+                                          ? 'bg-stone-200 text-stone-700'
+                                          : 'hover:bg-stone-100 text-stone-500'}`}
                                       title="Cancel"
                                     >
                                       <Ban className="w-5 h-5" />
