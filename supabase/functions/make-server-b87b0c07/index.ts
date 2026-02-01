@@ -3389,29 +3389,6 @@ app.post("/make-server-b87b0c07/admin/waitlist/send-invite", async (c) => {
         console.log(`Generated new code for ${normalizedEmail}: ${redemptionCode}`);
       }
 
-      // Insert into redemption_codes table for validation (if code is new)
-      if (codeIsNew) {
-        const { error: redemptionError } = await supabase
-          .from('redemption_codes')
-          .insert({
-            code: redemptionCode,
-            waitlist_member_id: waitlistUser.id,
-            email: normalizedEmail,
-            offer_type: 'first_class_free_with_8pack',
-            discount_value: 600,
-            min_package_size: 8,
-            status: 'active',
-            created_at: new Date().toISOString()
-          });
-
-        if (redemptionError) {
-          console.error(`Failed to create redemption code entry for ${normalizedEmail}:`, redemptionError);
-          // Don't fail the whole operation, code is still in waitlist_members
-        } else {
-          console.log(`✅ Added ${redemptionCode} to redemption_codes table`);
-        }
-      }
-
       // Detect language based on name/surname
       const detectLanguage = (name: string, surname: string): 'sq' | 'mk' | 'en' => {
         const albanianEndings = ['aj', 'ush', 'ues', 'i'];
@@ -3664,6 +3641,7 @@ app.post("/make-server-b87b0c07/waitlist/redeem", async (c) => {
       .from('waitlist_members')
       .update({
         status: 'redeemed',
+        redeemed_at: now,
         updated_at: now
       })
       .eq('id', waitlistUser.id);
