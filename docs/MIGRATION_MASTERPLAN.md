@@ -5,7 +5,7 @@
 
 ## Current Status
 
-- **Migration progress:** 21/30 endpoints (70%)
+- **Migration progress:** 26/30 endpoints (87%)
 - **Project ref:** azqkguctispoctvmpmci
 - **Excluded:** 6 routes (dev/debug/utility)
 - **See:** docs/ROUTE_INVENTORY.md for full list
@@ -85,65 +85,67 @@ Additional commits:
 - 327428e: Critical bug fixes (dynamic dates, fetchUsers)
 - 1cdb283: Centralized date utilities
 
+### Phase 0F: First Session & Auth ✅ COMPLETE
+
+| Endpoint | Commit | Notes |
+|----------|--------|-------|
+| POST /packages/:id/first-session | (already migrated) | Supabase for domain data, KV for tokens only |
+| POST /auth/setup-password | (already migrated) | Supabase for users, KV for tokens/sessions |
+
+### Phase 0G: Waitlist Endpoints ✅ COMPLETE
+
+| Endpoint | Commit | Notes |
+|----------|--------|-------|
+| POST /admin/waitlist/send-invite | b3e62cc | Fully Supabase |
+| POST /waitlist/redeem | b3e62cc | Fully Supabase |
+| GET /waitlist/verify/:code | (already migrated) | Supabase |
+
 ---
 
 ## Remaining Phases
 
-### Phase 0F: First Session & Reschedule ⬚ PENDING
+### Phase 0H: Reschedule ⬚ PENDING
 
-| Endpoint | Current | Target |
-|----------|---------|--------|
-| POST /packages/:id/first-session | KV | Supabase |
-| POST /user/packages/:id/reschedule | KV | Supabase |
+| Endpoint | Current | Target | Priority |
+|----------|---------|--------|----------|
+| POST /user/packages/:id/reschedule | KV | Supabase | MEDIUM |
 
-### Phase 0G: Auth Completion ⬚ PENDING
+This is the **only remaining endpoint** that needs migration.
 
-| Endpoint | Current | Target |
-|----------|---------|--------|
-| POST /auth/setup-password | KV | Supabase |
-| GET /auth/verify | KV | OK (sessions) |
-| POST /auth/logout | KV | OK (sessions) |
+### Phase 0I: Cleanup & Removal ⬚ PENDING
 
-### Phase 0H: Cleanup & Removal ⬚ PENDING
-
-| Endpoint | Action |
-|----------|--------|
-| POST /admin/resend-activation-code | REMOVE (obsolete) |
-| POST /activate-member | REMOVE (obsolete) |
-| POST /validate-coupon (line 626) | REMOVE (duplicate) |
-| POST /migrate-bookings | REMOVE (one-time tool) |
-| GET /admin/orphaned-packages | REMOVE (cleanup tool) |
-
-### Phase 0I: Remaining KV Endpoints ⬚ PENDING
-
-| Endpoint | Priority |
-|----------|----------|
-| POST /bookings | LOW (may duplicate /reservations) |
-| POST /admin/waitlist/send-invite | MEDIUM |
-| POST /waitlist/redeem | MEDIUM |
+| Endpoint | Action | Notes |
+|----------|--------|-------|
+| POST /admin/resend-activation-code | REMOVE | Obsolete, uses KV |
+| POST /activate-member | REMOVE | Just redirects to /activate |
+| POST /migrate-bookings | REMOVE | One-time migration tool |
+| GET /admin/orphaned-packages | REMOVE | Cleanup tool, uses KV |
+| POST /bookings | REMOVE or MIGRATE | Duplicates /reservations, uses KV |
 
 ---
 
 ## KV Usage Remaining
 
-Endpoints still using `kv.*` calls:
+Endpoints still using `kv.*` calls for **domain data**:
 
-| Endpoint | KV Calls | Notes |
-|----------|----------|-------|
-| POST /packages/:id/first-session | kv.get, kv.set | HIGH priority |
-| POST /auth/setup-password | kv.get, kv.set | HIGH priority |
-| POST /user/packages/:id/reschedule | kv.get, kv.set | MEDIUM |
-| POST /admin/resend-activation-code | kv.getByPrefix | REMOVE |
-| POST /bookings | kv.getByPrefix, kv.set | LOW |
-| POST /activate-member | kv.get | REMOVE |
+| Endpoint | KV Calls | Action |
+|----------|----------|--------|
+| POST /user/packages/:id/reschedule | kv.get, kv.set | **MIGRATE** |
+| POST /admin/resend-activation-code | kv.getByPrefix, kv.get | REMOVE |
+| POST /bookings | kv.getByPrefix, kv.set | REMOVE/MIGRATE |
 | GET /admin/orphaned-packages | kv.getByPrefix | REMOVE |
-| POST /admin/waitlist/send-invite | kv.get, kv.set | MEDIUM |
-| POST /waitlist/redeem | kv.get, kv.set | MEDIUM |
 | GET /debug/check-users | kv.getByPrefix | N/A (debug) |
-| GET /auth/verify | kv.get | OK (sessions) |
-| POST /auth/logout | kv.del | OK (sessions) |
 
-**Allowed KV usage:** Session tokens only (`session:*`)
+**Acceptable KV usage** (sessions/tokens only):
+
+| Endpoint | KV Calls | Status |
+|----------|----------|--------|
+| POST /packages/:id/first-session | kv.set (verification_token) | ✅ OK |
+| POST /auth/setup-password | kv.get/set (tokens, sessions) | ✅ OK |
+| GET /auth/verify | kv.get (session) | ✅ OK |
+| POST /auth/logout | kv.del (session) | ✅ OK |
+
+**Allowed KV usage:** Session tokens (`session:*`), verification tokens (`verification_token:*`)
 **Forbidden:** Domain data (user, package, reservation, waitlist)
 
 ---
@@ -151,16 +153,25 @@ Endpoints still using `kv.*` calls:
 ## Definition of Complete
 
 1. ✅ Every route in index.ts is in this plan
-2. ⬚ No KV writes for domain data prefixes
+2. ⬚ No KV writes for domain data prefixes (1 endpoint remaining)
 3. ⬚ Backfill completed and validated
 4. ⬚ Contract tests exist and pass
 
 ---
 
-## Known Bugs
+## Known Bugs (Fixed)
 
-| Bug | Location | Status |
-|-----|----------|--------|
-| Duplicate /validate-coupon | index.ts:581,626 | ⬚ To fix in 0H |
-| POST /admin/resend-activation-code | index.ts:1928 | ⬚ To remove in 0H |
-| POST /activate-member | index.ts:2214 | ⬚ To remove in 0H |
+| Bug | Status |
+|-----|--------|
+| Duplicate /validate-coupon | ✅ Fixed (b3e62cc) |
+| Waitlist codes not validated in /packages | ✅ Fixed (b3e62cc) |
+| Waitlist redeem gave 8 sessions instead of 9 | ✅ Fixed (480a41e) |
+
+## Remaining Cleanup
+
+| Item | Location | Priority |
+|------|----------|----------|
+| POST /admin/resend-activation-code | index.ts:2087 | LOW (remove) |
+| POST /activate-member | index.ts:2379 | LOW (remove) |
+| POST /bookings | index.ts:2245 | LOW (remove or migrate) |
+| GET /admin/orphaned-packages | index.ts:2515 | LOW (remove) |

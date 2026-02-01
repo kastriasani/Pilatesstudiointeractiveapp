@@ -25,14 +25,15 @@ SUPABASE_ACCESS_TOKEN="..." npx supabase functions deploy make-server-b87b0c07 -
 
 ## Current Status
 
-**Migration: 21/30 endpoints (70%)**
+**Migration: 26/30 endpoints (87%)**
 
 | Phase | Status |
 |-------|--------|
-| 0A-E | ✅ Complete |
-| 0F-J | ⬚ Remaining (9 endpoints) |
+| 0A-G | ✅ Complete |
+| 0H | ⬚ 1 endpoint (reschedule) |
+| 0I | ⬚ 4 obsolete routes to remove |
 
-Last commit: `1cdb283` - Centralized date utilities
+Last commit: `b3e62cc` - Waitlist coupon validation in /packages
 
 ## Open Bugs
 
@@ -40,8 +41,13 @@ Last commit: `1cdb283` - Centralized date utilities
 |-----|----------|----------|
 | DevTools visible in Production | AdminPanel.tsx | MEDIUM |
 | "Payed" typo (should be "Paid") | AdminPanel.tsx:409,865,875 | LOW |
-| Duplicate /validate-coupon route | index.ts:581,626 | LOW |
 | MemberActivationModal obsolete | MemberActivationModal.tsx | LOW |
+
+## Recently Fixed
+
+- ✅ Duplicate /validate-coupon route removed
+- ✅ Waitlist codes now work in POST /packages
+- ✅ Waitlist redeem gives 9 sessions (8+1 bonus)
 
 ## Key Files
 
