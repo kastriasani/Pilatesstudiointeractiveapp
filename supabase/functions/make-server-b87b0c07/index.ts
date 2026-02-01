@@ -2083,108 +2083,6 @@ app.patch("/make-server-b87b0c07/admin/users/:email/payment", async (c) => {
   }
 });
 
-// Resend activation code email for a user (OBSOLETE - kept for backwards compatibility)
-app.post("/make-server-b87b0c07/admin/resend-activation-code", async (c) => {
-  try {
-    // Verify admin session
-    const adminAuth = await verifyAdminSession(c);
-    if (!adminAuth.valid) {
-      return c.json({ error: adminAuth.error }, 401);
-    }
-
-    const body = await c.req.json();
-    const { email } = body;
-
-    if (!email) {
-      return c.json({ error: "Email is required" }, 400);
-    }
-
-    const normalizedEmail = normalizeEmail(email);
-    
-    // Find user's active activation codes
-    const allActivationCodes = await kv.getByPrefix('activation_code:');
-    const userActivationCodes = allActivationCodes.filter(
-      (code: any) => code.email === normalizedEmail && code.status === 'active'
-    );
-
-    if (userActivationCodes.length === 0) {
-      return c.json({ error: "No active activation codes found for this user" }, 404);
-    }
-
-    // Get the most recent activation code
-    const latestCode = userActivationCodes.sort(
-      (a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    )[0];
-
-    // Get the user info
-    const user = await kv.get(`user:${normalizedEmail}`);
-    if (!user) {
-      return c.json({ error: "User not found" }, 404);
-    }
-
-    // Determine what type of activation code it is
-    let packageType: PackageType = 'single';
-    let firstSessionDetails = null;
-
-    if (latestCode.packageId) {
-      const pkg = await kv.get(latestCode.packageId);
-      if (pkg) {
-        packageType = pkg.packageType;
-        
-        // If there's a first reservation, get those details
-        if (pkg.firstReservationId) {
-          const reservation = await kv.get(pkg.firstReservationId);
-          if (reservation) {
-            const [hours, minutes] = reservation.timeSlot.split(':');
-            const endTime = `${(parseInt(hours) + 1).toString().padStart(2, '0')}:${minutes}`;
-            
-            firstSessionDetails = {
-              date: formatDateString(reservation.dateKey),
-              timeSlot: reservation.timeSlot,
-              endTime,
-              instructor: reservation.instructor,
-            };
-          }
-        }
-      }
-    } else if (latestCode.reservationId) {
-      const reservation = await kv.get(latestCode.reservationId);
-      if (reservation) {
-        const [hours, minutes] = reservation.timeSlot.split(':');
-        const endTime = `${(parseInt(hours) + 1).toString().padStart(2, '0')}:${minutes}`;
-        
-        firstSessionDetails = {
-          date: formatDateString(reservation.dateKey),
-          timeSlot: reservation.timeSlot,
-          endTime,
-          instructor: reservation.instructor,
-        };
-      }
-    }
-
-    // Resend the activation email
-    await sendActivationEmail(
-      normalizedEmail,
-      user.name,
-      user.surname,
-      latestCode.code,
-      packageType,
-      firstSessionDetails
-    );
-
-    console.log(`Activation code resent to: ${normalizedEmail}`);
-
-    return c.json({
-      success: true,
-      message: 'Activation code resent successfully',
-      code: latestCode.code,
-    });
-  } catch (error) {
-    console.error('Error resending activation code:', error);
-    return c.json({ error: 'Failed to resend activation code', details: error.message }, 500);
-  }
-});
-
 // ============ LEGACY ENDPOINTS ============
 
 // GET /bookings - MIGRATED TO SUPABASE
@@ -2240,145 +2138,6 @@ app.get("/make-server-b87b0c07/bookings", async (c) => {
     console.error('Error fetching bookings:', error);
     return c.json({ error: 'Failed to fetch bookings', details: error.message }, 500);
   }
-});
-
-app.post("/make-server-b87b0c07/bookings", async (c) => {
-  try {
-    const body = await c.req.json();
-    const { dateKey, timeSlot, instructor, name, surname, email, mobile, password, language } = body;
-
-    if (!dateKey || !timeSlot || !instructor || !name || !surname || !email || !mobile || !password) {
-      return c.json({ error: "Missing required fields" }, 400);
-    }
-
-    if (password.length < 6) {
-      return c.json({ error: "Password must be at least 6 characters" }, 400);
-    }
-
-    const normalizedEmail = normalizeEmail(email);
-    const capacity = await calculateSlotCapacity(dateKey, timeSlot);
-    
-    if (capacity.available < 1) {
-      return c.json({ error: "Slot is full" }, 400);
-    }
-
-    const allReservations = await kv.getByPrefix('reservation:');
-    const duplicateBooking = allReservations.find((r: any) => 
-      r.userId === normalizedEmail &&
-      r.dateKey === dateKey &&
-      r.timeSlot === timeSlot &&
-      (r.reservationStatus === 'pending' || r.reservationStatus === 'confirmed')
-    );
-
-    if (duplicateBooking) {
-      return c.json({ error: "You already have a booking at this time" }, 400);
-    }
-
-    const passwordHash = await hashPassword(password);
-
-    const userKey = `user:${normalizedEmail}`;
-    let user = await kv.get(userKey);
-    
-    if (!user) {
-      user = {
-        id: userKey,
-        email: normalizedEmail,
-        name,
-        surname,
-        mobile,
-        passwordHash,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        blocked: false,
-        verified: true
-      };
-      await kv.set(userKey, user);
-      console.log(`User created during booking: ${normalizedEmail}`);
-    } else if (!user.passwordHash) {
-      user.passwordHash = passwordHash;
-      user.verified = true;
-      user.updatedAt = new Date().toISOString();
-      await kv.set(userKey, user);
-      console.log(`Password set for existing user: ${normalizedEmail}`);
-    }
-
-    const sessionToken = `session_${Date.now()}_${Math.random().toString(36).substr(2, 16)}`;
-    const sessionKey = `session:${sessionToken}`;
-    const sessionData = {
-      id: sessionKey,
-      token: sessionToken,
-      email: normalizedEmail,
-      createdAt: new Date().toISOString(),
-      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-    };
-    await kv.set(sessionKey, sessionData);
-
-    const dateString = formatDateString(dateKey);
-    const reservationId = `reservation:${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    const fullDate = constructFullDate(dateKey, timeSlot);
-    const endTime = calculateEndTime(timeSlot);
-
-    const reservation = {
-      id: reservationId,
-      userId: normalizedEmail,
-      packageId: null,
-      sessionNumber: null,
-      serviceType: 'single' as ServiceType,
-      dateKey,
-      date: dateString,
-      fullDate,
-      timeSlot,
-      endTime,
-      instructor,
-      name,
-      surname,
-      email: normalizedEmail,
-      mobile,
-      partnerName: null,
-      partnerSurname: null,
-      reservationStatus: 'confirmed' as ReservationStatus,
-      paymentStatus: 'unpaid' as PaymentStatus,
-      seatsOccupied: 1,
-      isPrivateSession: false,
-      isOverbooked: false,
-      isFirstSessionOfPackage: false,
-      autoConfirmed: true,
-      lateCancellation: false,
-      cancelledAt: null,
-      cancelledBy: null,
-      cancelReason: null,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      activatedAt: new Date().toISOString(),
-      attendedAt: null,
-      language: language || 'en'
-    };
-
-    await kv.set(reservationId, reservation);
-    console.log(`Booking created and confirmed: ${reservationId}`);
-
-    return c.json({
-      success: true,
-      reservation,
-      session: sessionToken,
-      user: {
-        email: normalizedEmail,
-        name,
-        surname,
-        mobile
-      },
-      message: "Booking confirmed! You are now logged in."
-    });
-
-  } catch (error) {
-    console.error('Error creating booking:', error);
-    return c.json({ error: 'Failed to create booking', details: error.message }, 500);
-  }
-});
-
-app.post("/make-server-b87b0c07/activate-member", async (c) => {
-  console.warn('Legacy /activate-member endpoint called - use /activate instead');
-  return c.redirect('/make-server-b87b0c07/activate');
 });
 
 // ============ MIGRATION ENDPOINT ============
@@ -2511,26 +2270,6 @@ app.post("/make-server-b87b0c07/migrate-bookings", async (c) => {
 });
 
 // ============ ADMIN ENDPOINTS ============
-
-app.get("/make-server-b87b0c07/admin/orphaned-packages", async (c) => {
-  try {
-    const orphanedKeys = await kv.getByPrefix('orphaned_package:');
-    const packages = [];
-    
-    for (const orphanedData of orphanedKeys) {
-      const packageId = orphanedData.id.replace('orphaned_package:', '');
-      const pkg = await kv.get(packageId);
-      if (pkg) {
-        packages.push(pkg);
-      }
-    }
-    
-    return c.json({ success: true, orphanedPackages: packages, count: packages.length });
-  } catch (error) {
-    console.error('Error fetching orphaned packages:', error);
-    return c.json({ error: 'Failed to fetch orphaned packages', details: error.message }, 500);
-  }
-});
 
 // GET /admin/calendar - MIGRATED TO SUPABASE
 app.get("/make-server-b87b0c07/admin/calendar", async (c) => {
@@ -3162,6 +2901,7 @@ app.get("/make-server-b87b0c07/user/packages", async (c) => {
   }
 });
 
+// POST /user/packages/:id/reschedule - MIGRATED TO SUPABASE
 app.post("/make-server-b87b0c07/user/packages/:id/reschedule", async (c) => {
   try {
     const packageId = c.req.param('id');
@@ -3172,29 +2912,46 @@ app.post("/make-server-b87b0c07/user/packages/:id/reschedule", async (c) => {
       return c.json({ error: "Missing required fields" }, 400);
     }
 
-    const pkg = await kv.get(packageId);
-    if (!pkg) {
+    const supabase = getSupabase();
+    const now = new Date().toISOString();
+
+    // Read package from Supabase
+    const { data: pkg, error: pkgError } = await supabase
+      .from('user_packages')
+      .select('*')
+      .eq('id', packageId)
+      .single();
+
+    if (pkgError || !pkg) {
       return c.json({ error: "Package not found" }, 404);
     }
 
-    if (!pkg.firstReservationId) {
+    if (!pkg.first_reservation_id) {
       return c.json({ error: "No first session to reschedule" }, 400);
     }
 
-    const firstReservation = await kv.get(pkg.firstReservationId);
-    if (!firstReservation) {
+    // Read reservation from Supabase
+    const { data: firstReservation, error: resError } = await supabase
+      .from('reservations')
+      .select('*')
+      .eq('id', pkg.first_reservation_id)
+      .single();
+
+    if (resError || !firstReservation) {
       return c.json({ error: "First session not found" }, 404);
     }
 
-    const sessionTime = new Date(firstReservation.fullDate);
-    const now = new Date();
-    const hoursUntilSession = (sessionTime.getTime() - now.getTime()) / (1000 * 60 * 60);
+    // Check 24-hour rule using date_key and time_slot
+    const [year, month, day] = firstReservation.date_key.split('-').map(Number);
+    const [hours, minutes] = firstReservation.time_slot.split(':').map(Number);
+    const sessionTime = new Date(year, month - 1, day, hours, minutes);
+    const hoursUntilSession = (sessionTime.getTime() - Date.now()) / (1000 * 60 * 60);
 
     if (hoursUntilSession < 24) {
       return c.json({ error: "Cannot reschedule less than 24 hours before the session" }, 400);
     }
 
-    const serviceType = extractServiceType(pkg.packageType);
+    const serviceType = extractServiceType(pkg.package_type);
     const capacity = await calculateSlotCapacity(dateKey, timeSlot);
 
     if (serviceType === 'individual' && capacity.available < 4) {
@@ -3206,25 +2963,46 @@ app.post("/make-server-b87b0c07/user/packages/:id/reschedule", async (c) => {
     }
 
     const dateString = formatDateString(dateKey);
-    const fullDate = constructFullDate(dateKey, timeSlot);
     const endTime = calculateEndTime(timeSlot);
 
-    firstReservation.dateKey = dateKey;
-    firstReservation.date = dateString;
-    firstReservation.fullDate = fullDate;
-    firstReservation.timeSlot = timeSlot;
-    firstReservation.endTime = endTime;
-    firstReservation.instructor = instructor;
-    firstReservation.updatedAt = new Date().toISOString();
+    // Update reservation in Supabase
+    const { data: updatedReservation, error: updateError } = await supabase
+      .from('reservations')
+      .update({
+        date_key: dateKey,
+        time_slot: timeSlot,
+        instructor,
+        updated_at: now
+      })
+      .eq('id', pkg.first_reservation_id)
+      .select()
+      .single();
 
-    await kv.set(pkg.firstReservationId, firstReservation);
+    if (updateError) {
+      console.error('Error updating reservation:', updateError);
+      return c.json({ error: 'Failed to reschedule session', details: updateError.message }, 500);
+    }
 
-    console.log(`Rescheduled first session for package ${packageId}`);
+    console.log(`Rescheduled first session for package ${packageId} (Supabase)`);
+
+    // Build response in camelCase for frontend
+    const reservation = {
+      id: updatedReservation.id,
+      userId: updatedReservation.user_email,
+      packageId: updatedReservation.package_id,
+      dateKey: updatedReservation.date_key,
+      date: dateString,
+      timeSlot: updatedReservation.time_slot,
+      endTime,
+      instructor: updatedReservation.instructor,
+      reservationStatus: updatedReservation.reservation_status,
+      updatedAt: updatedReservation.updated_at
+    };
 
     return c.json({
       success: true,
       message: "Session rescheduled successfully",
-      reservation: firstReservation
+      reservation
     });
 
   } catch (error) {

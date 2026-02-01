@@ -408,7 +408,7 @@ export function MainApp() {
         />
       )}
 
-      {/* Member Activation Modal */}
+      {/* Member Activation Modal (Deprecated - shows info message) */}
       {showMemberActivation && (
         <MemberActivationModal
           onClose={() => setShowMemberActivation(false)}
