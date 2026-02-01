@@ -2848,34 +2848,57 @@ app.get("/make-server-b87b0c07/user/packages", async (c) => {
       return c.json({ error: 'Failed to fetch reservations', details: resError.message }, 500);
     }
 
-    // Map packages to camelCase
-    const mappedPackages = (packages || []).map((pkg: any) => ({
-      id: pkg.id,
-      userId: pkg.user_email,
-      packageType: pkg.package_type,
-      totalSessions: pkg.total_sessions,
-      remainingSessions: pkg.remaining_sessions,
-      baseSessions: pkg.base_sessions,
-      bonusClasses: pkg.bonus_classes,
-      redeemedCouponCode: pkg.redeemed_coupon_code,
-      sessionsBooked: pkg.sessions_booked || [],
-      sessionsAttended: pkg.sessions_attended || [],
-      purchaseDate: pkg.purchase_date,
-      activationDate: pkg.activation_date,
-      expiryDate: pkg.expiry_date,
-      packageStatus: pkg.package_status,
-      activationStatus: pkg.activation_status,
-      paymentStatus: pkg.payment_status,
-      firstReservationId: pkg.first_reservation_id,
-      paymentId: pkg.payment_id,
-            name: pkg.name,
-      surname: pkg.surname,
-      mobile: pkg.mobile,
-      email: pkg.email,
-      language: pkg.language,
-      createdAt: pkg.created_at,
-      updatedAt: pkg.updated_at
-    }));
+    // Create a map of reservations by ID for quick lookup
+    const reservationMap = new Map((reservations || []).map((r: any) => [r.id, r]));
+
+    // Map packages to camelCase and populate firstSession
+    const mappedPackages = (packages || []).map((pkg: any) => {
+      // Find the first session reservation
+      let firstSession = null;
+      if (pkg.first_reservation_id) {
+        const res = reservationMap.get(pkg.first_reservation_id);
+        if (res) {
+          const endTime = calculateEndTime(res.time_slot);
+          firstSession = {
+            id: res.id,
+            date: formatDateString(res.date_key),
+            dateKey: res.date_key,
+            time: res.time_slot,
+            endTime,
+            instructor: res.instructor
+          };
+        }
+      }
+
+      return {
+        id: pkg.id,
+        userId: pkg.user_email,
+        packageType: pkg.package_type,
+        totalSessions: pkg.total_sessions,
+        remainingSessions: pkg.remaining_sessions,
+        baseSessions: pkg.base_sessions,
+        bonusClasses: pkg.bonus_classes,
+        redeemedCouponCode: pkg.redeemed_coupon_code,
+        sessionsBooked: pkg.sessions_booked || [],
+        sessionsAttended: pkg.sessions_attended || [],
+        purchaseDate: pkg.purchase_date,
+        activationDate: pkg.activation_date,
+        expiryDate: pkg.expiry_date,
+        packageStatus: pkg.package_status,
+        activationStatus: pkg.activation_status,
+        paymentStatus: pkg.payment_status,
+        firstReservationId: pkg.first_reservation_id,
+        firstSession,
+        paymentId: pkg.payment_id,
+        name: pkg.name,
+        surname: pkg.surname,
+        mobile: pkg.mobile,
+        email: pkg.email,
+        language: pkg.language,
+        createdAt: pkg.created_at,
+        updatedAt: pkg.updated_at
+      };
+    });
 
     // Map reservations to camelCase
     const mappedReservations = (reservations || []).map((res: any) => ({
