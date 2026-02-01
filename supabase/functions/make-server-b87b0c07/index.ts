@@ -552,11 +552,14 @@ async function sendRegistrationEmail(
   // Normalize language to uppercase and default to EN if invalid
   const lang = (language?.toUpperCase() || 'EN') as keyof typeof EMAIL_TRANSLATIONS;
   const t = EMAIL_TRANSLATIONS[lang] || EMAIL_TRANSLATIONS.EN;
-  
-  const { label: packageName } = getPackagePriceInfo(packageType);
-  const currentDate = new Date().toLocaleDateString('en-US', { 
-    year: 'numeric', 
-    month: 'long', 
+
+  const { price, label: packageName } = getPackagePriceInfo(packageType);
+  const sessionCount = extractSessionCount(packageType);
+  const isSingleSession = packageType === 'single';
+
+  const currentDate = new Date().toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
     day: 'numeric',
     hour: '2-digit',
     minute: '2-digit'
@@ -564,34 +567,51 @@ async function sendRegistrationEmail(
 
   const bonusHtml = bonusClasses > 0 ? `<div style="background-color: #f0fdf4; border-radius: 12px; padding: 20px; margin: 24px 0; border: 2px solid #86efac;"><h3 style="margin: 0 0 12px 0; color: #16a34a; font-size: 18px;">🎁 Bonus Redeemed!</h3><p style="margin: 0; color: #15803d; font-size: 15px; font-weight: bold;">+${bonusClasses} Free Class Added!</p><p style="margin: 8px 0 0 0; color: #166534; font-size: 14px;">Your coupon has been successfully redeemed.</p></div>` : '';
 
+  // Package details section - different for single vs package
+  const packageDetailsHtml = isSingleSession
+    ? `<div style="background-color: #f5f0ed; border-radius: 12px; padding: 20px; margin: 24px 0;">
+        <p style="margin: 0 0 8px 0; color: #8b7764; font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">SEANCË TEKE</p>
+        <p style="margin: 0; color: #3d2f28; font-size: 18px; font-weight: bold;">ÇMIMI: ${price} DEN</p>
+      </div>`
+    : `<div style="background-color: #f5f0ed; border-radius: 12px; padding: 20px; margin: 24px 0;">
+        <p style="margin: 0 0 8px 0; color: #8b7764; font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">PAKETA</p>
+        <p style="margin: 0 0 8px 0; color: #3d2f28; font-size: 18px; font-weight: bold;">${sessionCount} Klase</p>
+        <p style="margin: 0; color: #6b5949; font-size: 15px;">ÇMIMI: ${price} DEN</p>
+      </div>`;
+
+  // Session label - "KLASA E PARE" for packages, "SEANCA JUAJ" for single
+  const sessionLabel = isSingleSession ? t.yourSession : 'KLASA E PARE';
+
   const content = `
     <h2 style="margin: 0 0 20px 0; color: #3d2f28; font-size: 24px;">${t.bookingConfirmation}</h2>
-    
+
     <p style="margin: 0 0 10px 0; color: #6b5949; font-size: 16px; line-height: 1.6;">
       ${t.thankYou}
     </p>
-    
+
     <p style="margin: 0 0 20px 0; color: #8b7764; font-size: 14px;">
       <strong>${t.bookingDate}:</strong> ${currentDate}
     </p>
-    
+
+    ${packageDetailsHtml}
+
     ${bonusHtml}
-    
+
     <div style="background-color: #e8f5e9; border-radius: 12px; padding: 24px; margin: 24px 0;">
-      <h3 style="margin: 0 0 16px 0; color: #2e7d32; font-size: 18px;">📅 ${t.yourSession}</h3>
+      <h3 style="margin: 0 0 16px 0; color: #2e7d32; font-size: 18px;">📅 ${sessionLabel}</h3>
       <p style="margin: 0; color: #1b5e20; font-size: 15px; line-height: 1.6;">
         <strong>${t.date}:</strong> ${firstSessionDate}<br>
         <strong>${t.time}:</strong> ${firstSessionTime} - ${firstSessionEndTime}
       </p>
     </div>
-    
+
     <div style="background-color: #fff8f0; border-left: 4px solid #9ca571; padding: 20px; margin: 24px 0;">
       <p style="margin: 0; color: #6b5949; font-size: 15px; line-height: 1.6;">
         <strong style="color: #3d2f28;">${t.important}:</strong><br>
         ${t.paymentMessage}
       </p>
     </div>
-    
+
     <p style="margin: 20px 0 0 0; color: #6b5949; font-size: 14px; line-height: 1.6;">
       ${t.lookForward}
     </p>
