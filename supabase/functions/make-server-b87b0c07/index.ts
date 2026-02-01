@@ -293,42 +293,95 @@ async function calculateSlotCapacity(dateKey: string, timeSlot: string): Promise
 
 // ============ EMAIL FUNCTIONS ============
 
-function getEmailHeader(): string {
-  return `
-    <tr>
-      <td style="background-color: #3d2f28; padding: 60px 40px; text-align: center;">
-        <div style="font-family: 'Georgia', serif; color: #ffffff; font-size: 48px; font-weight: 300; letter-spacing: 6px; margin-bottom: 20px;">
-          WELLNEST
-        </div>
-        <div style="color: #d4c5b9; font-size: 11px; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 8px;">
-          ESTD. &nbsp;&nbsp; PILATES STUDIO &nbsp;&nbsp; 2025
-        </div>
-        <div style="color: #d4c5b9; font-size: 11px; letter-spacing: 1px;">
-          ${STUDIO_INFO.address}
-        </div>
-      </td>
-    </tr>
-  `;
-}
+// ============ UNIFIED EMAIL TEMPLATE ============
 
-function getEmailFooter(language: string = 'EN'): string {
-  const lang = (language?.toUpperCase() || 'EN') as keyof typeof EMAIL_TRANSLATIONS;
-  const t = EMAIL_TRANSLATIONS[lang] || EMAIL_TRANSLATIONS.EN;
-  
-  return `
-    <tr>
-      <td style="background-color: #f5f0ed; padding: 30px; text-align: center;">
-        <p style="margin: 0 0 10px 0; color: #6b5949; font-size: 14px;">${t.questionsContact}</p>
-        <p style="margin: 0; color: #9ca571; font-size: 14px;">
-          📍 ${STUDIO_INFO.address}<br>
-          📧 ${STUDIO_INFO.email}
-        </p>
-      </td>
-    </tr>
-  `;
-}
+type EmailContent = {
+  greeting: string;
+  message: string;
+  details?: Array<{label: string; value: string}>;
+  highlight?: {title: string; lines: string[]};
+  code?: {label: string; value: string; note?: string};
+  button?: {text: string; url: string};
+  note?: string;
+  instructions?: {title: string; steps: string[]};
+  closing?: string;
+};
 
-function buildEmailTemplate(content: string, language: string = 'EN'): string {
+function generateEmailTemplate(content: EmailContent, language: 'sq' | 'mk' | 'en' = 'en'): string {
+  // Build details section
+  const detailsHtml = content.details && content.details.length > 0 ? `
+    <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 4px; margin: 24px 0;">
+      <tr>
+        <td style="padding: 24px;">
+          ${content.details.map(d => `
+            <p style="margin: 0 0 12px 0;">
+              <span style="color: #888888; font-size: 11px; text-transform: uppercase; letter-spacing: 2px; display: block; margin-bottom: 4px;">${d.label}</span>
+              <span style="color: #333333; font-size: 16px; font-weight: 600;">${d.value}</span>
+            </p>
+          `).join('')}
+        </td>
+      </tr>
+    </table>
+  ` : '';
+
+  // Build highlight section (e.g., first class info)
+  const highlightHtml = content.highlight ? `
+    <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 4px; margin: 24px 0;">
+      <tr>
+        <td style="padding: 24px;">
+          <p style="margin: 0 0 12px 0; color: #888888; font-size: 11px; text-transform: uppercase; letter-spacing: 2px;">${content.highlight.title}</p>
+          ${content.highlight.lines.map(line => `<p style="margin: 0 0 8px 0; color: #333333; font-size: 15px;">${line}</p>`).join('')}
+        </td>
+      </tr>
+    </table>
+  ` : '';
+
+  // Build code section (redemption code, etc.)
+  const codeHtml = content.code ? `
+    <table width="100%" cellpadding="0" cellspacing="0" style="border: 2px dashed #e0e0e0; border-radius: 4px; margin: 24px 0;">
+      <tr>
+        <td style="padding: 24px; text-align: center;">
+          <p style="margin: 0 0 8px 0; color: #888888; font-size: 11px; text-transform: uppercase; letter-spacing: 2px;">${content.code.label}</p>
+          <p style="margin: 0; color: #3d3229; font-size: 28px; font-weight: 700; letter-spacing: 3px; font-family: Georgia, serif;">${content.code.value}</p>
+          ${content.code.note ? `<p style="margin: 12px 0 0 0; color: #888888; font-size: 12px;">${content.code.note}</p>` : ''}
+        </td>
+      </tr>
+    </table>
+  ` : '';
+
+  // Build button section
+  const buttonHtml = content.button ? `
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin: 24px 0;">
+      <tr>
+        <td align="center">
+          <a href="${content.button.url}" style="display: inline-block; background-color: #3d3229; color: #ffffff; padding: 14px 32px; border-radius: 4px; text-decoration: none; font-family: Georgia, serif; font-size: 14px;">${content.button.text}</a>
+        </td>
+      </tr>
+    </table>
+    <p style="margin: 0; text-align: center; color: #888888; font-size: 12px;">
+      ${content.button.url}
+    </p>
+  ` : '';
+
+  // Build note section
+  const noteHtml = content.note ? `
+    <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f9f9f9; border-left: 3px solid #3d3229; margin: 24px 0;">
+      <tr>
+        <td style="padding: 16px 20px;">
+          <p style="margin: 0; color: #333333; font-size: 14px; line-height: 1.6;">${content.note}</p>
+        </td>
+      </tr>
+    </table>
+  ` : '';
+
+  // Build instructions section
+  const instructionsHtml = content.instructions ? `
+    <p style="margin: 24px 0 12px 0; color: #888888; font-size: 11px; text-transform: uppercase; letter-spacing: 2px;">${content.instructions.title}</p>
+    <ol style="margin: 0; padding-left: 20px; color: #333333; font-size: 14px; line-height: 1.8;">
+      ${content.instructions.steps.map(step => `<li style="margin-bottom: 8px;">${step}</li>`).join('')}
+    </ol>
+  ` : '';
+
   return `
     <!DOCTYPE html>
     <html>
@@ -336,18 +389,38 @@ function buildEmailTemplate(content: string, language: string = 'EN'): string {
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
       </head>
-      <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f0ed;">
-        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f0ed; padding: 40px 20px;">
+      <body style="margin: 0; padding: 0; font-family: Georgia, serif; background-color: #f5f5f5;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5;">
           <tr>
-            <td align="center">
-              <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                ${getEmailHeader()}
+            <td align="center" style="padding: 40px 20px;">
+              <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border: 1px solid #e0e0e0; border-radius: 4px;">
+                <!-- Header -->
                 <tr>
-                  <td style="padding: 40px;">
-                    ${content}
+                  <td style="background-color: #3d3229; padding: 40px; text-align: center;">
+                    <img src="https://i.ibb.co/tT95h4s2/unnamed.png" alt="WellNest Pilates" width="200" style="display: block; margin: 0 auto;" />
                   </td>
                 </tr>
-                ${getEmailFooter(language)}
+                <!-- Content -->
+                <tr>
+                  <td style="padding: 40px;">
+                    <p style="margin: 0 0 20px 0; color: #3d3229; font-size: 18px; font-weight: 600;">${content.greeting}</p>
+                    <p style="margin: 0 0 24px 0; color: #333333; font-size: 15px; line-height: 1.6;">${content.message}</p>
+                    ${detailsHtml}
+                    ${highlightHtml}
+                    ${codeHtml}
+                    ${buttonHtml}
+                    ${noteHtml}
+                    ${instructionsHtml}
+                    ${content.closing ? `<p style="margin: 24px 0 0 0; color: #333333; font-size: 14px; line-height: 1.6;">${content.closing}</p>` : ''}
+                  </td>
+                </tr>
+                <!-- Footer -->
+                <tr>
+                  <td style="background-color: #f5f5f5; padding: 24px; text-align: center; border-top: 1px solid #e0e0e0;">
+                    <p style="margin: 0 0 8px 0; color: #888888; font-size: 13px;">Gjuro Gjakovikj 59, Kumanovo 1300</p>
+                    <p style="margin: 0; color: #888888; font-size: 12px;">© 2026 WellNest Pilates</p>
+                  </td>
+                </tr>
               </table>
             </td>
           </tr>
@@ -357,10 +430,10 @@ function buildEmailTemplate(content: string, language: string = 'EN'): string {
   `;
 }
 
-async function sendEmail(to: string, subject: string, htmlContent: string, language: string = 'EN') {
+async function sendEmail(to: string, subject: string, html: string) {
   const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY');
   if (!RESEND_API_KEY) {
-    console.error('⚠️ RESEND_API_KEY not configured - email not sent');
+    console.error('RESEND_API_KEY not configured - email not sent');
     return { success: false, error: 'Email service not configured' };
   }
 
@@ -375,249 +448,207 @@ async function sendEmail(to: string, subject: string, htmlContent: string, langu
         from: `${STUDIO_INFO.name} <${STUDIO_INFO.email}>`,
         to: [to],
         subject,
-        html: buildEmailTemplate(htmlContent, language),
+        html,
       }),
     });
 
     if (!emailResponse.ok) {
       const errorText = await emailResponse.text();
-      const errorData = JSON.parse(errorText);
-      
-      // Check if it's a domain verification issue
-      if (errorData.statusCode === 403 && errorData.name === 'validation_error') {
-        console.warn(`⚠️ EMAIL NOT SENT: Domain may not be verified in Resend`);
-        console.warn(`   Attempted to send from: ${STUDIO_INFO.email} to: ${to}`);
-        console.warn(`   📝 To enable production emails: Verify your domain at resend.com/domains`);
-        console.warn(`   📝 Or add the recipient email as a verified sender at resend.com`);
-        return { success: false, error: 'Domain verification required', testMode: true };
-      }
-      
-      console.error('❌ Email sending failed:', errorText);
+      console.error('Email sending failed:', errorText);
       return { success: false, error: `Failed to send email: ${errorText}` };
     }
 
     const result = await emailResponse.json();
-    console.log('✅ Email sent successfully to:', to, 'in language:', language);
+    console.log('Email sent successfully to:', to);
     return { success: true, result };
   } catch (error) {
-    console.error('❌ Email error:', error);
+    console.error('Email error:', error);
     return { success: false, error: error.message };
   }
 }
 
+// Helper: Get translations for emails
+function getEmailTranslations(language: string) {
+  const lang = (language?.toLowerCase() || 'en') as 'sq' | 'mk' | 'en';
+  const translations = {
+    sq: {
+      greeting: 'Pershendetje',
+      bookingConfirmed: 'Rezervimi juaj eshte konfirmuar.',
+      package: 'PAKETA',
+      price: 'CMIMI',
+      singleSession: 'SEANCE TEKE',
+      firstClass: 'KLASA E PARE',
+      date: 'Data',
+      time: 'Ora',
+      important: 'I rendesishem: Llogaria juaj do te aktivizohet pas perfundimit te pageses ne studio.',
+      lookForward: 'Presim me padurim t\'ju shohim!',
+      accountReady: 'Llogaria juaj eshte gati!',
+      setPassword: 'Vendos Fjalekalimin',
+      linkExpires: 'Ky link skadon pas 24 oreve.',
+      welcomeWaitlist: 'Mire se vini ne WellNest Pilates!',
+      exclusiveOffer: 'Blini nje pakete me 8 klase dhe merrni klasen e pare FALAS!',
+      redemptionCode: 'KODI I SHPERBLIMIT',
+      presentCode: 'Paraqisni kete kod ne studio',
+      whatBring: 'Cfare te sillni: Rroba te rehatshme, shishe uji, peshqir i vogel.',
+    },
+    mk: {
+      greeting: 'Zdravo',
+      bookingConfirmed: 'Vashata rezervacija e potvrdena.',
+      package: 'PAKET',
+      price: 'CENA',
+      singleSession: 'EDNA SESIJA',
+      firstClass: 'PRVA KLASA',
+      date: 'Datum',
+      time: 'Vreme',
+      important: 'Vazno: Vashata smetka ke bide aktivirana po zavrshuvanjeto na uplatata vo studioto.',
+      lookForward: 'Se raduvame da ve vidime!',
+      accountReady: 'Vashata smetka e gotova!',
+      setPassword: 'Postavi Lozinka',
+      linkExpires: 'Ovoj link istekuva za 24 casa.',
+      welcomeWaitlist: 'Dobrodojdovte vo WellNest Pilates!',
+      exclusiveOffer: 'Kupete paket od 8 klasi i dobijte ja prvata klasa BESPLATNO!',
+      redemptionCode: 'KOD ZA ISKORISTUVANJE',
+      presentCode: 'Prezentirajte go ovoj kod vo studioto',
+      whatBring: 'Shto da ponesete: Udobna obleka, shishe so voda, mala krpa.',
+    },
+    en: {
+      greeting: 'Hello',
+      bookingConfirmed: 'Your booking has been confirmed.',
+      package: 'PACKAGE',
+      price: 'PRICE',
+      singleSession: 'SINGLE SESSION',
+      firstClass: 'FIRST CLASS',
+      date: 'Date',
+      time: 'Time',
+      important: 'Important: Your account will be activated after payment is completed at the studio.',
+      lookForward: 'We look forward to seeing you!',
+      accountReady: 'Your account is ready!',
+      setPassword: 'Set Password',
+      linkExpires: 'This link expires in 24 hours.',
+      welcomeWaitlist: 'Welcome to WellNest Pilates!',
+      exclusiveOffer: 'Purchase an 8-class package and get your first session FREE!',
+      redemptionCode: 'REDEMPTION CODE',
+      presentCode: 'Present this code at the studio',
+      whatBring: 'What to bring: Comfortable clothes, water bottle, small towel.',
+    }
+  };
+  return translations[lang] || translations.en;
+}
+
+// Send booking confirmation email (packages and single sessions)
+async function sendBookingEmail(
+  email: string,
+  name: string,
+  packageType: PackageType,
+  sessionDate: string,
+  sessionTime: string,
+  sessionEndTime: string,
+  language: string = 'en',
+  bonusClasses: number = 0
+) {
+  const t = getEmailTranslations(language);
+  const { price } = getPackagePriceInfo(packageType);
+  const sessionCount = extractSessionCount(packageType);
+  const isSingle = packageType === 'single';
+
+  const details: Array<{label: string; value: string}> = isSingle
+    ? [{ label: t.singleSession, value: `${t.price}: ${price} DEN` }]
+    : [
+        { label: t.package, value: `${sessionCount} Klase` },
+        { label: t.price, value: `${price} DEN` }
+      ];
+
+  if (bonusClasses > 0) {
+    details.push({ label: 'BONUS', value: `+${bonusClasses} Klase Falas` });
+  }
+
+  const content: EmailContent = {
+    greeting: `${t.greeting}, ${name}`,
+    message: t.bookingConfirmed,
+    details,
+    highlight: {
+      title: isSingle ? t.singleSession : t.firstClass,
+      lines: [
+        `${t.date}: ${sessionDate}`,
+        `${t.time}: ${sessionTime} - ${sessionEndTime}`
+      ]
+    },
+    note: t.important,
+    closing: t.lookForward
+  };
+
+  const html = generateEmailTemplate(content, (language?.toLowerCase() || 'en') as 'sq' | 'mk' | 'en');
+  const subject = language?.toLowerCase() === 'sq' ? 'Konfirmim Rezervimi - WellNest Pilates'
+    : language?.toLowerCase() === 'mk' ? 'Potvrda za Rezervacija - WellNest Pilates'
+    : 'Booking Confirmation - WellNest Pilates';
+
+  return sendEmail(email, subject, html);
+}
+
+// Send account activation email (after admin approves payment)
 async function sendActivationEmail(
   email: string,
   name: string,
-  surname: string,
-  activationCode: string,
-  packageType: PackageType,
-  firstSessionDetails?: {
-    date: string;
-    timeSlot: string;
-    endTime: string;
-    instructor: string;
-  }
-) {
-  const { price, label: packageName } = getPackagePriceInfo(packageType);
-  const sessionCount = extractSessionCount(packageType);
-
-  const firstSessionHtml = firstSessionDetails ? `
-    <div style="background-color: #e8f5e9; border-radius: 12px; padding: 24px; margin: 24px 0;">
-      <h3 style="margin: 0 0 16px 0; color: #2e7d32; font-size: 18px;">📅 Your First Class</h3>
-      <p style="margin: 0; color: #1b5e20; font-size: 15px; line-height: 1.6;">
-        <strong>Date:</strong> ${firstSessionDetails.date}<br>
-        <strong>Time:</strong> ${firstSessionDetails.timeSlot} - ${firstSessionDetails.endTime}<br>
-        <strong>Instructor:</strong> ${firstSessionDetails.instructor}
-      </p>
-    </div>
-    <p style="margin: 0 0 20px 0; color: #6b5949; font-size: 15px; line-height: 1.6;">
-      <strong>Remaining classes:</strong> ${sessionCount - 1} more class${sessionCount - 1 !== 1 ? 'es' : ''} to book through your dashboard.
-    </p>
-  ` : '';
-
-  const content = `
-    <h2 style="margin: 0 0 20px 0; color: #3d2f28; font-size: 24px;">Welcome, ${name}${surname ? ' ' + surname : ''}! 🎉</h2>
-    
-    <p style="margin: 0 0 20px 0; color: #6b5949; font-size: 16px; line-height: 1.6;">
-      Thank you for choosing ${STUDIO_INFO.name}! Your ${packageName} ${firstSessionDetails ? 'package is ready to be activated' : 'booking is confirmed'}.
-    </p>
-    
-    <div style="background-color: #f5f0ed; border-radius: 12px; padding: 24px; margin: 30px 0;">
-      <p style="margin: 0 0 12px 0; color: #6b5949; font-size: 14px; text-transform: uppercase; letter-spacing: 1px;">Your Activation Code</p>
-      <p style="margin: 0; color: #3d2f28; font-size: 32px; font-weight: bold; letter-spacing: 2px; font-family: 'Courier New', monospace;">
-        ${activationCode}
-      </p>
-    </div>
-    
-    <div style="background-color: #fff8f0; border-left: 4px solid #9ca571; padding: 16px; margin: 24px 0;">
-      <p style="margin: 0; color: #6b5949; font-size: 14px; line-height: 1.6;">
-        <strong style="color: #3d2f28;">Package Details:</strong><br>
-        ${packageName} - ${price} DEN
-      </p>
-    </div>
-    
-    ${firstSessionHtml}
-    
-    <h3 style="margin: 30px 0 16px 0; color: #3d2f28; font-size: 18px;">How to Activate:</h3>
-    <ol style="margin: 0; padding-left: 20px; color: #6b5949; font-size: 15px; line-height: 1.8;">
-      <li>Open the ${STUDIO_INFO.name} booking app</li>
-      <li>Click on "Member Login" or "Activate Member Area"</li>
-      <li>Enter your email and the activation code above</li>
-      <li>Start ${firstSessionDetails ? 'booking your remaining sessions' : 'enjoying your Pilates journey'}!</li>
-    </ol>
-    
-    <div style="background-color: #f5f0ed; border-radius: 12px; padding: 20px; margin: 30px 0;">
-      <p style="margin: 0 0 12px 0; color: #3d2f28; font-size: 14px; font-weight: 600;">Important:</p>
-      <ul style="margin: 0; padding-left: 20px; color: #6b5949; font-size: 14px; line-height: 1.6;">
-        <li>Payment is due in the studio before your class</li>
-        <li>Please arrive 10 minutes early for your first class</li>
-        <li>Cancellations must be made at least 24 hours in advance</li>
-        <li>This activation code expires in 24 hours</li>
-      </ul>
-    </div>
-  `;
-
-  return sendEmail(
-    email,
-    firstSessionDetails
-      ? `Activate Your ${packageName} Package - ${STUDIO_INFO.name}`
-      : `Confirm Your Booking - ${STUDIO_INFO.name}`,
-    content
-  );
-}
-
-// Send login email after admin activation (no activation code needed)
-async function sendLoginEmail(
-  email: string,
-  name: string,
   verificationToken: string,
-  appUrl: string
-) {
-  const loginUrl = `${appUrl}/set-password?token=${verificationToken}`;
-
-  const content = `
-    <h2 style="margin: 0 0 20px 0; color: #3d2f28; font-size: 24px;">Welcome to ${STUDIO_INFO.name}! 🎉</h2>
-
-    <p style="margin: 0 0 20px 0; color: #6b5949; font-size: 16px; line-height: 1.6;">
-      Hi ${name},<br><br>
-      Great news! Your account has been activated and your payment has been confirmed.
-    </p>
-
-    <div style="background-color: #e8f5e9; border-radius: 12px; padding: 24px; margin: 24px 0; text-align: center;">
-      <p style="margin: 0 0 16px 0; color: #2e7d32; font-size: 18px; font-weight: 600;">Your account is ready!</p>
-      <a href="${loginUrl}" style="display: inline-block; background-color: #6b5949; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-size: 16px; font-weight: 600;">
-        Set Password & Login
-      </a>
-    </div>
-
-    <p style="margin: 0 0 20px 0; color: #6b5949; font-size: 14px; line-height: 1.6;">
-      Or copy this link: <a href="${loginUrl}" style="color: #6b5949;">${loginUrl}</a>
-    </p>
-
-    <div style="background-color: #fff8f0; border-left: 4px solid #9ca571; padding: 16px; margin: 24px 0;">
-      <p style="margin: 0; color: #6b5949; font-size: 14px; line-height: 1.6;">
-        <strong style="color: #3d2f28;">What's next?</strong><br>
-        1. Click the button above to set your password<br>
-        2. Log in to your dashboard<br>
-        3. Book your Pilates sessions!
-      </p>
-    </div>
-
-    <p style="margin: 0; color: #999; font-size: 12px;">
-      This link expires in 24 hours. If you didn't request this, please ignore this email.
-    </p>
-  `;
-
-  return sendEmail(
-    email,
-    `Your ${STUDIO_INFO.name} Account is Activated!`,
-    content
-  );
-}
-
-async function sendRegistrationEmail(
-  email: string,
-  name: string,
-  surname: string,
-  verificationToken: string,
-  packageType: PackageType,
-  firstSessionDate: string,
-  firstSessionTime: string,
-  firstSessionEndTime: string,
   appUrl: string,
-  language: string = 'EN',
-  bonusClasses: number = 0,
-  redemptionCode: string = ''
+  language: string = 'en'
 ) {
-  // Normalize language to uppercase and default to EN if invalid
-  const lang = (language?.toUpperCase() || 'EN') as keyof typeof EMAIL_TRANSLATIONS;
-  const t = EMAIL_TRANSLATIONS[lang] || EMAIL_TRANSLATIONS.EN;
+  const t = getEmailTranslations(language);
+  const loginUrl = `${appUrl}#/setup-password?token=${verificationToken}`;
 
-  const { price, label: packageName } = getPackagePriceInfo(packageType);
-  const sessionCount = extractSessionCount(packageType);
-  const isSingleSession = packageType === 'single';
+  const content: EmailContent = {
+    greeting: `${t.greeting}, ${name}`,
+    message: t.accountReady,
+    button: {
+      text: t.setPassword,
+      url: loginUrl
+    },
+    instructions: {
+      title: '',
+      steps: [
+        t.linkExpires
+      ]
+    }
+  };
 
-  const currentDate = new Date().toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  });
+  const html = generateEmailTemplate(content, (language?.toLowerCase() || 'en') as 'sq' | 'mk' | 'en');
+  const subject = language?.toLowerCase() === 'sq' ? 'Llogaria Juaj - WellNest Pilates'
+    : language?.toLowerCase() === 'mk' ? 'Vashata Smetka - WellNest Pilates'
+    : 'Your Account - WellNest Pilates';
 
-  const bonusHtml = bonusClasses > 0 ? `<div style="background-color: #f0fdf4; border-radius: 12px; padding: 20px; margin: 24px 0; border: 2px solid #86efac;"><h3 style="margin: 0 0 12px 0; color: #16a34a; font-size: 18px;">🎁 Bonus Redeemed!</h3><p style="margin: 0; color: #15803d; font-size: 15px; font-weight: bold;">+${bonusClasses} Free Class Added!</p><p style="margin: 8px 0 0 0; color: #166534; font-size: 14px;">Your coupon has been successfully redeemed.</p></div>` : '';
+  return sendEmail(email, subject, html);
+}
 
-  // Package details section - different for single vs package
-  const packageDetailsHtml = isSingleSession
-    ? `<div style="background-color: #f5f0ed; border-radius: 12px; padding: 20px; margin: 24px 0;">
-        <p style="margin: 0 0 8px 0; color: #8b7764; font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">SEANCË TEKE</p>
-        <p style="margin: 0; color: #3d2f28; font-size: 18px; font-weight: bold;">ÇMIMI: ${price} DEN</p>
-      </div>`
-    : `<div style="background-color: #f5f0ed; border-radius: 12px; padding: 20px; margin: 24px 0;">
-        <p style="margin: 0 0 8px 0; color: #8b7764; font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">PAKETA</p>
-        <p style="margin: 0 0 8px 0; color: #3d2f28; font-size: 18px; font-weight: bold;">${sessionCount} Klase</p>
-        <p style="margin: 0; color: #6b5949; font-size: 15px;">ÇMIMI: ${price} DEN</p>
-      </div>`;
+// Send waitlist invite email
+async function sendWaitlistInviteEmail(
+  email: string,
+  name: string,
+  redemptionCode: string,
+  language: string = 'en'
+) {
+  const t = getEmailTranslations(language);
 
-  // Session label - "KLASA E PARE" for packages, "SEANCA JUAJ" for single
-  const sessionLabel = isSingleSession ? t.yourSession : 'KLASA E PARE';
+  const content: EmailContent = {
+    greeting: `${t.greeting}, ${name}`,
+    message: t.welcomeWaitlist,
+    details: [
+      { label: 'EXCLUSIVE OFFER', value: t.exclusiveOffer }
+    ],
+    code: {
+      label: t.redemptionCode,
+      value: redemptionCode,
+      note: t.presentCode
+    },
+    note: t.whatBring,
+    closing: t.lookForward
+  };
 
-  const content = `
-    <h2 style="margin: 0 0 20px 0; color: #3d2f28; font-size: 24px;">${t.bookingConfirmation}</h2>
+  const html = generateEmailTemplate(content, (language?.toLowerCase() || 'en') as 'sq' | 'mk' | 'en');
+  const subject = language?.toLowerCase() === 'sq' ? 'Mire se vini ne WellNest Pilates!'
+    : language?.toLowerCase() === 'mk' ? 'Dobrodojdovte vo WellNest Pilates!'
+    : 'Welcome to WellNest Pilates!';
 
-    <p style="margin: 0 0 10px 0; color: #6b5949; font-size: 16px; line-height: 1.6;">
-      ${t.thankYou}
-    </p>
-
-    <p style="margin: 0 0 20px 0; color: #8b7764; font-size: 14px;">
-      <strong>${t.bookingDate}:</strong> ${currentDate}
-    </p>
-
-    ${packageDetailsHtml}
-
-    ${bonusHtml}
-
-    <div style="background-color: #e8f5e9; border-radius: 12px; padding: 24px; margin: 24px 0;">
-      <h3 style="margin: 0 0 16px 0; color: #2e7d32; font-size: 18px;">📅 ${sessionLabel}</h3>
-      <p style="margin: 0; color: #1b5e20; font-size: 15px; line-height: 1.6;">
-        <strong>${t.date}:</strong> ${firstSessionDate}<br>
-        <strong>${t.time}:</strong> ${firstSessionTime} - ${firstSessionEndTime}
-      </p>
-    </div>
-
-    <div style="background-color: #fff8f0; border-left: 4px solid #9ca571; padding: 20px; margin: 24px 0;">
-      <p style="margin: 0; color: #6b5949; font-size: 15px; line-height: 1.6;">
-        <strong style="color: #3d2f28;">${t.important}:</strong><br>
-        ${t.paymentMessage}
-      </p>
-    </div>
-
-    <p style="margin: 20px 0 0 0; color: #6b5949; font-size: 14px; line-height: 1.6;">
-      ${t.lookForward}
-    </p>
-  `;
-
-  return sendEmail(email, t.subject, content, language);
+  return sendEmail(email, subject, html);
 }
 
 // ============ HEALTH CHECK ============
@@ -1108,21 +1139,17 @@ app.post("/make-server-b87b0c07/packages/:id/first-session", async (c) => {
         };
         await kv.set(tokenKey, tokenData);
 
-        await sendRegistrationEmail(
+        await sendBookingEmail(
           pkg.user_email,
           pkg.name,
-          pkg.surname,
-          verificationToken,
           pkg.package_type,
           dateString,
           timeSlot,
           endTime,
-          appUrl,
           pkg.language || 'en',
-          pkg.bonus_classes || 0,
-          pkg.redeemed_coupon_code || ''
+          pkg.bonus_classes || 0
         );
-        console.log(`Registration email sent to: ${pkg.user_email} in language: ${pkg.language}`);
+        console.log(`Booking email sent to: ${pkg.user_email}`);
       }
     } catch (emailError) {
       console.error('Error sending registration email:', emailError);
@@ -1422,19 +1449,15 @@ app.post("/make-server-b87b0c07/reservations", async (c) => {
       try {
         const appUrl = c.req.header('origin') || c.req.header('referer') || 'https://app.wellnestpilates.com';
 
-        await sendRegistrationEmail(
+        await sendBookingEmail(
           normalizedEmail,
           name,
-          surname,
-          '', // No verification token yet - will be sent when admin activates
           'single',
           dateString,
           timeSlot,
           endTime,
-          appUrl,
           language,
-          0, // Single sessions don't have coupons
-          '' // No redemption code for single sessions
+          0
         );
       } catch (emailError) {
         console.error('Error sending booking confirmation email:', emailError);
@@ -1842,8 +1865,8 @@ app.post("/make-server-b87b0c07/activate", async (c) => {
     // 5. Send login email with password setup link
     const appUrl = c.req.header('origin') || 'https://app.wellnestpilates.com';
     try {
-      await sendLoginEmail(normalizedEmail, user.name || '', verificationToken, appUrl);
-      console.log(`Login email sent to: ${normalizedEmail}`);
+      await sendActivationEmail(normalizedEmail, user.name || '', verificationToken, appUrl, 'en');
+      console.log(`Activation email sent to: ${normalizedEmail}`);
     } catch (emailError) {
       console.error('Failed to send login email:', emailError);
       // Don't fail the activation if email fails
@@ -3329,11 +3352,6 @@ app.post("/make-server-b87b0c07/admin/waitlist/send-invite", async (c) => {
 
     const emailList = Array.isArray(emails) ? emails : [emails];
     const results = [];
-    const resendApiKey = Deno.env.get('RESEND_API_KEY');
-
-    if (!resendApiKey) {
-      return c.json({ error: 'Email service not configured' }, 500);
-    }
 
     for (const email of emailList) {
       const normalizedEmail = email.toLowerCase().trim();
@@ -3348,352 +3366,33 @@ app.post("/make-server-b87b0c07/admin/waitlist/send-invite", async (c) => {
 
       // Detect language based on name/surname
       const detectLanguage = (name: string, surname: string): 'sq' | 'mk' | 'en' => {
-        const fullName = `${name} ${surname}`.toLowerCase();
-        
-        // Albanian name patterns and common names
-        const albanianPatterns = ['besa', 'arben', 'enkeleda', 'besim', 'alban', 'driton', 'erjon', 'flamur', 'gent'];
-        const albanianEndings = ['aj', 'ush', 'ues'];
-        
-        // Macedonian name patterns and common names
-        const macedonianPatterns = ['aleksandar', 'dimitrije', 'nikola', 'stefan', 'marija', 'elena', 'jovana', 'darko'];
-        const macedonianEndings = ['ski', 'ovski', 'evski', 'ov', 'ova', 'ev', 'eva', 'ić', 'ič'];
-        
-        // Check for Albanian patterns
-        for (const pattern of albanianPatterns) {
-          if (fullName.includes(pattern)) return 'sq';
-        }
+        const albanianEndings = ['aj', 'ush', 'ues', 'i'];
+        const macedonianEndings = ['ski', 'ovski', 'evski', 'ov', 'ova', 'ev', 'eva'];
+
         for (const ending of albanianEndings) {
           if (surname.toLowerCase().endsWith(ending)) return 'sq';
-        }
-        
-        // Check for Macedonian patterns
-        for (const pattern of macedonianPatterns) {
-          if (fullName.includes(pattern)) return 'mk';
         }
         for (const ending of macedonianEndings) {
           if (surname.toLowerCase().endsWith(ending)) return 'mk';
         }
-        
+
         // Default to English
         return 'en';
       };
 
       const language = detectLanguage(waitlistUser.name, waitlistUser.surname);
-      console.log(`🌐 Detected language for ${waitlistUser.name} ${waitlistUser.surname}: ${language === 'sq' ? 'Albanian' : language === 'mk' ? 'Macedonian' : 'English'}`);
-      
-      // Translations
-      const translations = {
-        sq: {
-          subject: '🎉 Mirë se vini në WellNest Pilates - Sesioni juaj falas ju pret!',
-          welcome: 'Mirë se vini në WellNest Pilates!',
-          greeting: 'Përshëndetje',
-          intro: 'Jemi të entuziazmuar që t\'ju mirëpresim në familjen WellNest Pilates! 🧘‍♀️',
-          offerText: 'Si dhuratë mirëseardhje të veçantë, ju ofrojmë:',
-          offerTitle: '🎁 Ofertë ekskluzive:',
-          offerDesc: 'Blini një paketë me 8 klasë dhe merrni <strong>klasën e parë FALAS!</strong>',
-          redeemTitle: 'Kështu e shfrytëzoni:',
-          redeemSteps: [
-            'Vizitoni studion tonë ose kontaktoni për të rezervuar klasën tuaj të parë',
-            'Zgjidhni datën dhe orën e klasës tuaj të parë',
-            'Përfundoni blerjen e paketës me 8 klasë',
-            'Klasa juaj e parë është falas!'
-          ],
-          codeLabel: 'Kodi juaj i Shpërblimit:',
-          codeNote: 'Paraqisni këtë kod në studio',
-          whatYouGetTitle: 'Çfarë do të merrni:',
-          benefits: [
-            'Paketë mujore me 8 klasë Pilates në grup të vogël',
-            'Klasa e parë plotësisht falas',
-            'Udhëzim ekspert nga instruktorë të çertifikuar',
-            'Grup i vogël për vëmendje të personalizuar'
-          ],
-          locationTitle: '📍 Vendndodhja e Studios:',
-          closing: 'Nuk mund të presim të ju shohim! Nëse keni ndonjë pyetje, mos hezitoni të na kontaktoni.',
-          regards: 'Me respekt,',
-          team: 'Ekipi i WellNest Pilates'
-        },
-        mk: {
-          subject: '🎉 Добредојдовте во WellNest Pilates - Вашата бесплатна сесија ве чека!',
-          welcome: 'Добредојдовте во WellNest Pilates!',
-          greeting: 'Здраво',
-          intro: 'Воодушевени сме да ве поздравиме во семејството WellNest Pilates! 🧘‍♀️',
-          offerText: 'Како посебен подарок за добредојде, ви нудиме:',
-          offerTitle: '🎁 Ексклузивна понуда:',
-          offerDesc: 'Купете пакет од 8 класи и добијте ја <strong>првата класа БЕСПЛАТНО!</strong>',
-          redeemTitle: 'Како да искористите:',
-          redeemSteps: [
-            'Посетете не или контактирајте не за да ја резервирате вашата прва сесија',
-            'Изберете датум и време за вашата прва сесија',
-            'Комплетирајте ја купувањето на пакетот од 8 часа',
-            'Вашата прва сесија е бесплатна!'
-          ],
-          codeLabel: 'Вашиот код за искористување:',
-          codeNote: 'Презентирајте го овој код во студиото',
-          whatYouGetTitle: 'Што добивате:',
-          benefits: [
-            'Месечен пакет со 8 Pilates класи во мала група',
-            'Прва класа целосно бесплатна',
-            'Експертски инструкции од сертифицирани инструктори',
-            'Мала група за персонализирано внимание'
-          ],
-          locationTitle: '📍 Локација на студиото:',
-          closing: 'Нетрпеливо чекаме да ве видиме! Ако имате прашања, слободно контактирајте не.',
-          regards: 'Со почит,',
-          team: 'Тимот на WellNest Pilates'
-        },
-        en: {
-          subject: '🎉 Welcome to WellNest Pilates - Your Free Session Awaits!',
-          welcome: 'Welcome to WellNest Pilates!',
-          greeting: 'Hi',
-          intro: 'We\'re thrilled to welcome you to the WellNest Pilates family! 🧘‍♀️',
-          offerText: 'As a special welcome gift, we\'re offering you:',
-          offerTitle: '🎁 Exclusive Offer:',
-          offerDesc: 'Purchase an 8-class package and get your <strong>first session FREE!</strong>',
-          redeemTitle: 'Here\'s how to redeem:',
-          redeemSteps: [
-            'Visit our studio or contact us to book your first session',
-            'Select your first session date and time',
-            'Complete the 8-class package purchase',
-            'Your first session is on us!'
-          ],
-          codeLabel: 'Your Redemption Code:',
-          codeNote: 'Present this code at the studio',
-          whatYouGetTitle: 'What you\'ll get:',
-          benefits: [
-            'Monthly package with 8 Pilates classes in small group',
-            'First class completely free',
-            'Expert instruction from certified instructors',
-            'Small group setting for personalized attention'
-          ],
-          locationTitle: '📍 Studio Location:',
-          closing: 'We can\'t wait to see you on the mat! If you have any questions, feel free to reach out.',
-          regards: 'Best regards,',
-          team: 'The WellNest Pilates Team'
-        }
-      };
+      console.log(`Detected language for ${waitlistUser.name}: ${language}`);
 
-      const t = translations[language];
-
-      // Create welcome email
-      const emailHtml = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <style>
-            body { 
-              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
-              line-height: 1.5; 
-              color: #333333;
-              margin: 0;
-              padding: 0;
-              background-color: #f5f5f5;
-              font-size: 13px;
-            }
-            .container { 
-              max-width: 600px; 
-              margin: 40px auto; 
-              background: #ffffff;
-              border-radius: 8px;
-              overflow: hidden;
-              box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            }
-            .header { 
-              background: linear-gradient(135deg, #9ca571 0%, #8a9463 100%); 
-              color: white; 
-              padding: 24px 32px; 
-              text-align: center;
-            }
-            .logo {
-              max-width: 200px;
-              height: auto;
-              margin-bottom: 16px;
-            }
-            .header h1 {
-              margin: 0;
-              font-size: 20px;
-              font-weight: 600;
-            }
-            .content { 
-              background: #ffffff; 
-              padding: 32px;
-            }
-            .greeting {
-              font-size: 14px;
-              font-weight: 600;
-              margin-bottom: 16px;
-              color: #333333;
-            }
-            .intro {
-              margin-bottom: 16px;
-              color: #333333;
-              font-size: 13px;
-            }
-            .offer-box {
-              background: #f8f8f8;
-              border-left: 4px solid #9ca571;
-              padding: 12px 16px;
-              margin: 20px 0;
-              font-size: 13px;
-            }
-            .offer-box strong {
-              color: #333333;
-            }
-            .section-title {
-              font-weight: 600;
-              margin: 20px 0 10px 0;
-              color: #333333;
-              font-size: 13px;
-            }
-            .code-box { 
-              background: #ffffff;
-              border: 2px dashed #cccccc; 
-              padding: 20px; 
-              border-radius: 8px; 
-              text-align: center; 
-              margin: 20px 0;
-            }
-            .code-label {
-              margin: 0 0 8px 0;
-              font-size: 12px;
-              color: #666666;
-            }
-            .code { 
-              font-size: 24px; 
-              font-weight: 700; 
-              color: #9ca571; 
-              letter-spacing: 3px;
-              font-family: 'Courier New', monospace;
-            }
-            .code-note {
-              margin: 8px 0 0 0;
-              font-size: 11px;
-              color: #666666;
-            }
-            .location-box {
-              background: #f8f8f8;
-              border-left: 4px solid #d4a574;
-              padding: 12px 16px;
-              margin: 20px 0;
-              font-size: 13px;
-            }
-            ul { 
-              padding-left: 20px; 
-              margin: 10px 0;
-            }
-            li { 
-              margin: 6px 0; 
-              color: #333333;
-              font-size: 13px;
-            }
-            p {
-              font-size: 13px;
-              margin: 12px 0;
-            }
-            .footer {
-              background: #f8f8f8;
-              padding: 20px 32px;
-              text-align: left;
-              border-top: 1px solid #e8e8e8;
-            }
-            .footer-title {
-              color: #d4a574;
-              font-weight: 600;
-              margin-bottom: 6px;
-              font-size: 12px;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <img src="https://raw.githubusercontent.com/yourusername/yourrepo/main/wellnest-logo.png" alt="WellNest Pilates" class="logo" />
-              <h1>🎉 ${t.welcome}</h1>
-            </div>
-            
-            <div class="content">
-              <p class="greeting">${t.greeting} ${waitlistUser.name},</p>
-              
-              <p class="intro">${t.intro}</p>
-              
-              <p>${t.offerText}</p>
-              
-              <div class="offer-box">
-                <strong>${t.offerTitle}</strong> ${t.offerDesc}
-              </div>
-
-              <p class="section-title">${t.redeemTitle}</p>
-              <ul>
-                ${t.redeemSteps.map(step => `<li>${step}</li>`).join('')}
-              </ul>
-
-              <div class="code-box">
-                <p class="code-label">${t.codeLabel}</p>
-                <div class="code">${waitlistUser.redemptionCode}</div>
-                <p class="code-note">${t.codeNote}</p>
-              </div>
-
-              <p class="section-title">${t.whatYouGetTitle}</p>
-              <ul>
-                ${t.benefits.map(benefit => `<li>${benefit}</li>`).join('')}
-              </ul>
-
-              <div class="location-box">
-                <p class="footer-title">${t.locationTitle}</p>
-                Gjuro Gjakovikj 59, Kumanovo 1300
-              </div>
-
-              <p style="margin-top: 24px;">${t.closing}</p>
-              
-              <p style="margin-top: 20px;">${t.regards}<br><strong>${t.team}</strong></p>
-            </div>
-            
-            <div class="footer">
-              <p style="margin: 0; color: #666666; font-size: 12px;">
-                <strong style="color: #333333;">WellNest Pilates</strong><br>
-                Gjuro Gjakovikj 59, Kumanovo 1300<br>
-                <a href="mailto:info@wellnestpilates.com" style="color: #9ca571; text-decoration: none;">info@wellnestpilates.com</a>
-              </p>
-            </div>
-          </div>
-        </body>
-        </html>
-      `;
-
-      // Send email via Resend
+      // Send email using unified template
       try {
-        console.log(`📧 Attempting to send email to ${normalizedEmail}...`);
-        console.log(`📧 Using API key: ${resendApiKey ? 'PRESENT (length: ' + resendApiKey.length + ')' : 'MISSING'}`);
-        
-        const emailPayload = {
-          from: process.env.FROM_EMAIL || 'Wellnest Pilates <info@wellnestpilates.com>',
-          to: [normalizedEmail],
-          subject: t.subject,
-          html: emailHtml,
-        };
-        
-        console.log('📧 Email payload:', JSON.stringify({ 
-          from: emailPayload.from, 
-          to: emailPayload.to, 
-          subject: emailPayload.subject,
-          htmlLength: emailHtml.length 
-        }));
+        const emailResult = await sendWaitlistInviteEmail(
+          normalizedEmail,
+          waitlistUser.name,
+          waitlistUser.redemptionCode,
+          language
+        );
 
-        const emailResponse = await fetch('https://api.resend.com/emails', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${resendApiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(emailPayload),
-        });
-
-        console.log(`📧 Resend API response status: ${emailResponse.status} ${emailResponse.statusText}`);
-
-        if (emailResponse.ok) {
-          const responseData = await emailResponse.json();
-          console.log(`✅ Resend API success response:`, responseData);
-          
+        if (emailResult.success) {
           // Update waitlist user status
           waitlistUser.status = 'invited';
           waitlistUser.invitedAt = new Date().toISOString();
@@ -3701,17 +3400,14 @@ app.post("/make-server-b87b0c07/admin/waitlist/send-invite", async (c) => {
           await kv.set(waitlistId, waitlistUser);
 
           results.push({ email, success: true, redemptionCode: waitlistUser.redemptionCode });
-          console.log(`✅ Sent invite email to ${normalizedEmail}`);
+          console.log(`Sent invite email to ${normalizedEmail}`);
         } else {
-          const errorData = await emailResponse.text();
-          console.error(`❌ Resend API error response:`, errorData);
-          results.push({ email, success: false, error: `Resend API error (${emailResponse.status}): ${errorData}` });
-          console.error(`❌ Failed to send email to ${normalizedEmail}:`, errorData);
+          results.push({ email, success: false, error: emailResult.error });
+          console.error(`Failed to send email to ${normalizedEmail}:`, emailResult.error);
         }
       } catch (emailError) {
-        console.error(`❌ Email exception for ${normalizedEmail}:`, emailError);
+        console.error(`Email exception for ${normalizedEmail}:`, emailError);
         results.push({ email, success: false, error: emailError.message });
-        console.error(`❌ Email error for ${normalizedEmail}:`, emailError);
       }
     }
 
