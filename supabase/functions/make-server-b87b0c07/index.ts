@@ -876,7 +876,42 @@ app.post("/make-server-b87b0c07/packages", async (c) => {
           console.log(`⚠️ Coupon ${normalizedCoupon} not valid: used=${isUsed}, expired=${isExpired}, active=${isActive}`);
         }
       } else {
-        console.log(`⚠️ Coupon ${normalizedCoupon} not found in redemption_codes table`);
+        // Not found in redemption_codes, check waitlist_members table
+        console.log(`🔍 Coupon ${normalizedCoupon} not in redemption_codes, checking waitlist_members...`);
+
+        const { data: waitlistMember, error: wlError } = await supabase
+          .from('waitlist_members')
+          .select('*')
+          .eq('code', normalizedCoupon)
+          .maybeSingle();
+
+        if (waitlistMember && !wlError && waitlistMember.status === 'invited') {
+          // Waitlist code found and valid - apply first_class_free_with_8pack offer
+          console.log(`✅ Waitlist code found: ${normalizedCoupon}, applying bonus`);
+
+          bonusClasses = 1;
+          totalSessions += bonusClasses; // 8 + 1 = 9 total
+          redeemedCouponCode = normalizedCoupon;
+
+          // Mark waitlist member as redeemed
+          const { error: wlUpdateError } = await supabase
+            .from('waitlist_members')
+            .update({
+              status: 'redeemed',
+              redeemed_at: now
+            })
+            .eq('id', waitlistMember.id);
+
+          if (wlUpdateError) {
+            console.error('Failed to mark waitlist code as redeemed:', wlUpdateError);
+          } else {
+            console.log(`✅ Waitlist code ${normalizedCoupon} redeemed by ${normalizedEmail}. +1 bonus class (first class free)`);
+          }
+        } else if (waitlistMember && waitlistMember.status === 'redeemed') {
+          console.log(`⚠️ Waitlist code ${normalizedCoupon} already redeemed`);
+        } else {
+          console.log(`⚠️ Coupon ${normalizedCoupon} not found in any table`);
+        }
       }
     }
 
