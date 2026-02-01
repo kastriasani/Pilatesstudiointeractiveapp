@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Calendar, Users, LogOut, Mail, X, CheckCircle, Trash2, Ban, Gift, ShieldAlert, Settings, UserPlus, Send } from 'lucide-react';
+import { Calendar, Users, LogOut, Mail, X, CheckCircle, Trash2, Ban, Gift, ShieldAlert, Settings, UserPlus, Send, AlertCircle, Loader2 } from 'lucide-react';
 import { logo } from '../../assets/images';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { DevTools } from './DevTools';
@@ -103,6 +103,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
   const [isProcessing, setIsProcessing] = useState(false);
   const [showDevTools, setShowDevTools] = useState(false);
   const [processingBookingId, setProcessingBookingId] = useState<string | null>(null);
+  const [paymentUpdatingEmail, setPaymentUpdatingEmail] = useState<string | null>(null);
 
   // Waitlist state
   const [waitlistUsers, setWaitlistUsers] = useState<WaitlistUser[]>([]);
@@ -566,6 +567,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
 
   // Handle booking status change (Attended, No Show, Cancel)
   const handleBookingStatusChange = async (bookingId: string, newStatus: string) => {
+    console.log('📝 Updating booking status:', bookingId, newStatus);
     setProcessingBookingId(bookingId);
     try {
       const response = await fetch(
@@ -581,14 +583,47 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
         }
       );
       if (response.ok) {
+        console.log('✅ Booking status updated successfully');
         await fetchBookings();
       } else {
-        console.error('Failed to update booking status');
+        const errorData = await response.text();
+        console.error('❌ Failed to update booking status:', response.status, errorData);
       }
     } catch (error) {
-      console.error('Error updating booking status:', error);
+      console.error('❌ Error updating booking status:', error);
     } finally {
       setProcessingBookingId(null);
+    }
+  };
+
+  // Handle marking payment as paid
+  const handleMarkAsPaid = async (email: string) => {
+    console.log('💰 Marking as paid:', email);
+    setPaymentUpdatingEmail(email);
+    try {
+      const response = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/admin/users/${encodeURIComponent(email)}/payment`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${publicAnonKey}`,
+            'X-Session-Token': getSessionToken(),
+          },
+          body: JSON.stringify({ paymentStatus: 'paid' }),
+        }
+      );
+      if (response.ok) {
+        console.log('✅ Payment marked as paid');
+        await fetchBookings();
+      } else {
+        const errorData = await response.text();
+        console.error('❌ Failed to mark as paid:', response.status, errorData);
+      }
+    } catch (error) {
+      console.error('❌ Error marking as paid:', error);
+    } finally {
+      setPaymentUpdatingEmail(null);
     }
   };
 
@@ -718,32 +753,6 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
             {/* Selected Date - Timeline View */}
             {selectedDate && (
               <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-                {/* Quick Stats Bar */}
-                {(() => {
-                  const dayBookings = getBookingsForDate(selectedDate);
-                  const totalBooked = dayBookings.length;
-                  const morningSlots = ['09:00 - 09:50', '10:00 - 10:50'];
-                  const eveningSlots = ['16:00 - 16:50', '17:00 - 17:50', '18:00 - 18:50', '19:00 - 19:50', '20:00 - 20:50'];
-                  const morningBooked = morningSlots.reduce((acc, slot) => acc + getTimeSlotCapacity(selectedDate, slot), 0);
-                  const eveningBooked = eveningSlots.reduce((acc, slot) => acc + getTimeSlotCapacity(selectedDate, slot), 0);
-                  const morningMax = morningSlots.length * 4;
-                  const eveningMax = eveningSlots.length * 4;
-
-                  return (
-                    <div className="flex gap-2 p-3 border-b border-stone-200 text-xs">
-                      <div className="px-3 py-1.5 bg-stone-100 rounded-lg text-stone-700">
-                        Total: <span className="font-semibold">{totalBooked}/{maxDailyCapacity}</span>
-                      </div>
-                      <div className="px-3 py-1.5 bg-stone-100 rounded-lg text-stone-700">
-                        AM: <span className="font-semibold">{morningBooked}/{morningMax}</span>
-                      </div>
-                      <div className="px-3 py-1.5 bg-stone-100 rounded-lg text-stone-700">
-                        PM: <span className="font-semibold">{eveningBooked}/{eveningMax}</span>
-                      </div>
-                    </div>
-                  );
-                })()}
-
                 {/* Timeline List */}
                 <div className="divide-y divide-stone-100">
                   {timeSlots.map((timeSlot) => {
@@ -795,32 +804,54 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                 : booking.selectedPackage === 'package10' ? 10
                                 : booking.selectedPackage === 'package12' ? 12 : 0;
                               const isProcessing = processingBookingId === booking.id;
+                              const isUpdatingPayment = paymentUpdatingEmail === booking.email;
+                              const isPaid = booking.status === 'confirmed';
 
                               // Booking status dot
                               let bookingDotColor = 'bg-stone-400';
-                              if (booking.status === 'confirmed') bookingDotColor = 'bg-stone-500';
+                              if (booking.status === 'confirmed') bookingDotColor = 'bg-green-500';
                               else if (booking.status === 'pending') bookingDotColor = 'bg-blue-500';
 
                               return (
                                 <div
                                   key={booking.id}
-                                  className="flex items-center gap-3 p-3 bg-white border border-stone-200 rounded-lg"
+                                  className="p-3 bg-white border border-stone-200 rounded-lg"
                                 >
-                                  {/* Status Dot */}
-                                  <div className={`w-2 h-2 rounded-full flex-shrink-0 ${bookingDotColor}`} />
-
-                                  {/* Info */}
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-medium text-stone-800 truncate">
+                                  {/* Top row: Status dot + Name + Payment Badge */}
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <div className={`w-2 h-2 rounded-full flex-shrink-0 ${bookingDotColor}`} />
+                                    <span className="text-sm font-medium text-stone-800 truncate flex-1">
                                       {booking.name} {booking.surname}
-                                    </p>
-                                    <p className="text-xs text-stone-500">
-                                      {baseCount > 0 ? `${baseCount} Sessions` : 'Single'}
-                                    </p>
+                                    </span>
+                                    {/* Payment Badge */}
+                                    {isPaid ? (
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs text-green-600 bg-green-50">
+                                        <CheckCircle className="w-3 h-3" />
+                                        Paid
+                                      </span>
+                                    ) : (
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); handleMarkAsPaid(booking.email); }}
+                                        disabled={isUpdatingPayment}
+                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs text-amber-600 bg-amber-50 hover:bg-amber-100 disabled:opacity-50"
+                                      >
+                                        {isUpdatingPayment ? (
+                                          <Loader2 className="w-3 h-3 animate-spin" />
+                                        ) : (
+                                          <AlertCircle className="w-3 h-3" />
+                                        )}
+                                        Unpaid
+                                      </button>
+                                    )}
                                   </div>
 
+                                  {/* Sessions info */}
+                                  <p className="text-xs text-stone-500 ml-4 mb-2">
+                                    Sessions: {baseCount > 0 ? baseCount : 'Single'}
+                                  </p>
+
                                   {/* Quick Actions - 44px touch targets */}
-                                  <div className="flex items-center gap-1">
+                                  <div className="flex items-center gap-1 ml-4">
                                     <button
                                       onClick={(e) => { e.stopPropagation(); handleBookingStatusChange(booking.id, 'attended'); }}
                                       disabled={isProcessing}
