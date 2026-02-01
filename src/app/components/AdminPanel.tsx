@@ -575,13 +575,16 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowDevTools(true)}
-            className="p-2 hover:bg-[#f5f0ed] rounded-lg transition-colors"
-            title="Developer Tools"
-          >
-            <Settings className="w-5 h-5 text-[#6b5949]" />
-          </button>
+          {/* DevTools button hidden in production - only visible in development */}
+          {import.meta.env.DEV && (
+            <button
+              onClick={() => setShowDevTools(true)}
+              className="p-2 hover:bg-[#f5f0ed] rounded-lg transition-colors"
+              title="Developer Tools"
+            >
+              <Settings className="w-5 h-5 text-[#6b5949]" />
+            </button>
+          )}
           <button
             onClick={onLogout}
             className="p-2 hover:bg-[#f5f0ed] rounded-lg transition-colors"
@@ -734,127 +737,114 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                 <h2 className="text-sm text-[#3d2f28] mb-3">
                   Time Slots for {dates.find(date => date.dateKey === selectedDate)?.displayDate}
                 </h2>
-                <div className="space-y-2">
+
+                {/* Quick Stats Bar */}
+                {(() => {
+                  const dayBookings = getBookingsForDate(selectedDate);
+                  const totalBooked = dayBookings.length;
+                  const morningSlots = ['09:00 - 09:50', '10:00 - 10:50'];
+                  const eveningSlots = ['16:00 - 16:50', '17:00 - 17:50', '18:00 - 18:50', '19:00 - 19:50', '20:00 - 20:50'];
+                  const morningBooked = morningSlots.reduce((acc, slot) => acc + getTimeSlotCapacity(selectedDate, slot), 0);
+                  const eveningBooked = eveningSlots.reduce((acc, slot) => acc + getTimeSlotCapacity(selectedDate, slot), 0);
+                  const morningMax = morningSlots.length * 4;
+                  const eveningMax = eveningSlots.length * 4;
+
+                  return (
+                    <div className="flex flex-wrap gap-3 mb-4 text-xs font-medium">
+                      <div className="px-3 py-1.5 bg-[#f5f0ed] rounded-lg text-[#3d2f28]">
+                        Total: <span className="font-bold">{totalBooked}/{maxDailyCapacity}</span> booked
+                      </div>
+                      <div className="px-3 py-1.5 bg-blue-50 rounded-lg text-blue-700">
+                        Morning: <span className="font-bold">{morningBooked}/{morningMax}</span>
+                      </div>
+                      <div className="px-3 py-1.5 bg-orange-50 rounded-lg text-orange-700">
+                        Evening: <span className="font-bold">{eveningBooked}/{eveningMax}</span>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Compact Horizontal Time Slot Grid */}
+                <div className="grid grid-cols-4 gap-2">
                   {timeSlots.map((timeSlot) => {
                     const bookingsCount = getTimeSlotCapacity(selectedDate, timeSlot.time);
                     const isSelected = selectedTimeSlot === timeSlot.time;
                     const fillPercentage = (bookingsCount / timeSlot.maxCapacity) * 100;
-                    
-                    // Determine water color based on exact bookings count
-                    let waterColor = '#8b0000'; // dark red for 0/4
-                    let textColor = '#8b0000';
-                    
-                    if (bookingsCount === 4) {
-                      waterColor = '#10b981'; // green for 4/4
-                      textColor = '#059669';
-                    } else if (bookingsCount === 3) {
-                      waterColor = '#fbbf24'; // yellow for 3/4
-                      textColor = '#ca8a04';
-                    } else if (bookingsCount === 2) {
-                      waterColor = '#f59e0b'; // orange for 2/4
-                      textColor = '#d97706';
-                    } else if (bookingsCount === 1) {
-                      waterColor = '#ef4444'; // red for 1/4
-                      textColor = '#dc2626';
-                    }
-                    
-                    return (
-                      <div key={timeSlot.time}>
-                        <button
-                          onClick={() => setSelectedTimeSlot(isSelected ? null : timeSlot.time)}
-                          className="w-full relative overflow-hidden rounded-xl border-2 transition-all hover:shadow-md"
-                          style={{ 
-                            height: '80px',
-                            borderColor: fillPercentage > 0 ? waterColor : '#e8dfd8'
-                          }}
-                        >
-                          {/* Water fill effect */}
-                          <div
-                            className="absolute bottom-0 left-0 right-0 transition-all duration-700 ease-out"
-                            style={{
-                              height: `${fillPercentage}%`,
-                              backgroundColor: waterColor,
-                              opacity: 0.25,
-                            }}
-                          />
-                          
-                          {/* Wave effect at the top of water */}
-                          {fillPercentage > 0 && fillPercentage < 100 && (
-                            <div
-                              className="absolute left-0 right-0 transition-all duration-700 ease-out"
-                              style={{
-                                bottom: `${fillPercentage}%`,
-                                height: '4px',
-                                backgroundColor: waterColor,
-                                opacity: 0.4,
-                                boxShadow: `0 -2px 4px ${waterColor}40`,
-                              }}
-                            />
-                          )}
-                          
-                          {/* Content */}
-                          <div className="relative z-10 h-full flex items-center justify-between px-4">
-                            <div className="text-left">
-                              <p className="text-base font-medium" style={{ color: textColor }}>
-                                {timeSlot.time}
-                              </p>
-                              <p className="text-xs text-[#8b7764] mt-1">
-                                {bookingsCount === 0 
-                                  ? 'Available' 
-                                  : bookingsCount === timeSlot.maxCapacity
-                                  ? 'Fully Booked'
-                                  : `${bookingsCount} booked`}
-                              </p>
-                            </div>
-                            <div className="flex flex-col items-end">
-                              <span className="text-3xl font-bold" style={{ color: textColor }}>
-                                {bookingsCount}
-                              </span>
-                              <span className="text-sm text-[#8b7764]">/ {timeSlot.maxCapacity}</span>
-                            </div>
-                          </div>
-                        </button>
 
-                        {/* Show bookings when slot is selected */}
-                        {isSelected && bookingsCount > 0 && (
-                          <div className="mt-2 ml-4 space-y-2">
-                            {getBookingsForTimeSlot(selectedDate, timeSlot.time).map((booking) => (
-                              <div
-                                key={booking.id}
-                                className="flex items-center justify-between p-3 bg-white border-2 border-[#e8dfd8] rounded-xl shadow-sm"
-                              >
-                                <div>
-                                  <p className="text-sm text-[#3d2f28] font-medium">{booking.name} {booking.surname}</p>
-                                  <p className="text-xs text-[#8b7764] mt-0.5">
-                                    {booking.selectedPackage === 'package8'
-                                      ? '8 Sessions Package'
-                                      : booking.selectedPackage === 'package10'
-                                      ? '10 Sessions Package'
-                                      : booking.selectedPackage === 'package12'
-                                      ? '12 Sessions Package'
-                                      : 'Single Session'}
-                                  </p>
-                                </div>
-                                <span
-                                  className={`px-2 py-1 rounded-full text-xs ${getStatusColor(
-                                    booking.status
-                                  )}`}
-                                >
-                                  {getStatusText(booking.status)}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
+                    // Customer-centric color coding: Green = available, Red = full
+                    let bgColor = 'bg-green-100';
+                    let borderColor = 'border-green-400';
+                    let textColor = 'text-green-700';
+
+                    if (fillPercentage >= 75) {
+                      // 75-100%: Red (nearly/fully booked)
+                      bgColor = 'bg-red-100';
+                      borderColor = 'border-red-400';
+                      textColor = 'text-red-700';
+                    } else if (fillPercentage > 25) {
+                      // 25-75%: Yellow (moderate availability)
+                      bgColor = 'bg-yellow-100';
+                      borderColor = 'border-yellow-400';
+                      textColor = 'text-yellow-700';
+                    }
+                    // 0-25%: Green (lots of availability) - default
+
+                    const startTime = timeSlot.time.split(' - ')[0];
+
+                    return (
+                      <button
+                        key={timeSlot.time}
+                        onClick={() => setSelectedTimeSlot(isSelected ? null : timeSlot.time)}
+                        className={`h-12 rounded-lg border-2 transition-all hover:shadow-md flex flex-col items-center justify-center ${bgColor} ${borderColor} ${isSelected ? 'ring-2 ring-[#6b5949] ring-offset-1' : ''}`}
+                      >
+                        <div className={`text-xs font-medium ${textColor}`}>{startTime}</div>
+                        <div className={`text-lg font-bold ${textColor}`}>{bookingsCount}/{timeSlot.maxCapacity}</div>
+                      </button>
                     );
                   })}
-                  {getBookingsForDate(selectedDate).length === 0 && (
-                    <p className="text-sm text-[#8b7764] text-center py-4">
-                      No bookings for this date
-                    </p>
-                  )}
                 </div>
+
+                {/* Show bookings when slot is selected */}
+                {selectedTimeSlot && getTimeSlotCapacity(selectedDate, selectedTimeSlot) > 0 && (
+                  <div className="mt-4 space-y-2">
+                    <h3 className="text-xs text-[#8b7764] font-medium">
+                      Bookings for {selectedTimeSlot}
+                    </h3>
+                    {getBookingsForTimeSlot(selectedDate, selectedTimeSlot).map((booking) => {
+                      // Calculate bonus sessions for display
+                      const baseCount = booking.selectedPackage === 'package8' ? 8
+                        : booking.selectedPackage === 'package10' ? 10
+                        : booking.selectedPackage === 'package12' ? 12 : 0;
+
+                      return (
+                        <div
+                          key={booking.id}
+                          className="flex items-center justify-between p-3 bg-white border-2 border-[#e8dfd8] rounded-xl shadow-sm"
+                        >
+                          <div>
+                            <p className="text-sm text-[#3d2f28] font-medium">{booking.name} {booking.surname}</p>
+                            <p className="text-xs text-[#8b7764] mt-0.5">
+                              {baseCount > 0 ? `${baseCount} Sessions` : 'Single Session'}
+                            </p>
+                          </div>
+                          <span
+                            className={`px-2 py-1 rounded-full text-xs ${getStatusColor(
+                              booking.status
+                            )}`}
+                          >
+                            {getStatusText(booking.status)}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {getBookingsForDate(selectedDate).length === 0 && (
+                  <p className="text-sm text-[#8b7764] text-center py-4 mt-4">
+                    No bookings for this date
+                  </p>
+                )}
               </div>
             )}
           </div>
@@ -906,9 +896,11 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                 })()
                   .map((user) => {
                     const isExpanded = expandedUserId === user.id;
-                    const sessionCount = user.packageType === 'package8' ? 8 : user.packageType === 'package10' ? 10 : user.packageType === 'package12' ? 12 : 1;
+                    const baseSessionCount = user.packageType === 'package8' ? 8 : user.packageType === 'package10' ? 10 : user.packageType === 'package12' ? 12 : 1;
+                    const totalSessions = user.totalSessions || baseSessionCount;
+                    const bonusSessions = totalSessions > baseSessionCount ? totalSessions - baseSessionCount : 0;
                     const usedSessions = user.usedSessions || 0;
-                    const remainingSessions = sessionCount - usedSessions;
+                    const remainingSessions = user.remainingSessions || (totalSessions - usedSessions);
 
                     return (
                       <div
@@ -963,9 +955,15 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                               </div>
 
                               <div className="text-sm text-[#3d2f28] font-medium">
-                                {user.packageType === 'package8' && '8 Sessions (3500 DEN)'}
-                                {user.packageType === 'package10' && '10 Sessions (4200 DEN)'}
-                                {user.packageType === 'package12' && '12 Sessions (4800 DEN)'}
+                                {user.packageType === 'package8' && (
+                                  bonusSessions > 0 ? `8 + ${bonusSessions} Bonus Sessions` : '8 Sessions (3500 DEN)'
+                                )}
+                                {user.packageType === 'package10' && (
+                                  bonusSessions > 0 ? `10 + ${bonusSessions} Bonus Sessions` : '10 Sessions (4200 DEN)'
+                                )}
+                                {user.packageType === 'package12' && (
+                                  bonusSessions > 0 ? `12 + ${bonusSessions} Bonus Sessions` : '12 Sessions (4800 DEN)'
+                                )}
                                 {user.packageType === 'single' && 'Single (500 DEN)'}
                               </div>
                             </div>
@@ -996,7 +994,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                 <p className="text-xs text-[#8b7764] mb-1">Package Usage:</p>
                                 <div className="flex items-center justify-between">
                                   <p className="text-sm text-[#3d2f28]">
-                                    <span className="font-medium text-green-700">{remainingSessions}</span> / {sessionCount} sessions remaining
+                                    <span className="font-medium text-green-700">{remainingSessions}</span> / {totalSessions} sessions remaining
                                   </p>
                                   <div className="text-xs text-[#8b7764]">
                                     Used: {usedSessions}
@@ -1006,7 +1004,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                 <div className="mt-2 h-2 bg-gray-200 rounded-full overflow-hidden">
                                   <div
                                     className="h-full bg-green-500 transition-all"
-                                    style={{ width: `${((sessionCount - remainingSessions) / sessionCount) * 100}%` }}
+                                    style={{ width: `${(usedSessions / totalSessions) * 100}%` }}
                                   />
                                 </div>
                               </div>
