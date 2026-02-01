@@ -807,7 +807,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                 : booking.selectedPackage === 'package12' ? 12 : 0;
                               const isProcessing = processingBookingId === booking.id;
                               const isUpdatingPayment = paymentUpdatingEmail === booking.email;
-                              const isPaid = booking.status === 'confirmed';
+                              const isPaid = booking.paymentStatus === 'paid';
 
                               // Booking status dot
                               let bookingDotColor = 'bg-stone-400';
