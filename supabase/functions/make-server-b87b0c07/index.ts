@@ -342,7 +342,7 @@ function generateEmailTemplate(content: EmailContent, language: 'sq' | 'mk' | 'e
       <tr>
         <td style="padding: 24px; text-align: center;">
           <p style="margin: 0 0 8px 0; color: #888888; font-size: 11px; text-transform: uppercase; letter-spacing: 2px;">${content.code.label}</p>
-          <p style="margin: 0; color: #3d3229; font-size: 28px; font-weight: 700; letter-spacing: 3px; font-family: Georgia, serif;">${content.code.value}</p>
+          <p style="margin: 0; color: #452F21; font-size: 28px; font-weight: 700; letter-spacing: 3px; font-family: Georgia, serif;">${content.code.value}</p>
           ${content.code.note ? `<p style="margin: 12px 0 0 0; color: #888888; font-size: 12px;">${content.code.note}</p>` : ''}
         </td>
       </tr>
@@ -354,7 +354,7 @@ function generateEmailTemplate(content: EmailContent, language: 'sq' | 'mk' | 'e
     <table width="100%" cellpadding="0" cellspacing="0" style="margin: 24px 0;">
       <tr>
         <td align="center">
-          <a href="${content.button.url}" style="display: inline-block; background-color: #3d3229; color: #ffffff; padding: 14px 32px; border-radius: 4px; text-decoration: none; font-family: Georgia, serif; font-size: 14px;">${content.button.text}</a>
+          <a href="${content.button.url}" style="display: inline-block; background-color: #452F21; color: #ffffff; padding: 14px 32px; border-radius: 4px; text-decoration: none; font-family: Georgia, serif; font-size: 14px;">${content.button.text}</a>
         </td>
       </tr>
     </table>
@@ -365,7 +365,7 @@ function generateEmailTemplate(content: EmailContent, language: 'sq' | 'mk' | 'e
 
   // Build note section
   const noteHtml = content.note ? `
-    <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f9f9f9; border-left: 3px solid #3d3229; margin: 24px 0;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f9f9f9; border-left: 3px solid #452F21; margin: 24px 0;">
       <tr>
         <td style="padding: 16px 20px;">
           <p style="margin: 0; color: #333333; font-size: 14px; line-height: 1.6;">${content.note}</p>
@@ -396,14 +396,14 @@ function generateEmailTemplate(content: EmailContent, language: 'sq' | 'mk' | 'e
               <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border: 1px solid #e0e0e0; border-radius: 4px;">
                 <!-- Header -->
                 <tr>
-                  <td style="background-color: #3d3229; padding: 40px; text-align: center;">
+                  <td style="background-color: #452F21; padding: 40px; text-align: center;">
                     <img src="https://i.ibb.co/tT95h4s2/unnamed.png" alt="WellNest Pilates" width="200" style="display: block; margin: 0 auto;" />
                   </td>
                 </tr>
                 <!-- Content -->
                 <tr>
                   <td style="padding: 40px;">
-                    <p style="margin: 0 0 20px 0; color: #3d3229; font-size: 18px; font-weight: 600;">${content.greeting}</p>
+                    <p style="margin: 0 0 20px 0; color: #452F21; font-size: 18px; font-weight: 600;">${content.greeting}</p>
                     <p style="margin: 0 0 24px 0; color: #333333; font-size: 15px; line-height: 1.6;">${content.message}</p>
                     ${detailsHtml}
                     ${highlightHtml}
