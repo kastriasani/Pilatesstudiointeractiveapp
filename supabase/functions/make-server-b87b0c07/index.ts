@@ -2057,6 +2057,20 @@ app.patch("/make-server-b87b0c07/admin/users/:email/payment", async (c) => {
       return c.json({ error: 'Failed to update user', details: userError.message }, 500);
     }
 
+    // Update all user_packages for this user
+    const { error: pkgError } = await supabase
+      .from('user_packages')
+      .update({
+        payment_status: paymentStatus,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('user_email', normalizedEmail);
+
+    if (pkgError) {
+      console.error('Error updating user_packages payment status:', pkgError);
+      // Don't fail - user was updated successfully
+    }
+
     // Update all reservations for this user
     const { data: resUpdate, error: resError } = await supabase
       .from('reservations')
