@@ -1862,16 +1862,16 @@ app.post("/make-server-b87b0c07/activate", async (c) => {
       console.log(`Updated ${updatedPackages?.length || 0} packages for ${normalizedEmail}`);
     }
 
-    // 3. Confirm all pending reservations for this user
+    // 3. Update payment_status for ALL reservations (not just pending)
+    // Don't change reservation_status - preserve attended/no_show/cancelled states
     const { error: resError } = await supabase
       .from('reservations')
       .update({
-        reservation_status: 'confirmed',
         payment_status: 'paid',
         updated_at: now
       })
       .eq('user_email', normalizedEmail)
-      .eq('reservation_status', 'pending');
+      .neq('payment_status', 'paid');
 
     if (resError) {
       console.error('Error updating reservations:', resError);
