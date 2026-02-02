@@ -35,7 +35,15 @@ BEGIN
     ELSE 1
   END;
 
-  -- Lock and check capacity (atomic)
+  -- Lock rows first (FOR UPDATE requires non-aggregate query)
+  PERFORM 1
+  FROM reservations
+  WHERE date_key = p_date_key
+    AND time_slot = p_time_slot
+    AND reservation_status IN ('confirmed', 'attended')
+  FOR UPDATE;
+
+  -- Now calculate capacity (rows are locked)
   SELECT
     COALESCE(SUM(CASE service_type WHEN 'duo' THEN 2 ELSE 1 END), 0),
     COALESCE(BOOL_OR(service_type IN ('individual', 'duo')), false)
@@ -43,8 +51,7 @@ BEGIN
   FROM reservations
   WHERE date_key = p_date_key
     AND time_slot = p_time_slot
-    AND reservation_status IN ('confirmed', 'attended')
-  FOR UPDATE;
+    AND reservation_status IN ('confirmed', 'attended');
 
   -- Capacity validation
   IF v_has_private THEN
