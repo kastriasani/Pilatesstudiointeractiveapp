@@ -26,7 +26,6 @@ export function ConfirmationScreen({ bookingData, onConfirm, onBack, onPaymentTo
     if (!(bookingData.surname || '').trim()) newErrors.surname = true;
     if (!(bookingData.mobile || '').trim()) newErrors.mobile = true;
     if (!(bookingData.email || '').trim()) newErrors.email = true;
-    if (!bookingData.password || bookingData.password.length < 6) newErrors.password = true;
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -48,7 +47,6 @@ export function ConfirmationScreen({ bookingData, onConfirm, onBack, onPaymentTo
           surname: bookingData.surname,
           mobile: bookingData.mobile,
           email: bookingData.email,
-          password: bookingData.password,
           date: bookingData.date,
           dateKey: bookingData.dateKey,
           timeSlot: bookingData.timeSlot,
@@ -76,26 +74,6 @@ export function ConfirmationScreen({ bookingData, onConfirm, onBack, onPaymentTo
 
       if (!response.ok) {
         console.error('Booking creation error:', data);
-        
-        // Check if error is due to wrong password for existing user
-        if (data.errorType === 'WRONG_PASSWORD') {
-          const errorMessage = t.wrongPasswordForExistingUser || 'This email is already registered with a different password. Please enter your correct password to continue with your booking.';
-          alert(errorMessage);
-          // Highlight the password field
-          setErrors({ password: true });
-          setIsSubmitting(false);
-          return;
-        }
-        
-        // Check if error is due to user already existing (generic)
-        if (data.errorType === 'USER_EXISTS' || (data.error && (data.error.toLowerCase().includes('already exists') || data.error.toLowerCase().includes('already registered')))) {
-          const errorMessage = '✓ Your email is already registered! Please enter your correct password to continue with your booking.';
-          alert(errorMessage);
-          setErrors({ password: true });
-          setIsSubmitting(false);
-          return;
-        }
-        
         alert(data.error || 'Failed to create booking. Please try again.');
         setIsSubmitting(false);
         return;
@@ -110,11 +88,11 @@ export function ConfirmationScreen({ bookingData, onConfirm, onBack, onPaymentTo
         console.log('✅ Session token stored after booking:', data.session);
       }
       
-      // Show success message with activation code if available
+      // Show success message
       if (data.activationCode) {
-        alert(`Success! Your activation code is: ${data.activationCode}\n\nYou can now login with your email and password.`);
+        alert(`Success! Your booking is confirmed.\n\nActivation code: ${data.activationCode}`);
       } else {
-        alert(data.message || 'Account created! You can now login.');
+        alert(data.message || 'Booking confirmed!');
       }
       
       onConfirm();
@@ -231,20 +209,6 @@ export function ConfirmationScreen({ bookingData, onConfirm, onBack, onPaymentTo
               errors.email ? 'ring-2 ring-red-500' : ''
             }`}
           />
-        </div>
-        <div>
-          <input
-            type="password"
-            placeholder={`${t.password}* (min 6)`}
-            value={bookingData.password || ''}
-            onChange={(e) => handleInputChange('password', e.target.value)}
-            className={`w-full px-3 py-2 rounded-lg bg-[#f5f0ed] text-sm text-[#3d2f28] placeholder:text-[#8b7764] focus:outline-none focus:ring-2 focus:ring-[#6b5949] ${
-              errors.password ? 'ring-2 ring-red-500' : ''
-            }`}
-          />
-          {errors.password && (
-            <p className="text-xs text-red-500 mt-1">{t.password} (min 6 characters)</p>
-          )}
         </div>
       </div>
 
