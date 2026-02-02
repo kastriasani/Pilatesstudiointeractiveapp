@@ -931,38 +931,78 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                   else if (hasUnpaidBooking) dotColor = 'bg-amber-500';
 
                   return (
-                    <button
-                      key={date.dateKey}
-                      onClick={() => setSelectedDate(date.dateKey)}
-                      className={`
-                        flex-shrink-0 min-w-[52px] h-16 rounded-xl flex flex-col items-center justify-center
-                        transition-all snap-center relative
-                        ${isSelected
-                          ? 'bg-stone-600 text-white'
-                          : 'bg-white hover:bg-stone-100'
-                        }
-                        ${isToday && !isSelected ? 'ring-1 ring-stone-400' : ''}
-                      `}
-                    >
-                      {/* Live indicator */}
-                      {isLive && (
-                        <div className={`absolute top-1 right-1 w-2 h-2 rounded-full ${isSelected ? 'bg-green-300' : 'bg-green-500'}`} />
-                      )}
-                      <span className={`text-[10px] uppercase tracking-wide ${isSelected ? 'text-stone-300' : 'text-stone-500'}`}>
-                        {date.displayDate.split(' ')[1]}
-                      </span>
-                      <span className={`text-lg font-semibold ${isSelected ? '' : 'text-stone-800'}`}>
-                        {date.displayDate.split('.')[0]}
-                      </span>
-                      <div className="flex items-center gap-1 mt-0.5">
-                        {dotColor && (
-                          <div className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white' : dotColor}`} />
-                        )}
-                        <span className={`text-[10px] ${isSelected ? 'text-stone-300' : 'text-stone-400'}`}>
-                          {bookingsCount}/{maxDailyCapacity}
+                    <div key={date.dateKey} className="flex flex-col items-center snap-center">
+                      <button
+                        onClick={() => setSelectedDate(date.dateKey)}
+                        className={`
+                          flex-shrink-0 min-w-[52px] h-16 rounded-xl flex flex-col items-center justify-center
+                          transition-all
+                          ${isSelected
+                            ? 'bg-stone-600 text-white'
+                            : 'bg-white hover:bg-stone-100'
+                          }
+                          ${isToday && !isSelected ? 'ring-1 ring-stone-400' : ''}
+                        `}
+                      >
+                        <span className={`text-[10px] uppercase tracking-wide ${isSelected ? 'text-stone-300' : 'text-stone-500'}`}>
+                          {date.displayDate.split(' ')[1]}
                         </span>
-                      </div>
-                    </button>
+                        <span className={`text-lg font-semibold ${isSelected ? '' : 'text-stone-800'}`}>
+                          {date.displayDate.split('.')[0]}
+                        </span>
+                        <div className="flex items-center gap-1 mt-0.5">
+                          {dotColor && (
+                            <div className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white' : dotColor}`} />
+                          )}
+                          <span className={`text-[10px] ${isSelected ? 'text-stone-300' : 'text-stone-400'}`}>
+                            {bookingsCount}/{maxDailyCapacity}
+                          </span>
+                        </div>
+                      </button>
+
+                      {/* Status indicator/toggle under each day */}
+                      {isEditMode ? (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            // Toggle this specific day's status
+                            const toggleThisDay = async () => {
+                              const newStatus = isLive ? 'draft' : 'live';
+                              try {
+                                const response = await fetch(
+                                  `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/admin/days/${isoDateKey}/status`,
+                                  {
+                                    method: 'PATCH',
+                                    headers: {
+                                      'Content-Type': 'application/json',
+                                      'Authorization': `Bearer ${publicAnonKey}`,
+                                      'X-Session-Token': getSessionToken(),
+                                    },
+                                    body: JSON.stringify({ status: newStatus }),
+                                  }
+                                );
+                                if (response.ok) {
+                                  fetchLiveDays();
+                                  if (isSelected) setDayStatus(newStatus);
+                                }
+                              } catch (error) {
+                                console.error('Error toggling day status:', error);
+                              }
+                            };
+                            toggleThisDay();
+                          }}
+                          className={`mt-1 px-2 py-0.5 text-[10px] rounded transition-colors ${
+                            isLive
+                              ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                              : 'bg-stone-100 text-stone-500 hover:bg-stone-200'
+                          }`}
+                        >
+                          {isLive ? 'Live' : 'Draft'}
+                        </button>
+                      ) : (
+                        isLive && <div className="mt-1 w-2 h-2 rounded-full bg-green-500" />
+                      )}
+                    </div>
                   );
                 })}
               </div>
@@ -974,39 +1014,17 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                 {/* Header with Edit Mode Toggle */}
                 <div className="flex items-center justify-between px-4 py-2 border-b border-stone-100">
                   <span className="text-sm font-medium text-stone-600">Time Slots</span>
-                  <div className="flex items-center gap-2">
-                    {/* Live/Draft Toggle - only in edit mode */}
-                    {isEditMode && (
-                      <button
-                        onClick={toggleDayStatus}
-                        className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 ${
-                          dayStatus === 'live'
-                            ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                            : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
-                        }`}
-                      >
-                        {dayStatus === 'live' ? (
-                          <>
-                            <div className="w-2 h-2 rounded-full bg-green-500" />
-                            Live
-                          </>
-                        ) : (
-                          'Go Live'
-                        )}
-                      </button>
-                    )}
-                    {/* Edit/Done button */}
-                    <button
-                      onClick={() => setIsEditMode(!isEditMode)}
-                      className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
-                        isEditMode
-                          ? 'bg-stone-200 text-stone-700 font-medium'
-                          : 'text-stone-400 hover:text-stone-600 hover:bg-stone-100'
-                      }`}
-                    >
-                      {isEditMode ? 'Done' : <Pencil className="w-4 h-4" />}
-                    </button>
-                  </div>
+                  {/* Edit/Done button */}
+                  <button
+                    onClick={() => setIsEditMode(!isEditMode)}
+                    className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                      isEditMode
+                        ? 'bg-stone-200 text-stone-700 font-medium'
+                        : 'text-stone-400 hover:text-stone-600 hover:bg-stone-100'
+                    }`}
+                  >
+                    {isEditMode ? 'Done' : <Pencil className="w-4 h-4" />}
+                  </button>
                 </div>
                 {/* Timeline List */}
                 <div className="divide-y divide-stone-100">
