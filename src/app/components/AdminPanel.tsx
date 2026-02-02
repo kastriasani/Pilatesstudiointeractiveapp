@@ -288,11 +288,12 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
     }
   };
 
-  // Toggle day live/draft status
-  const toggleDayStatus = async () => {
-    if (!selectedDate) return;
-    const isoDate = convertToISODate(selectedDate);
-    const newStatus = dayStatus === 'live' ? 'draft' : 'live';
+  // Toggle day live/draft status for any day
+  const toggleDayStatusFor = async (dateKey: string, isCurrentlyLive: boolean) => {
+    const isoDate = convertToISODate(dateKey);
+    const newStatus = isCurrentlyLive ? 'draft' : 'live';
+
+    console.log(`Toggling day ${isoDate} from ${isCurrentlyLive ? 'live' : 'draft'} to ${newStatus}`);
 
     try {
       const response = await fetch(
@@ -307,11 +308,17 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
           body: JSON.stringify({ status: newStatus }),
         }
       );
+
       if (response.ok) {
-        setDayStatus(newStatus);
+        console.log(`✅ Day ${isoDate} set to ${newStatus}`);
+        // Update local state if this is the selected date
+        if (dateKey === selectedDate) {
+          setDayStatus(newStatus);
+        }
         fetchLiveDays(); // Refresh live days list
       } else {
         const data = await response.json();
+        console.error('Failed to update day status:', data);
         alert(data.error || 'Failed to update day status');
       }
     } catch (error) {
@@ -965,31 +972,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            // Toggle this specific day's status
-                            const toggleThisDay = async () => {
-                              const newStatus = isLive ? 'draft' : 'live';
-                              try {
-                                const response = await fetch(
-                                  `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/admin/days/${isoDateKey}/status`,
-                                  {
-                                    method: 'PATCH',
-                                    headers: {
-                                      'Content-Type': 'application/json',
-                                      'Authorization': `Bearer ${publicAnonKey}`,
-                                      'X-Session-Token': getSessionToken(),
-                                    },
-                                    body: JSON.stringify({ status: newStatus }),
-                                  }
-                                );
-                                if (response.ok) {
-                                  fetchLiveDays();
-                                  if (isSelected) setDayStatus(newStatus);
-                                }
-                              } catch (error) {
-                                console.error('Error toggling day status:', error);
-                              }
-                            };
-                            toggleThisDay();
+                            toggleDayStatusFor(date.dateKey, isLive);
                           }}
                           className={`mt-1 px-2 py-0.5 text-[10px] rounded transition-colors ${
                             isLive
