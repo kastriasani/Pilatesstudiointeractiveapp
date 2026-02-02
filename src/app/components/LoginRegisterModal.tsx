@@ -107,7 +107,7 @@ export function LoginRegisterModal({ onClose, onLoginSuccess, language }: LoginR
         </div>
 
         {/* Login Card */}
-        <div className="bg-white rounded-xl p-6 shadow-lg">
+        <div className="bg-[#F5F0EE] rounded-xl p-6 shadow-lg border border-[#e8dfd8]">
           <div className="flex items-center justify-center mb-6">
             <div className="w-12 h-12 bg-[#e8dfd8] rounded-full flex items-center justify-center">
               <User className="w-6 h-6 text-[#6b5949]" />

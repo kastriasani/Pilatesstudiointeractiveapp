@@ -866,7 +866,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
   return (
     <div className="h-full flex flex-col bg-[#f5f0ed]">
       {/* Header */}
-      <div className="bg-white shadow-sm px-4 py-3 flex items-center justify-between">
+      <div className="bg-[#F5F0EE] shadow-sm px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <img src={logo} alt="Logo" className="w-8 h-8" />
           <div>
@@ -895,7 +895,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
       </div>
 
       {/* Tabs */}
-      <div className="bg-white border-b border-[#e8dfd8] px-4">
+      <div className="bg-[#F5F0EE] border-b border-[#e8dfd8] px-4">
         <div className="flex gap-1">
           <button
             onClick={() => setActiveTab('calendar')}
@@ -943,7 +943,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
         {activeTab === 'calendar' ? (
           <div className="space-y-4">
             {/* Date Selection - Clean Week Strip */}
-            <div className="bg-white rounded-xl p-3 shadow-sm">
+            <div className="bg-[#F5F0EE] rounded-xl p-3 shadow-sm">
               <div className="flex gap-2 overflow-x-auto pb-1 snap-x snap-mandatory scrollbar-hide">
                 {dates.map((date) => {
                   const dayBookings = getBookingsForDate(date.dateKey);
@@ -965,7 +965,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                           transition-all
                           ${isSelected
                             ? 'bg-stone-600 text-white'
-                            : 'bg-white hover:bg-stone-100'
+                            : 'bg-[#F5F0EE] hover:bg-stone-100'
                           }
                           ${isToday && !isSelected ? 'ring-1 ring-stone-400' : ''}
                         `}
@@ -1007,7 +1007,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
 
             {/* Selected Date - Timeline View */}
             {selectedDate && (
-              <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+              <div className="bg-[#F5F0EE] rounded-xl shadow-sm overflow-hidden">
                 {/* Header with Edit Mode Toggle */}
                 <div className="flex items-center justify-between px-4 py-2 border-b border-stone-100">
                   <span className="text-sm font-medium text-stone-600">Time Slots</span>
@@ -1146,7 +1146,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                               return (
                                 <div
                                   key={booking.id}
-                                  className="p-3 bg-white border border-stone-200 rounded-lg"
+                                  className="p-3 bg-[#F5F0EE] border border-stone-200 rounded-lg"
                                 >
                                   {/* Top row: Status dot + Name + Payment Badge */}
                                   <div className="flex items-center gap-2 mb-1">
@@ -1274,7 +1274,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
           </div>
         ) : activeTab === 'users' ? (
           <div className="flex-1 overflow-y-auto">
-            <div className="bg-white rounded-lg shadow-sm">
+            <div className="bg-[#F5F0EE] rounded-lg shadow-sm">
               {/* User Database Header */}
               <div className="flex items-center justify-between p-4 border-b border-[#e8dfd8]">
                 <h2 className="text-base font-medium text-[#3d2f28]\">User Database</h2>
@@ -1387,7 +1387,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
 
                             {/* Booking Details */}
                             {user.bookingDate && user.bookingTime && (
-                              <div className="mb-3 p-3 bg-white rounded-md">
+                              <div className="mb-3 p-3 bg-[#F5F0EE] rounded-md">
                                 <p className="text-xs text-[#8b7764] mb-1">Booking Details:</p>
                                 <p className="text-sm text-[#3d2f28]">
                                   {user.bookingDate} at {user.bookingTime}
@@ -1397,7 +1397,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
 
                             {/* Code Sent Time */}
                             {user.codeSentAt && (
-                              <div className="mb-3 p-3 bg-white rounded-md">
+                              <div className="mb-3 p-3 bg-[#F5F0EE] rounded-md">
                                 <p className="text-xs text-[#8b7764] mb-1">Code Sent:</p>
                                 <p className="text-sm text-[#3d2f28]">
                                   {new Date(user.codeSentAt).toLocaleString()}
@@ -1407,7 +1407,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
 
                             {/* Sessions Remaining (for confirmed users with packages) */}
                             {user.status === 'confirmed' && user.packageType !== 'single' && (
-                              <div className="mb-3 p-3 bg-white rounded-md">
+                              <div className="mb-3 p-3 bg-[#F5F0EE] rounded-md">
                                 <p className="text-xs text-[#8b7764] mb-1">Package Usage:</p>
                                 <div className="flex items-center justify-between">
                                   <p className="text-sm text-[#3d2f28]">
@@ -1475,7 +1475,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
         ) : activeTab === 'waitlist' ? (
           <div className="space-y-4">
             {/* Waitlist Header */}
-            <div className="bg-white rounded-xl p-4 shadow-sm">
+            <div className="bg-[#F5F0EE] rounded-xl p-4 shadow-sm">
               <div className="flex justify-between items-center mb-4">
                 <div>
                   <h2 className="text-lg font-semibold text-[#3d2f28]">Waitlist Management</h2>
