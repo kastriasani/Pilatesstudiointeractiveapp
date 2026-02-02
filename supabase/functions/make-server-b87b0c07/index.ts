@@ -31,7 +31,9 @@ app.use(
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 
                      'July', 'August', 'September', 'October', 'November', 'December'];
 
-const TIME_SLOTS = ['08:00', '09:00', '10:00', '11:00', '16:00', '17:00', '18:00'];
+// Single source of truth for default time slots
+const DEFAULT_TIME_SLOTS = ['09:00', '10:00', '11:00', '17:00', '18:00', '19:00', '20:00'];
+const DEFAULT_MAX_CAPACITY = 4;
 
 const VALID_PACKAGE_TYPES = [
   'single', 'package8', 'package10', 'package12',
@@ -2485,9 +2487,9 @@ app.get("/make-server-b87b0c07/slots", async (c) => {
       .eq('date', date)
       .maybeSingle();
 
-    // If day is not live, return empty slots
+    // If no row OR status !== 'live' → return 404
     if (!daySchedule || daySchedule.status !== 'live') {
-      return c.json({ success: true, slots: [], isLive: false });
+      return c.json({ error: 'Day not available for booking' }, 404);
     }
 
     // Fetch slots for this date
@@ -2502,7 +2504,22 @@ app.get("/make-server-b87b0c07/slots", async (c) => {
       return c.json({ error: 'Failed to fetch slots' }, 500);
     }
 
-    return c.json({ success: true, slots: slots || [], isLive: true });
+    // If no custom slots, use defaults
+    if (!slots || slots.length === 0) {
+      const defaultSlots = DEFAULT_TIME_SLOTS.map(time => ({
+        start_time: time,
+        max_capacity: DEFAULT_MAX_CAPACITY
+      }));
+      return c.json({ success: true, slots: defaultSlots, isDefault: true });
+    }
+
+    // Normalize start_time to HH:MM (in case stored as HH:MM:SS)
+    const normalizedSlots = slots.map(slot => ({
+      ...slot,
+      start_time: slot.start_time.substring(0, 5)
+    }));
+
+    return c.json({ success: true, slots: normalizedSlots, isDefault: false });
   } catch (error) {
     console.error('Error fetching public slots:', error);
     return c.json({ error: 'Failed to fetch slots', details: error.message }, 500);
@@ -2618,6 +2635,39 @@ app.patch("/make-server-b87b0c07/admin/days/:date/status", async (c) => {
     if (error) {
       console.error('Error updating day status:', error);
       return c.json({ error: 'Failed to update day status' }, 500);
+    }
+
+    // When setting to "live", auto-create default time slots if none exist
+    if (status === 'live') {
+      // Check if slots already exist for this date
+      const { data: existingSlots } = await supabase
+        .from('time_slots')
+        .select('id')
+        .eq('date', date)
+        .limit(1);
+
+      // Only create default slots if none exist
+      if (!existingSlots || existingSlots.length === 0) {
+        const defaultSlotsToInsert = DEFAULT_TIME_SLOTS.map(time => ({
+          date,
+          start_time: time, // HH:MM format
+          max_capacity: DEFAULT_MAX_CAPACITY,
+        }));
+
+        const { error: slotsError } = await supabase
+          .from('time_slots')
+          .upsert(defaultSlotsToInsert, {
+            onConflict: 'date,start_time',
+            ignoreDuplicates: true
+          });
+
+        if (slotsError) {
+          console.error('Error creating default slots:', slotsError);
+          // Don't fail the request, slots can be added manually
+        } else {
+          console.log(`📅 Created ${DEFAULT_TIME_SLOTS.length} default slots for ${date}`);
+        }
+      }
     }
 
     console.log(`📅 Day ${date} set to ${status}`);
