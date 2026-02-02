@@ -1392,9 +1392,45 @@ app.post("/make-server-b87b0c07/reservations", async (c) => {
     const normalizedEmail = normalizeEmail(email);
     const isPackageSession = !!packageId;
 
+    // Ensure user exists in users table (for admin panel visibility)
+    const supabase = getSupabase();
+    const now = new Date().toISOString();
+
+    const { data: existingUser, error: userCheckError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', normalizedEmail)
+      .maybeSingle();
+
+    if (userCheckError) {
+      console.error('Error checking user:', userCheckError);
+      return c.json({ error: 'Failed to check user', details: userCheckError.message }, 500);
+    }
+
+    if (!existingUser) {
+      // Create new user for single session booking
+      const { error: userCreateError } = await supabase
+        .from('users')
+        .insert({
+          email: normalizedEmail,
+          name,
+          surname,
+          mobile,
+          payment_status: 'unpaid',
+          created_at: now,
+          updated_at: now,
+          blocked: false
+        });
+
+      if (userCreateError) {
+        console.error('Error creating user:', userCreateError);
+        return c.json({ error: 'Failed to create user', details: userCreateError.message }, 500);
+      }
+      console.log(`User created in Supabase for single session: ${normalizedEmail}`);
+    }
+
     // Call atomic RPC for reservation creation
     // This handles: capacity check, duplicate check, package decrement - all atomically
-    const supabase = getSupabase();
 
     // Log the request parameters for debugging
     console.log('Creating reservation with params:', {

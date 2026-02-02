@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Package, Calendar, Clock, CreditCard, CheckCircle, AlertCircle, Edit2 } from 'lucide-react';
+import { ArrowLeft, Package, Calendar, Clock, CreditCard, CheckCircle, AlertCircle, Edit2, Plus } from 'lucide-react';
 import { Language, translations } from '../translations';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 
@@ -42,9 +42,21 @@ type DateSlot = {
   timeSlots: TimeSlot[];
 };
 
+type Reservation = {
+  id: string;
+  dateKey: string;
+  timeSlot: string;
+  instructor: string;
+  reservationStatus: 'pending' | 'confirmed' | 'attended' | 'cancelled' | 'no_show';
+  paymentStatus: 'paid' | 'unpaid';
+  packageId: string | null;
+  createdAt: string;
+};
+
 export function UserDashboard({ onBack, language, sessionToken, userEmail }: UserDashboardProps) {
   const t = translations[language];
   const [packages, setPackages] = useState<PackageDetails[]>([]);
+  const [reservations, setReservations] = useState<Reservation[]>([]);
   const [loading, setLoading] = useState(true);
   const [showRescheduleModal, setShowRescheduleModal] = useState(false);
   const [selectedPackage, setSelectedPackage] = useState<PackageDetails | null>(null);
@@ -93,8 +105,10 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
 
       const data = await response.json();
       if (data.success) {
-        setPackages(data.packages);
+        setPackages(data.packages || []);
+        setReservations(data.reservations || []);
         console.log('📦 Loaded user packages:', data.packages);
+        console.log('📅 Loaded user reservations:', data.reservations);
       }
     } catch (error) {
       console.error('Error loading packages:', error);
@@ -312,13 +326,20 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
         <p className="text-sm font-semibold">{userEmail}</p>
       </div>
 
-      {/* Packages List */}
-      {packages.length === 0 ? (
+      {/* Content: Packages + Reservations */}
+      {packages.length === 0 && reservations.filter(r => !r.packageId).length === 0 ? (
+        // Empty state - no packages AND no standalone reservations
         <div className="text-center py-12">
-          <Package className="w-16 h-16 text-[#e8e6e3] mx-auto mb-4" />
-          <p className="text-sm text-[#6b5949]">
-            {t.noPackagesYet || 'No packages booked yet'}
+          <Calendar className="w-16 h-16 text-[#e8e6e3] mx-auto mb-4" />
+          <p className="text-sm text-[#6b5949] mb-4">
+            {t.whenIsNextClass || 'When is your next class?'}
           </p>
+          <button
+            onClick={() => window.location.href = '/'}
+            className="bg-[#9ca571] text-white px-6 py-3 rounded-full text-sm font-medium hover:bg-[#8a9463] transition-colors"
+          >
+            {t.bookNow || 'Book Now'}
+          </button>
         </div>
       ) : (
         <div className="space-y-4">
@@ -410,6 +431,60 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
               )}
             </div>
           ))}
+
+          {/* Single Session Reservations (not linked to packages) */}
+          {reservations.filter(r => !r.packageId).length > 0 && (
+            <div className="mt-6">
+              <h3 className="text-sm font-semibold text-[#3d2f28] mb-3">
+                {t.yourNextClass || 'Your Next Class'}
+              </h3>
+              <div className="space-y-3">
+                {reservations.filter(r => !r.packageId).map((res) => (
+                  <div key={res.id} className="bg-white rounded-xl p-4 shadow-sm border border-[#e8e6e3]">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-10 h-10 bg-[#e8dfd8] rounded-full flex items-center justify-center">
+                        <Calendar className="w-5 h-5 text-[#6b5949]" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-[#3d2f28]">
+                          {res.dateKey}
+                        </p>
+                        <p className="text-xs text-[#6b5949]">
+                          {res.timeSlot} • {res.instructor}
+                        </p>
+                      </div>
+                    </div>
+                    <div className={`px-3 py-1.5 rounded-full text-xs font-medium inline-flex items-center gap-1.5 ${
+                      res.paymentStatus === 'paid' || res.reservationStatus === 'confirmed'
+                        ? 'bg-green-100 text-green-700'
+                        : 'bg-amber-100 text-amber-700'
+                    }`}>
+                      {res.paymentStatus === 'paid' || res.reservationStatus === 'confirmed' ? (
+                        <>
+                          <CheckCircle className="w-3.5 h-3.5" />
+                          {t.confirmed || 'Confirmed'}
+                        </>
+                      ) : (
+                        <>
+                          <AlertCircle className="w-3.5 h-3.5" />
+                          {t.pendingPayment || 'Pending Payment'}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Book Another Class Button */}
+              <button
+                onClick={() => window.location.href = '/'}
+                className="w-full mt-4 bg-[#9ca571] text-white py-3 rounded-xl text-sm font-medium hover:bg-[#8a9463] transition-colors flex items-center justify-center gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                {t.bookAnotherClass || 'Book Another Class'}
+              </button>
+            </div>
+          )}
         </div>
       )}
 
