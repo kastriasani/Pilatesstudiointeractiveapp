@@ -2468,7 +2468,72 @@ const DEFAULT_TIME_SLOTS = [
   { start_time: '20:00', max_capacity: 4 },
 ];
 
-// GET /admin/slots - Get time slots for a specific date
+// GET /slots - Public endpoint for user booking flow (only live days)
+app.get("/make-server-b87b0c07/slots", async (c) => {
+  try {
+    const date = c.req.query('date'); // YYYY-MM-DD
+    if (!date) {
+      return c.json({ error: 'Date required' }, 400);
+    }
+
+    const supabase = getSupabase();
+
+    // Check if day is live
+    const { data: daySchedule } = await supabase
+      .from('day_schedules')
+      .select('status')
+      .eq('date', date)
+      .maybeSingle();
+
+    // If day is not live, return empty slots
+    if (!daySchedule || daySchedule.status !== 'live') {
+      return c.json({ success: true, slots: [], isLive: false });
+    }
+
+    // Fetch slots for this date
+    const { data: slots, error } = await supabase
+      .from('time_slots')
+      .select('id, date, start_time, max_capacity')
+      .eq('date', date)
+      .order('start_time', { ascending: true });
+
+    if (error) {
+      console.error('Error fetching slots:', error);
+      return c.json({ error: 'Failed to fetch slots' }, 500);
+    }
+
+    return c.json({ success: true, slots: slots || [], isLive: true });
+  } catch (error) {
+    console.error('Error fetching public slots:', error);
+    return c.json({ error: 'Failed to fetch slots', details: error.message }, 500);
+  }
+});
+
+// GET /slots/live-days - Get all live days for date picker
+app.get("/make-server-b87b0c07/slots/live-days", async (c) => {
+  try {
+    const supabase = getSupabase();
+
+    const { data: liveDays, error } = await supabase
+      .from('day_schedules')
+      .select('date')
+      .eq('status', 'live')
+      .gte('date', new Date().toISOString().split('T')[0])
+      .order('date', { ascending: true });
+
+    if (error) {
+      console.error('Error fetching live days:', error);
+      return c.json({ error: 'Failed to fetch live days' }, 500);
+    }
+
+    return c.json({ success: true, dates: (liveDays || []).map(d => d.date) });
+  } catch (error) {
+    console.error('Error fetching live days:', error);
+    return c.json({ error: 'Failed to fetch live days', details: error.message }, 500);
+  }
+});
+
+// GET /admin/slots - Get time slots for a specific date (admin)
 app.get("/make-server-b87b0c07/admin/slots", async (c) => {
   try {
     const adminAuth = await verifyAdminSession(c);
@@ -2482,6 +2547,16 @@ app.get("/make-server-b87b0c07/admin/slots", async (c) => {
     }
 
     const supabase = getSupabase();
+
+    // Get day status
+    const { data: daySchedule } = await supabase
+      .from('day_schedules')
+      .select('status')
+      .eq('date', date)
+      .maybeSingle();
+
+    const dayStatus = daySchedule?.status || 'draft';
+
     const { data: slots, error } = await supabase
       .from('time_slots')
       .select('*')
@@ -2502,13 +2577,54 @@ app.get("/make-server-b87b0c07/admin/slots", async (c) => {
         max_capacity: slot.max_capacity,
         isDefault: true,
       }));
-      return c.json({ success: true, slots: defaultSlots, isDefault: true });
+      return c.json({ success: true, slots: defaultSlots, isDefault: true, dayStatus });
     }
 
-    return c.json({ success: true, slots, isDefault: false });
+    return c.json({ success: true, slots, isDefault: false, dayStatus });
   } catch (error) {
     console.error('Error fetching slots:', error);
     return c.json({ error: 'Failed to fetch slots', details: error.message }, 500);
+  }
+});
+
+// PATCH /admin/days/:date/status - Toggle day live/draft status
+app.patch("/make-server-b87b0c07/admin/days/:date/status", async (c) => {
+  try {
+    const adminAuth = await verifyAdminSession(c);
+    if (!adminAuth.valid) {
+      return c.json({ error: adminAuth.error }, 401);
+    }
+
+    const date = c.req.param('date');
+    const { status } = await c.req.json();
+
+    if (!status || !['live', 'draft'].includes(status)) {
+      return c.json({ error: 'Status must be "live" or "draft"' }, 400);
+    }
+
+    const supabase = getSupabase();
+
+    // Upsert day schedule
+    const { data, error } = await supabase
+      .from('day_schedules')
+      .upsert({
+        date,
+        status,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'date' })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error updating day status:', error);
+      return c.json({ error: 'Failed to update day status' }, 500);
+    }
+
+    console.log(`📅 Day ${date} set to ${status}`);
+    return c.json({ success: true, daySchedule: data });
+  } catch (error) {
+    console.error('Error updating day status:', error);
+    return c.json({ error: 'Failed to update day status', details: error.message }, 500);
   }
 });
 

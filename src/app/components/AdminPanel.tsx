@@ -117,6 +117,8 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
   const [slotLoading, setSlotLoading] = useState(false);
   const [usesCustomSlots, setUsesCustomSlots] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
+  const [dayStatus, setDayStatus] = useState<'live' | 'draft'>('draft');
+  const [liveDays, setLiveDays] = useState<string[]>([]);
 
   // Fetch all bookings on component mount
   useEffect(() => {
@@ -259,9 +261,61 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
       if (data.success) {
         setCustomSlots(data.slots);
         setUsesCustomSlots(!data.isDefault);
+        setDayStatus(data.dayStatus || 'draft');
       }
     } catch (error) {
       console.error('Error fetching slots:', error);
+    }
+  };
+
+  // Fetch all live days for indicators
+  const fetchLiveDays = async () => {
+    try {
+      const response = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/slots/live-days`,
+        {
+          headers: {
+            'Authorization': `Bearer ${publicAnonKey}`,
+          },
+        }
+      );
+      const data = await response.json();
+      if (data.success) {
+        setLiveDays(data.dates || []);
+      }
+    } catch (error) {
+      console.error('Error fetching live days:', error);
+    }
+  };
+
+  // Toggle day live/draft status
+  const toggleDayStatus = async () => {
+    if (!selectedDate) return;
+    const isoDate = convertToISODate(selectedDate);
+    const newStatus = dayStatus === 'live' ? 'draft' : 'live';
+
+    try {
+      const response = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/admin/days/${isoDate}/status`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${publicAnonKey}`,
+            'X-Session-Token': getSessionToken(),
+          },
+          body: JSON.stringify({ status: newStatus }),
+        }
+      );
+      if (response.ok) {
+        setDayStatus(newStatus);
+        fetchLiveDays(); // Refresh live days list
+      } else {
+        const data = await response.json();
+        alert(data.error || 'Failed to update day status');
+      }
+    } catch (error) {
+      console.error('Error toggling day status:', error);
     }
   };
 
@@ -272,8 +326,14 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
     } else {
       setCustomSlots([]);
       setUsesCustomSlots(false);
+      setDayStatus('draft');
     }
   }, [selectedDate]);
+
+  // Fetch live days on mount
+  useEffect(() => {
+    fetchLiveDays();
+  }, []);
 
   // Slot management handlers
   const handleSaveSlot = async (slotId: string) => {
@@ -861,6 +921,10 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                   const todayKey = formatDateKeyLegacy(new Date());
                   const isToday = date.dateKey === todayKey;
 
+                  // Check if this date is live
+                  const isoDateKey = convertToISODate(date.dateKey);
+                  const isLive = liveDays.includes(isoDateKey);
+
                   // Dot color: green=paid, amber=unpaid only, none=empty
                   let dotColor = '';
                   if (hasPaidBooking) dotColor = 'bg-green-500';
@@ -872,7 +936,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                       onClick={() => setSelectedDate(date.dateKey)}
                       className={`
                         flex-shrink-0 min-w-[52px] h-16 rounded-xl flex flex-col items-center justify-center
-                        transition-all snap-center
+                        transition-all snap-center relative
                         ${isSelected
                           ? 'bg-stone-600 text-white'
                           : 'bg-white hover:bg-stone-100'
@@ -880,6 +944,10 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                         ${isToday && !isSelected ? 'ring-1 ring-stone-400' : ''}
                       `}
                     >
+                      {/* Live indicator */}
+                      {isLive && (
+                        <div className={`absolute top-1 right-1 w-2 h-2 rounded-full ${isSelected ? 'bg-green-300' : 'bg-green-500'}`} />
+                      )}
                       <span className={`text-[10px] uppercase tracking-wide ${isSelected ? 'text-stone-300' : 'text-stone-500'}`}>
                         {date.displayDate.split(' ')[1]}
                       </span>
@@ -906,16 +974,39 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                 {/* Header with Edit Mode Toggle */}
                 <div className="flex items-center justify-between px-4 py-2 border-b border-stone-100">
                   <span className="text-sm font-medium text-stone-600">Time Slots</span>
-                  <button
-                    onClick={() => setIsEditMode(!isEditMode)}
-                    className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
-                      isEditMode
-                        ? 'bg-stone-200 text-stone-700 font-medium'
-                        : 'text-stone-400 hover:text-stone-600 hover:bg-stone-100'
-                    }`}
-                  >
-                    {isEditMode ? 'Done' : <Pencil className="w-4 h-4" />}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {/* Live/Draft Toggle - only in edit mode */}
+                    {isEditMode && (
+                      <button
+                        onClick={toggleDayStatus}
+                        className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 ${
+                          dayStatus === 'live'
+                            ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                            : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+                        }`}
+                      >
+                        {dayStatus === 'live' ? (
+                          <>
+                            <div className="w-2 h-2 rounded-full bg-green-500" />
+                            Live
+                          </>
+                        ) : (
+                          'Go Live'
+                        )}
+                      </button>
+                    )}
+                    {/* Edit/Done button */}
+                    <button
+                      onClick={() => setIsEditMode(!isEditMode)}
+                      className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                        isEditMode
+                          ? 'bg-stone-200 text-stone-700 font-medium'
+                          : 'text-stone-400 hover:text-stone-600 hover:bg-stone-100'
+                      }`}
+                    >
+                      {isEditMode ? 'Done' : <Pencil className="w-4 h-4" />}
+                    </button>
+                  </div>
                 </div>
                 {/* Timeline List */}
                 <div className="divide-y divide-stone-100">
