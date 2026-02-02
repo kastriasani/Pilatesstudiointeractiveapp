@@ -4,10 +4,8 @@ import { Language, translations } from '@/app/translations';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { logo } from '../../assets/images';
 import {
-  getAvailableBookingDates,
   formatDateKeyLegacy,
-  isTimeSlotPast,
-  getSkopjeTime
+  isTimeSlotPast
 } from '../../utils/dateUtils';
 
 type PackageOverviewProps = {
@@ -220,7 +218,7 @@ export function PackageOverview({ onBack, language }: PackageOverviewProps) {
     }
   };
 
-  // Load available time slots for first session - fully synced with main booking system
+  // Load available time slots for first session - shows ALL live days
   const loadAvailableSlots = async () => {
     setIsLoadingSlots(true);
     try {
@@ -242,15 +240,15 @@ export function PackageOverview({ onBack, language }: PackageOverviewProps) {
       const liveDaysData = await liveDaysResponse.json();
       const liveDays: string[] = liveDaysData.dates || [];
 
-      // Generate next 2 weekdays and filter to only live days
+      // Use ALL live days directly (not limited to 2)
       const slots: DateSlot[] = [];
-      const allBookingDates = getAvailableBookingDates(2);
-      const bookingDates = allBookingDates.filter(d => liveDays.includes(d.dateKey));
       const timeSlots = ['09:00', '10:00', '11:00', '17:00', '18:00', '19:00', '20:00'];
 
-      for (const bookingDate of bookingDates) {
-        const date = bookingDate.fullDate;
-        const dateKey = formatDateKeyLegacy(date);
+      for (const isoDate of liveDays) {
+        // Parse ISO date (YYYY-MM-DD) to Date object
+        const [year, month, day] = isoDate.split('-').map(Number);
+        const date = new Date(year, month - 1, day);
+        const dateKey = formatDateKeyLegacy(date); // Legacy format for booking API
 
         // Get all confirmed/attended bookings for this date
         const dayBookings = existingBookings.filter((b: any) =>
@@ -261,20 +259,19 @@ export function PackageOverview({ onBack, language }: PackageOverviewProps) {
         const availableTimeSlots = timeSlots.map(time => {
           // Calculate actual seats occupied for this time slot
           const slotBookings = dayBookings.filter((b: any) => b.timeSlot === time);
-          
+
           // Sum up seats occupied (regular = 1, duo = 2, individual = 4)
           const seatsOccupied = slotBookings.reduce((total: number, booking: any) => {
             return total + (booking.seatsOccupied || 1);
           }, 0);
-          
+
           // Check for private sessions (individual training blocks entire slot)
           const hasPrivateSession = slotBookings.some((b: any) => b.isPrivateSession);
-          
+
           const maxCapacity = 4; // Same as main booking system
           const available = hasPrivateSession ? 0 : Math.max(0, maxCapacity - seatsOccupied);
-          
+
           // Filter out past time slots for today
-          // Use centralized utility for past time check
           const isPastTime = isTimeSlotPast(date, time);
 
           return {
@@ -304,7 +301,7 @@ export function PackageOverview({ onBack, language }: PackageOverviewProps) {
       if (slots.length > 0) {
         setExpandedDate(slots[0].dateKey);
       }
-      console.log(`📅 Loaded ${slots.length} available dates for first session booking (synced with main system)`);
+      console.log(`📅 Loaded ${slots.length} available live dates for first session booking`);
     } catch (error) {
       console.error('❌ Error loading slots:', error);
     } finally {
@@ -659,23 +656,23 @@ export function PackageOverview({ onBack, language }: PackageOverviewProps) {
               </div>
             ) : (
               <div className="space-y-4">
-                {/* Date Tabs - 2 large buttons */}
-                <div className="grid grid-cols-2 gap-3">
+                {/* Date Tabs - Horizontal scrollable list for all live days */}
+                <div className="flex gap-2 overflow-x-auto pb-2 snap-x snap-mandatory scrollbar-hide">
                   {bookingSlots.map((dateSlot) => (
                     <button
                       key={dateSlot.dateKey}
                       onClick={() => setExpandedDate(dateSlot.dateKey)}
-                      className={`px-4 py-4 rounded-xl text-center transition-all border-2 ${
+                      className={`flex-shrink-0 min-w-[90px] px-3 py-3 rounded-xl text-center transition-all border-2 snap-center ${
                         expandedDate === dateSlot.dateKey
                           ? 'bg-gradient-to-br from-[#9ca571] to-[#8a9463] text-white border-[#9ca571] shadow-lg'
                           : 'bg-white text-[#3d2f28] border-[#e8e6e3] hover:border-[#9ca571] hover:shadow-md'
                       }`}
                     >
-                      <div className="text-xs font-semibold uppercase tracking-wide opacity-80 mb-1">
-                        {dateSlot.date.toLocaleDateString(language === 'sq' ? 'sq-AL' : language === 'mk' ? 'mk-MK' : 'en-US', { weekday: 'long' })}
+                      <div className="text-[10px] font-semibold uppercase tracking-wide opacity-80 mb-1">
+                        {dateSlot.date.toLocaleDateString(language === 'sq' ? 'sq-AL' : language === 'mk' ? 'mk-MK' : 'en-US', { weekday: 'short' })}
                       </div>
-                      <div className="text-base font-bold">
-                        {dateSlot.date.getDate()} {dateSlot.date.toLocaleDateString(language === 'sq' ? 'sq-AL' : language === 'mk' ? 'mk-MK' : 'en-US', { month: 'long' })}
+                      <div className="text-sm font-bold">
+                        {dateSlot.date.getDate()} {dateSlot.date.toLocaleDateString(language === 'sq' ? 'sq-AL' : language === 'mk' ? 'mk-MK' : 'en-US', { month: 'short' })}
                       </div>
                     </button>
                   ))}

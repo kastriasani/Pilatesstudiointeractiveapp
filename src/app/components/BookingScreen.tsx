@@ -3,11 +3,7 @@ import { ChevronRight, ChevronLeft, User, ArrowLeft, Loader } from 'lucide-react
 import { Language, translations } from '../translations';
 import { logo } from '../../assets/images';
 import {
-  getSkopjeTime,
-  getAvailableBookingDates,
-  isTimeSlotPast,
-  formatDateKey,
-  BookingDate
+  getSkopjeTime
 } from '../../utils/dateUtils';
 
 const rinaPhoto = 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=400&h=600&fit=crop';
@@ -27,22 +23,30 @@ type TimeSlot = {
   isPastOrTooSoon?: boolean;
 };
 
-// Localize booking dates with translated day/month names
-const getLocalizedBookingDates = (language: Language) => {
+// Convert ISO date strings (YYYY-MM-DD) to localized tab format
+const convertLiveDaysToTabs = (liveDays: string[], language: Language) => {
   const t = translations[language];
-  const dates = getAvailableBookingDates(2);
-  const dayNames = [t.monday, t.tuesday, t.wednesday, t.thursday, t.friday];
+  const dayNames = [t.sunday || 'Sun', t.monday, t.tuesday, t.wednesday, t.thursday, t.friday, t.saturday || 'Sat'];
   const monthNames = [
     t.january, t.february, t.march, t.april, t.may, t.june,
     t.july, t.august, t.september, t.october, t.november, t.december
   ];
 
-  return dates.map(d => ({
-    day: dayNames[d.dayOfWeek] || d.day,
-    date: `${d.fullDate.getDate()} ${monthNames[d.fullDate.getMonth()] || monthNames[0]}`,
-    key: d.key,
-    fullDate: d.fullDate,
-  }));
+  return liveDays
+    .map(isoDate => {
+      const [year, month, day] = isoDate.split('-').map(Number);
+      const fullDate = new Date(year, month - 1, day);
+      const dayOfWeek = fullDate.getDay(); // 0=Sunday, 1=Monday, etc.
+
+      return {
+        day: dayNames[dayOfWeek] || '',
+        date: `${fullDate.getDate()} ${monthNames[fullDate.getMonth()] || ''}`,
+        key: `${month}-${day}`, // Legacy format for booking
+        isoKey: isoDate, // ISO format for API
+        fullDate,
+      };
+    })
+    .sort((a, b) => a.fullDate.getTime() - b.fullDate.getTime()); // Sort by date
 };
 
 export function BookingScreen({ trainingType, onBack, onSubmit, onInstructorClick, language }: BookingScreenProps) {
@@ -104,16 +108,8 @@ export function BookingScreen({ trainingType, onBack, onSubmit, onInstructorClic
     return () => clearInterval(interval);
   }, []);
   
-  const allTabs = getLocalizedBookingDates(language);
-
-  // Filter out past days and only show live days (admin must mark days as "live")
-  const tabs = allTabs.filter(tab => {
-    const tabDate = tab.fullDate;
-    const today = new Date(currentTime.getFullYear(), currentTime.getMonth(), currentTime.getDate());
-    const isoDateKey = formatDateKey(tabDate); // Convert to YYYY-MM-DD for comparison
-    const isLive = liveDays.includes(isoDateKey);
-    return tabDate >= today && isLive;
-  });
+  // Convert live days from API directly to tabs (shows ALL live days, not just 2)
+  const tabs = convertLiveDaysToTabs(liveDays, language);
   
   const [selectedTab, setSelectedTab] = useState(0);
 
@@ -239,7 +235,7 @@ export function BookingScreen({ trainingType, onBack, onSubmit, onInstructorClic
         </div>
       </div> */}
 
-      {/* Navigation Tabs - 2 Large Date Buttons */}
+      {/* Navigation Tabs - Horizontal scrollable date list */}
       {!isLoadingBookings && tabs.length === 0 ? (
         <div className="text-center py-12 bg-white rounded-xl mb-6">
           <div className="text-sm text-[#8b7764] mb-2">
@@ -250,21 +246,21 @@ export function BookingScreen({ trainingType, onBack, onSubmit, onInstructorClic
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-3 mb-6">
+        <div className="flex gap-2 overflow-x-auto pb-2 mb-6 snap-x snap-mandatory scrollbar-hide">
           {tabs.map((tab, index) => (
             <button
-              key={index}
+              key={tab.isoKey}
               onClick={() => setSelectedTab(index)}
-              className={`px-4 py-5 rounded-xl text-center transition-all border-2 ${
+              className={`flex-shrink-0 min-w-[80px] px-4 py-4 rounded-xl text-center transition-all border-2 snap-center ${
                 selectedTab === index
                   ? 'bg-gradient-to-br from-[#9ca571] to-[#8a9463] text-white border-[#9ca571] shadow-lg'
                   : 'bg-white text-[#3d2f28] border-[#e8e6e3] hover:border-[#9ca571] hover:shadow-md'
               }`}
             >
-              <div className="text-xs font-semibold uppercase tracking-wide opacity-80 mb-1">
+              <div className="text-[10px] font-semibold uppercase tracking-wide opacity-80 mb-1">
                 {tab.day}
               </div>
-              <div className="text-base font-bold">
+              <div className="text-sm font-bold">
                 {tab.date}
               </div>
             </button>
