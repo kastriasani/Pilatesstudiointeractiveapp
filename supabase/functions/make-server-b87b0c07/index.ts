@@ -4141,6 +4141,17 @@ app.delete("/make-server-b87b0c07/admin/waitlist/:email", async (c) => {
       return c.json({ error: 'User not found in waitlist' }, 404);
     }
 
+    // First delete related redemption_codes (foreign key constraint)
+    const { error: codesError } = await supabase
+      .from('redemption_codes')
+      .delete()
+      .eq('waitlist_member_id', existing.id);
+
+    if (codesError) {
+      console.error('Error deleting redemption codes:', codesError);
+      // Continue anyway - might not have any codes
+    }
+
     // Delete from waitlist_members using ID for precision
     const { error: deleteError } = await supabase
       .from('waitlist_members')
