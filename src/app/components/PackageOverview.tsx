@@ -240,11 +240,26 @@ export function PackageOverview({ onBack, language }: PackageOverviewProps) {
       const liveDaysData = await liveDaysResponse.json();
       const liveDays: string[] = liveDaysData.dates || [];
 
-      // Use ALL live days directly (not limited to 2)
-      const slots: DateSlot[] = [];
-      const timeSlots = ['09:00', '10:00', '11:00', '17:00', '18:00', '19:00', '20:00'];
+      // Fetch time slots for each live day from API (not hardcoded)
+      const slotsPromises = liveDays.map((isoDate: string) =>
+        fetch(
+          `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/slots?date=${isoDate}`,
+          { headers: { 'Authorization': `Bearer ${publicAnonKey}` } }
+        ).then(res => res.json())
+      );
 
-      for (const isoDate of liveDays) {
+      const slotsResults = await Promise.all(slotsPromises);
+
+      // Build slots per date from API responses
+      const slots: DateSlot[] = [];
+
+      for (let i = 0; i < liveDays.length; i++) {
+        const isoDate = liveDays[i];
+        const apiSlots = slotsResults[i]?.slots || [];
+
+        // Skip dates with no configured slots
+        if (apiSlots.length === 0) continue;
+
         // Parse ISO date (YYYY-MM-DD) to Date object
         const [year, month, day] = isoDate.split('-').map(Number);
         const date = new Date(year, month - 1, day);
@@ -256,7 +271,10 @@ export function PackageOverview({ onBack, language }: PackageOverviewProps) {
           (b.reservationStatus === 'confirmed' || b.reservationStatus === 'attended' || b.reservationStatus === 'pending')
         );
 
-        const availableTimeSlots = timeSlots.map(time => {
+        const availableTimeSlots = apiSlots.map((slot: any) => {
+          const time = slot.start_time;
+          const maxCapacity = slot.max_capacity || 4;
+
           // Calculate actual seats occupied for this time slot
           const slotBookings = dayBookings.filter((b: any) => b.timeSlot === time);
 
@@ -268,7 +286,6 @@ export function PackageOverview({ onBack, language }: PackageOverviewProps) {
           // Check for private sessions (individual training blocks entire slot)
           const hasPrivateSession = slotBookings.some((b: any) => b.isPrivateSession);
 
-          const maxCapacity = 4; // Same as main booking system
           const available = hasPrivateSession ? 0 : Math.max(0, maxCapacity - seatsOccupied);
 
           // Filter out past time slots for today
@@ -282,7 +299,7 @@ export function PackageOverview({ onBack, language }: PackageOverviewProps) {
         });
 
         // Only add dates that have at least one available slot
-        if (availableTimeSlots.some(slot => slot.available > 0)) {
+        if (availableTimeSlots.some((slot: any) => slot.available > 0)) {
           slots.push({
             date,
             dateKey,
@@ -301,7 +318,7 @@ export function PackageOverview({ onBack, language }: PackageOverviewProps) {
       if (slots.length > 0) {
         setExpandedDate(slots[0].dateKey);
       }
-      console.log(`📅 Loaded ${slots.length} available live dates for first session booking`);
+      console.log(`📅 Loaded ${slots.length} available live dates with dynamic time slots`);
     } catch (error) {
       console.error('❌ Error loading slots:', error);
     } finally {

@@ -55,8 +55,9 @@ export function BookingScreen({ trainingType, onBack, onSubmit, onInstructorClic
   const [allBookings, setAllBookings] = useState<any[]>([]);
   const [isLoadingBookings, setIsLoadingBookings] = useState(true);
   const [liveDays, setLiveDays] = useState<string[]>([]);
+  const [slotsPerDate, setSlotsPerDate] = useState<Record<string, { start_time: string; max_capacity: number }[]>>({});
 
-  // Fetch all bookings and live days on mount
+  // Fetch all bookings, live days, and slots for each live day
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -81,7 +82,23 @@ export function BookingScreen({ trainingType, onBack, onSubmit, onInstructorClic
 
         if (liveDaysResponse.ok) {
           const data = await liveDaysResponse.json();
-          setLiveDays(data.dates || []);
+          const dates = data.dates || [];
+          setLiveDays(dates);
+
+          // Fetch slots for each live day
+          const slotsPromises = dates.map((date: string) =>
+            fetch(
+              `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/slots?date=${date}`,
+              { headers: { 'Authorization': `Bearer ${publicAnonKey}` } }
+            ).then(res => res.json())
+          );
+
+          const slotsResults = await Promise.all(slotsPromises);
+          const newSlotsPerDate: Record<string, any[]> = {};
+          dates.forEach((date: string, index: number) => {
+            newSlotsPerDate[date] = slotsResults[index]?.slots || [];
+          });
+          setSlotsPerDate(newSlotsPerDate);
         }
       } catch (error) {
         console.error('Error fetching data:', error);
@@ -138,10 +155,7 @@ export function BookingScreen({ trainingType, onBack, onSubmit, onInstructorClic
   };
   
   const mockBookings = calculateBookingsPerSlot();
-  
-  // Standard time slots for all days (matching admin panel)
-  const standardTimeSlots = ['09:00', '10:00', '11:00', '17:00', '18:00', '19:00', '20:00'];
-  
+
   // Function to calculate end time (50 minutes later)
   const getEndTime = (startTime: string): string => {
     const [hours, minutes] = startTime.split(':').map(Number);
@@ -151,21 +165,35 @@ export function BookingScreen({ trainingType, onBack, onSubmit, onInstructorClic
     const endMins = endMinutes % 60;
     return `${String(endHours).padStart(2, '0')}:${String(endMins).padStart(2, '0')}`;
   };
-  
+
   const getTimeSlotsForDay = (dayIndex: number): TimeSlot[] => {
-    const selectedDateKey = tabs[dayIndex].key;
-    const selectedDate = tabs[dayIndex].fullDate;
+    if (!tabs[dayIndex]) return [];
+
+    const tab = tabs[dayIndex];
+    const selectedDateKey = tab.key; // Legacy format for bookings lookup
+    const isoDateKey = tab.isoKey; // ISO format for slots lookup
+    const selectedDate = tab.fullDate;
     const dayBookings = mockBookings[selectedDateKey] || {};
-    
-    return standardTimeSlots.map(time => {
+
+    // Get slots for this date from API (fetched dynamically)
+    const dateSlots = slotsPerDate[isoDateKey] || [];
+
+    // If no slots configured for this date, return empty
+    if (dateSlots.length === 0) {
+      return [];
+    }
+
+    return dateSlots.map(slot => {
+      const time = slot.start_time;
+      const maxCapacity = slot.max_capacity || 4;
       const bookedCount = dayBookings[time] || 0;
-      const availableSpots = 4 - bookedCount;
-      
+      const availableSpots = maxCapacity - bookedCount;
+
       // Check if this time slot is in the past or within 5 minutes
       const [hours, minutes] = time.split(':').map(Number);
       const slotDateTime = new Date(selectedDate);
       slotDateTime.setHours(hours, minutes, 0, 0);
-      
+
       // Calculate time difference in minutes
       const timeDiffMinutes = (slotDateTime.getTime() - currentTime.getTime()) / (1000 * 60);
       const isPastOrTooSoon = timeDiffMinutes < 5;
