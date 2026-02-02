@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Calendar, Users, LogOut, Mail, X, CheckCircle, Trash2, Ban, Gift, ShieldAlert, Settings, UserPlus, Send, AlertCircle, Loader2 } from 'lucide-react';
+import { Calendar, Users, LogOut, Mail, X, CheckCircle, Trash2, Ban, ShieldAlert, Settings, UserPlus, Send, AlertCircle, Loader2 } from 'lucide-react';
 import { logo } from '../../assets/images';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { DevTools } from './DevTools';
@@ -97,9 +97,6 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
-  const [showGiftModal, setShowGiftModal] = useState(false);
-  const [giftSessions, setGiftSessions] = useState(1);
-  const [giftNote, setGiftNote] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [showDevTools, setShowDevTools] = useState(false);
   const [processingBookingId, setProcessingBookingId] = useState<string | null>(null);
@@ -1085,20 +1082,6 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                   Activated
                                 </div>
                               ) : null}
-                              
-                              {/* Gift Sessions Button (only for confirmed users) */}
-                              {user.status === 'confirmed' && (
-                                <button
-                                  onClick={() => {
-                                    setSelectedUser(user);
-                                    setShowGiftModal(true);
-                                  }}
-                                  className="px-3 py-1.5 bg-purple-500 text-white rounded-md text-xs font-medium hover:bg-purple-600 transition-colors flex items-center gap-1.5"
-                                >
-                                  <Gift className="w-3 h-3" />
-                                  Gift
-                                </button>
-                              )}
                               
                               {/* Delete Button */}
                               <button

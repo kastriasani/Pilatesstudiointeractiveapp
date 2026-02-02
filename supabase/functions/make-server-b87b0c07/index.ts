@@ -2100,6 +2100,95 @@ app.patch("/make-server-b87b0c07/admin/users/:email/payment", async (c) => {
   }
 });
 
+// DELETE /users/:email - Delete a user and all their data
+app.delete("/make-server-b87b0c07/users/:email", async (c) => {
+  try {
+    // Verify admin session
+    const adminAuth = await verifyAdminSession(c);
+    if (!adminAuth.valid) {
+      return c.json({ error: adminAuth.error }, 401);
+    }
+
+    const email = c.req.param('email');
+    if (!email) {
+      return c.json({ error: 'Email is required' }, 400);
+    }
+
+    const normalizedEmail = normalizeEmail(email);
+    const supabase = getSupabase();
+
+    // Check if user exists
+    const { data: user, error: userFetchError } = await supabase
+      .from('users')
+      .select('id, email, name')
+      .eq('email', normalizedEmail)
+      .maybeSingle();
+
+    if (userFetchError) {
+      console.error('Error fetching user:', userFetchError);
+      return c.json({ error: 'Failed to fetch user' }, 500);
+    }
+
+    if (!user) {
+      return c.json({ error: 'User not found' }, 404);
+    }
+
+    // Delete in cascade order:
+
+    // 1. Delete reservations
+    const { error: resError } = await supabase
+      .from('reservations')
+      .delete()
+      .eq('user_email', normalizedEmail);
+
+    if (resError) {
+      console.error('Error deleting reservations:', resError);
+    }
+
+    // 2. Delete user_packages
+    const { error: pkgError } = await supabase
+      .from('user_packages')
+      .delete()
+      .eq('user_email', normalizedEmail);
+
+    if (pkgError) {
+      console.error('Error deleting packages:', pkgError);
+    }
+
+    // 3. Delete from waitlist if exists
+    const { error: waitlistError } = await supabase
+      .from('waitlist_members')
+      .delete()
+      .eq('email', normalizedEmail);
+
+    if (waitlistError) {
+      console.error('Error deleting from waitlist:', waitlistError);
+    }
+
+    // 4. Delete user
+    const { error: userError } = await supabase
+      .from('users')
+      .delete()
+      .eq('email', normalizedEmail);
+
+    if (userError) {
+      console.error('Error deleting user:', userError);
+      return c.json({ error: 'Failed to delete user', details: userError.message }, 500);
+    }
+
+    console.log(`🗑️ Deleted user: ${normalizedEmail}`);
+
+    return c.json({
+      success: true,
+      message: `User ${normalizedEmail} and all related data deleted successfully`
+    });
+
+  } catch (error) {
+    console.error('Error in delete user:', error);
+    return c.json({ error: 'Delete failed', details: (error as Error).message }, 500);
+  }
+});
+
 // ============ LEGACY ENDPOINTS ============
 
 // GET /bookings - MIGRATED TO SUPABASE
