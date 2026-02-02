@@ -86,6 +86,22 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
   // Get session token from props or localStorage
   const getSessionToken = () => propSessionToken || localStorage.getItem('adminSessionToken') || '';
 
+  // Format phone number as +389 XX XXX XXX
+  const formatPhone = (phone: string): string => {
+    if (!phone) return '';
+    let digits = phone.replace(/\D/g, '');
+    if (digits.startsWith('389')) {
+      digits = digits.slice(3);
+    }
+    if (digits.startsWith('0')) {
+      digits = digits.slice(1);
+    }
+    if (digits.length >= 8) {
+      return `+389 ${digits.slice(0,2)} ${digits.slice(2,5)} ${digits.slice(5,8)}`;
+    }
+    return `+389 ${digits}`;
+  };
+
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState<'calendar' | 'users' | 'waitlist'>('calendar');
   const [userSubTab, setUserSubTab] = useState<'confirmed' | 'pending'>('confirmed');
@@ -1331,23 +1347,13 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                           onClick={() => setExpandedUserId(isExpanded ? null : user.id)}
                           className="w-full px-4 py-3 text-left hover:bg-[#f5f0ed] transition-colors"
                         >
-                          <div className="grid grid-cols-2 gap-2">
-                            <div>
-                              <span className="text-xs text-[#8b7764] block">Name:</span>
-                              <span className="text-sm text-[#3d2f28] font-medium block">
-                                {user.name} {user.surname}
-                              </span>
-                            </div>
-                            <div>
-                              <span className="text-xs text-[#8b7764] block">Phone:</span>
-                              <span className="text-sm text-[#3d2f28] font-medium block">{user.mobile}</span>
-                            </div>
-                            <div className="col-span-2">
-                              <span className="text-xs text-[#8b7764] block">Email:</span>
-                              <span className="text-sm text-[#3d2f28] font-medium block break-all">
-                                {user.email}
-                              </span>
-                            </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-[#3d2f28] font-medium">
+                              {user.name} {user.surname}
+                            </span>
+                            <span className="text-sm text-[#6b5949]">
+                              {formatPhone(user.mobile)}
+                            </span>
                           </div>
                         </button>
 
