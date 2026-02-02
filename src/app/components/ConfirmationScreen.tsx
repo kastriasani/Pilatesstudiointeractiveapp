@@ -36,7 +36,7 @@ export function ConfirmationScreen({ bookingData, onConfirm, onBack, onPaymentTo
 
     try {
       // Save booking to backend
-      const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/bookings`, {
+      const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/reservations`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
