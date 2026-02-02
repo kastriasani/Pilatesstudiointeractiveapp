@@ -6,6 +6,7 @@ import {
   getSkopjeTime,
   getAvailableBookingDates,
   isTimeSlotPast,
+  formatDateKey,
   BookingDate
 } from '../../utils/dateUtils';
 
@@ -49,38 +50,48 @@ export function BookingScreen({ trainingType, onBack, onSubmit, onInstructorClic
   const [currentTime, setCurrentTime] = useState<Date>(getSkopjeTime());
   const [allBookings, setAllBookings] = useState<any[]>([]);
   const [isLoadingBookings, setIsLoadingBookings] = useState(true);
-  
-  // Fetch all bookings on mount and refresh every 30 seconds
+  const [liveDays, setLiveDays] = useState<string[]>([]);
+
+  // Fetch all bookings and live days on mount
   useEffect(() => {
-    const fetchBookings = async () => {
+    const fetchData = async () => {
       try {
         const { projectId, publicAnonKey } = await import('/utils/supabase/info');
-        const response = await fetch(
-          `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/bookings`,
-          {
-            headers: {
-              'Authorization': `Bearer ${publicAnonKey}`,
-            },
-          }
-        );
-        
-        if (response.ok) {
-          const data = await response.json();
+
+        // Fetch bookings and live days in parallel
+        const [bookingsResponse, liveDaysResponse] = await Promise.all([
+          fetch(
+            `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/bookings`,
+            { headers: { 'Authorization': `Bearer ${publicAnonKey}` } }
+          ),
+          fetch(
+            `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/slots/live-days`,
+            { headers: { 'Authorization': `Bearer ${publicAnonKey}` } }
+          )
+        ]);
+
+        if (bookingsResponse.ok) {
+          const data = await bookingsResponse.json();
           setAllBookings(data.bookings || []);
         }
+
+        if (liveDaysResponse.ok) {
+          const data = await liveDaysResponse.json();
+          setLiveDays(data.dates || []);
+        }
       } catch (error) {
-        console.error('Error fetching bookings:', error);
+        console.error('Error fetching data:', error);
       } finally {
         setIsLoadingBookings(false);
       }
     };
-    
+
     // Initial fetch
-    fetchBookings();
-    
+    fetchData();
+
     // Refresh every 30 seconds to show real-time availability
-    const interval = setInterval(fetchBookings, 30000);
-    
+    const interval = setInterval(fetchData, 30000);
+
     return () => clearInterval(interval);
   }, []);
   
@@ -94,12 +105,14 @@ export function BookingScreen({ trainingType, onBack, onSubmit, onInstructorClic
   }, []);
   
   const allTabs = getLocalizedBookingDates(language);
-  
-  // Filter out past days (only show current day and future days)
+
+  // Filter out past days and only show live days (admin must mark days as "live")
   const tabs = allTabs.filter(tab => {
     const tabDate = tab.fullDate;
     const today = new Date(currentTime.getFullYear(), currentTime.getMonth(), currentTime.getDate());
-    return tabDate >= today;
+    const isoDateKey = formatDateKey(tabDate); // Convert to YYYY-MM-DD for comparison
+    const isLive = liveDays.includes(isoDateKey);
+    return tabDate >= today && isLive;
   });
   
   const [selectedTab, setSelectedTab] = useState(0);
@@ -131,7 +144,7 @@ export function BookingScreen({ trainingType, onBack, onSubmit, onInstructorClic
   const mockBookings = calculateBookingsPerSlot();
   
   // Standard time slots for all days (matching admin panel)
-  const standardTimeSlots = ['09:00', '10:00', '16:00', '17:00', '18:00', '19:00', '20:00'];
+  const standardTimeSlots = ['09:00', '10:00', '11:00', '17:00', '18:00', '19:00', '20:00'];
   
   // Function to calculate end time (50 minutes later)
   const getEndTime = (startTime: string): string => {
@@ -227,26 +240,37 @@ export function BookingScreen({ trainingType, onBack, onSubmit, onInstructorClic
       </div> */}
 
       {/* Navigation Tabs - 2 Large Date Buttons */}
-      <div className="grid grid-cols-2 gap-3 mb-6">
-        {tabs.map((tab, index) => (
-          <button
-            key={index}
-            onClick={() => setSelectedTab(index)}
-            className={`px-4 py-5 rounded-xl text-center transition-all border-2 ${
-              selectedTab === index
-                ? 'bg-gradient-to-br from-[#9ca571] to-[#8a9463] text-white border-[#9ca571] shadow-lg'
-                : 'bg-white text-[#3d2f28] border-[#e8e6e3] hover:border-[#9ca571] hover:shadow-md'
-            }`}
-          >
-            <div className="text-xs font-semibold uppercase tracking-wide opacity-80 mb-1">
-              {tab.day}
-            </div>
-            <div className="text-base font-bold">
-              {tab.date}
-            </div>
-          </button>
-        ))}
-      </div>
+      {!isLoadingBookings && tabs.length === 0 ? (
+        <div className="text-center py-12 bg-white rounded-xl mb-6">
+          <div className="text-sm text-[#8b7764] mb-2">
+            {t.noAvailableDates || 'No available dates at the moment'}
+          </div>
+          <div className="text-xs text-[#a89677]">
+            {t.checkBackLater || 'Please check back later'}
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-3 mb-6">
+          {tabs.map((tab, index) => (
+            <button
+              key={index}
+              onClick={() => setSelectedTab(index)}
+              className={`px-4 py-5 rounded-xl text-center transition-all border-2 ${
+                selectedTab === index
+                  ? 'bg-gradient-to-br from-[#9ca571] to-[#8a9463] text-white border-[#9ca571] shadow-lg'
+                  : 'bg-white text-[#3d2f28] border-[#e8e6e3] hover:border-[#9ca571] hover:shadow-md'
+              }`}
+            >
+              <div className="text-xs font-semibold uppercase tracking-wide opacity-80 mb-1">
+                {tab.day}
+              </div>
+              <div className="text-base font-bold">
+                {tab.date}
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Loading State */}
       {isLoadingBookings && (
@@ -259,7 +283,7 @@ export function BookingScreen({ trainingType, onBack, onSubmit, onInstructorClic
       )}
 
       {/* Time Slots */}
-      {!isLoadingBookings && <div className="space-y-3 mb-8">
+      {!isLoadingBookings && tabs.length > 0 && <div className="space-y-3 mb-8">
         {currentTimeSlots.map((slot) => {
           const isDisabled = slot.status === 'full' || slot.isPastOrTooSoon;
           const isPastTime = slot.isPastOrTooSoon && (slot.availableSpots === undefined || slot.availableSpots > 0);

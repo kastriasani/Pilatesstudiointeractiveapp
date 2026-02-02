@@ -224,22 +224,29 @@ export function PackageOverview({ onBack, language }: PackageOverviewProps) {
   const loadAvailableSlots = async () => {
     setIsLoadingSlots(true);
     try {
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/bookings`,
-        {
-          headers: {
-            'Authorization': `Bearer ${publicAnonKey}`,
-          },
-        }
-      );
+      // Fetch bookings and live days in parallel
+      const [bookingsResponse, liveDaysResponse] = await Promise.all([
+        fetch(
+          `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/bookings`,
+          { headers: { 'Authorization': `Bearer ${publicAnonKey}` } }
+        ),
+        fetch(
+          `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/slots/live-days`,
+          { headers: { 'Authorization': `Bearer ${publicAnonKey}` } }
+        )
+      ]);
 
-      const data = await response.json();
-      const existingBookings = data.bookings || [];
+      const bookingsData = await bookingsResponse.json();
+      const existingBookings = bookingsData.bookings || [];
 
-      // Generate next 2 weekdays using centralized utility
+      const liveDaysData = await liveDaysResponse.json();
+      const liveDays: string[] = liveDaysData.dates || [];
+
+      // Generate next 2 weekdays and filter to only live days
       const slots: DateSlot[] = [];
-      const bookingDates = getAvailableBookingDates(2);
-      const timeSlots = ['09:00', '10:00', '16:00', '17:00', '18:00', '19:00', '20:00'];
+      const allBookingDates = getAvailableBookingDates(2);
+      const bookingDates = allBookingDates.filter(d => liveDays.includes(d.dateKey));
+      const timeSlots = ['09:00', '10:00', '11:00', '17:00', '18:00', '19:00', '20:00'];
 
       for (const bookingDate of bookingDates) {
         const date = bookingDate.fullDate;

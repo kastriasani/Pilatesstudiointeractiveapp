@@ -342,6 +342,14 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
     fetchLiveDays();
   }, []);
 
+  // Auto-select today's date on mount so calendar opens with today's time slots visible
+  useEffect(() => {
+    const todayKey = formatDateKeyLegacy(new Date());
+    if (!selectedDate) {
+      setSelectedDate(todayKey);
+    }
+  }, []);
+
   // Slot management handlers
   const handleSaveSlot = async (slotId: string) => {
     if (!selectedDate) return;
