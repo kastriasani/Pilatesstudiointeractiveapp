@@ -306,21 +306,26 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
     setSlotLoading(false);
   };
 
-  const handleDeleteSlot = async (slotId: string) => {
+  const handleDeleteSlot = async (slotId: string, slotTime?: string) => {
     if (!selectedDate) return;
     if (!confirm('Remove this time slot?')) return;
 
+    const isoDate = convertToISODate(selectedDate);
+
+    // For default slots, include date and startTime as query params
+    let url = `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/admin/slots/${slotId}`;
+    if (slotId.startsWith('default-') && slotTime) {
+      url += `?date=${isoDate}&startTime=${slotTime}`;
+    }
+
     try {
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/admin/slots/${slotId}`,
-        {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${publicAnonKey}`,
-            'X-Session-Token': getSessionToken(),
-          },
-        }
-      );
+      const response = await fetch(url, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${publicAnonKey}`,
+          'X-Session-Token': getSessionToken(),
+        },
+      });
       if (response.ok) {
         await fetchSlotsForDate(selectedDate);
       } else {
@@ -1002,11 +1007,11 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                     <Pencil className="w-4 h-4" />
                                   </button>
 
-                                  {/* Delete button - only if no bookings and not a default slot */}
-                                  {!hasBookings && !slot.isDefault && (
+                                  {/* Delete button - only if no bookings */}
+                                  {!hasBookings && (
                                     <button
-                                      onClick={(e) => { e.stopPropagation(); handleDeleteSlot(slot.id); }}
-                                      className="p-1.5 text-stone-400 hover:text-red-600 transition-colors"
+                                      onClick={(e) => { e.stopPropagation(); handleDeleteSlot(slot.id, slotTime); }}
+                                      className="p-1.5 text-stone-400 hover:text-red-500 transition-colors"
                                       title="Remove slot"
                                     >
                                       <Trash2 className="w-4 h-4" />

@@ -2619,7 +2619,51 @@ app.delete("/make-server-b87b0c07/admin/slots/:id", async (c) => {
     const id = c.req.param('id');
     const supabase = getSupabase();
 
-    // Get the slot to check date and time
+    // Handle default slots (ID format: "default-X")
+    if (id.startsWith('default-')) {
+      const date = c.req.query('date');
+      const startTime = c.req.query('startTime');
+
+      if (!date || !startTime) {
+        return c.json({ error: 'Date and startTime required for default slot deletion' }, 400);
+      }
+
+      // Check if slot has bookings
+      const { data: bookings } = await supabase
+        .from('reservations')
+        .select('id')
+        .eq('date_key', date)
+        .eq('time_slot', startTime)
+        .in('reservation_status', ['confirmed', 'attended'])
+        .limit(1);
+
+      if (bookings && bookings.length > 0) {
+        return c.json({ error: 'Cannot delete slot with existing bookings' }, 400);
+      }
+
+      // Initialize custom slots for this date, excluding the one being deleted
+      const slotsToInsert = DEFAULT_TIME_SLOTS
+        .filter(slot => slot.start_time !== startTime)
+        .map(slot => ({
+          date,
+          start_time: slot.start_time,
+          max_capacity: slot.max_capacity,
+        }));
+
+      const { error: insertError } = await supabase
+        .from('time_slots')
+        .insert(slotsToInsert);
+
+      if (insertError) {
+        console.error('Error initializing slots:', insertError);
+        return c.json({ error: 'Failed to delete slot' }, 500);
+      }
+
+      console.log(`🗑️ Deleted default time slot ${startTime} for ${date}`);
+      return c.json({ success: true, message: 'Slot deleted' });
+    }
+
+    // Handle custom slots (real UUID)
     const { data: slot, error: fetchError } = await supabase
       .from('time_slots')
       .select('*')
