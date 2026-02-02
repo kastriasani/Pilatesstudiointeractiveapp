@@ -4105,44 +4105,59 @@ app.post("/make-server-b87b0c07/waitlist/redeem", async (c) => {
 // DELETE /admin/waitlist/:email - MIGRATED TO SUPABASE
 app.delete("/make-server-b87b0c07/admin/waitlist/:email", async (c) => {
   try {
+    console.log('🗑️ Delete waitlist request received');
+
     // Verify admin session
     const adminAuth = await verifyAdminSession(c);
     if (!adminAuth.valid) {
+      console.log('❌ Admin auth failed:', adminAuth.error);
       return c.json({ error: adminAuth.error }, 401);
     }
 
-    const email = decodeURIComponent(c.req.param('email'));
+    const emailParam = c.req.param('email');
+    console.log('📧 Raw email param:', emailParam);
+
+    const email = decodeURIComponent(emailParam);
     const normalizedEmail = email.toLowerCase().trim();
+    console.log('📧 Normalized email:', normalizedEmail);
+
     const supabase = getSupabase();
 
     // Check if exists
-    const { data: existing } = await supabase
+    const { data: existing, error: checkError } = await supabase
       .from('waitlist_members')
-      .select('id')
+      .select('id, email')
       .eq('email', normalizedEmail)
       .maybeSingle();
+
+    console.log('🔍 Existing check result:', { existing, checkError });
+
+    if (checkError) {
+      console.error('Error checking waitlist member:', checkError);
+      return c.json({ error: 'Failed to check waitlist user', details: checkError.message }, 500);
+    }
 
     if (!existing) {
       return c.json({ error: 'User not found in waitlist' }, 404);
     }
 
-    // Delete from waitlist_members
-    const { error } = await supabase
+    // Delete from waitlist_members using ID for precision
+    const { error: deleteError } = await supabase
       .from('waitlist_members')
       .delete()
-      .eq('email', normalizedEmail);
+      .eq('id', existing.id);
 
-    if (error) {
-      console.error('Error deleting waitlist member:', error);
-      return c.json({ error: 'Failed to delete waitlist user', details: error.message }, 500);
+    if (deleteError) {
+      console.error('Error deleting waitlist member:', deleteError);
+      return c.json({ error: 'Failed to delete waitlist user', details: deleteError.message }, 500);
     }
 
-    console.log(`🗑️ Removed ${normalizedEmail} from waitlist (Supabase)`);
+    console.log(`🗑️ Removed ${normalizedEmail} (id: ${existing.id}) from waitlist (Supabase)`);
 
     return c.json({ success: true, message: 'User removed from waitlist' });
   } catch (error) {
     console.error('Error deleting waitlist user:', error);
-    return c.json({ error: 'Failed to delete waitlist user', details: error.message }, 500);
+    return c.json({ error: 'Failed to delete waitlist user', details: (error as Error).message }, 500);
   }
 });
 

@@ -523,15 +523,16 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
         },
       });
 
+      const data = await response.json();
       if (response.ok) {
         fetchWaitlistUsers();
       } else {
-        const data = await response.json();
-        alert(data.error || 'Failed to delete user');
+        console.error('Delete waitlist error:', data);
+        alert(data.details ? `${data.error}: ${data.details}` : data.error || 'Failed to delete user');
       }
     } catch (error) {
       console.error('Error deleting waitlist user:', error);
-      alert('An error occurred');
+      alert('Network error: ' + (error as Error).message);
     }
   };
 
