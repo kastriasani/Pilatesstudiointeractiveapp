@@ -498,10 +498,14 @@ function getEmailTranslations(language: string) {
       linkExpires: 'Ky link skadon pas 24 oreve.',
       welcomeWaitlist: 'Mire se vini ne WellNest Pilates!',
       exclusiveOffer: 'Blini nje pakete me 8 klase dhe merrni klasen e pare FALAS!',
+      exclusiveOfferLabel: 'OFERTE EKSKLUZIVE',
       redemptionCode: 'KODI I SHPERBLIMIT',
       presentCode: 'Prekni për të zgjedhur • Tregoni në studio',
       bookNow: 'Rezervo Tani',
       whatBring: 'Cfare te sillni: Rroba te rehatshme, shishe uji, peshqir i vogel.',
+      classes: 'Klase',
+      bonus: 'BONUS',
+      freeClasses: 'Klase Falas',
     },
     mk: {
       greeting: 'Zdravo',
@@ -519,10 +523,14 @@ function getEmailTranslations(language: string) {
       linkExpires: 'Ovoj link istekuva za 24 casa.',
       welcomeWaitlist: 'Dobrodojdovte vo WellNest Pilates!',
       exclusiveOffer: 'Kupete paket od 8 klasi i dobijte ja prvata klasa BESPLATNO!',
+      exclusiveOfferLabel: 'EKSKLUZIVNA PONUDA',
       redemptionCode: 'KOD ZA ISKORISTUVANJE',
       presentCode: 'Dopreni za izbor • Pokaži vo studio',
       bookNow: 'Rezervirajte Sega',
       whatBring: 'Shto da ponesete: Udobna obleka, shishe so voda, mala krpa.',
+      classes: 'Klasi',
+      bonus: 'BONUS',
+      freeClasses: 'Besplatni Klasi',
     },
     en: {
       greeting: 'Hello',
@@ -540,10 +548,14 @@ function getEmailTranslations(language: string) {
       linkExpires: 'This link expires in 24 hours.',
       welcomeWaitlist: 'Welcome to WellNest Pilates!',
       exclusiveOffer: 'Purchase an 8-class package and get your first session FREE!',
+      exclusiveOfferLabel: 'EXCLUSIVE OFFER',
       redemptionCode: 'REDEMPTION CODE',
       presentCode: 'Tap to select • Show at studio',
       bookNow: 'Book Now',
       whatBring: 'What to bring: Comfortable clothes, water bottle, small towel.',
+      classes: 'Classes',
+      bonus: 'BONUS',
+      freeClasses: 'Free Classes',
     }
   };
   return translations[lang] || translations.en;
@@ -568,12 +580,12 @@ async function sendBookingEmail(
   const details: Array<{label: string; value: string}> = isSingle
     ? [{ label: t.singleSession, value: `${t.price}: ${price} DEN` }]
     : [
-        { label: t.package, value: `${sessionCount} Klase` },
+        { label: t.package, value: `${sessionCount} ${t.classes}` },
         { label: t.price, value: `${price} DEN` }
       ];
 
   if (bonusClasses > 0) {
-    details.push({ label: 'BONUS', value: `+${bonusClasses} Klase Falas` });
+    details.push({ label: t.bonus, value: `+${bonusClasses} ${t.freeClasses}` });
   }
 
   const content: EmailContent = {
@@ -649,7 +661,7 @@ async function sendWaitlistInviteEmail(
     greeting: `${t.greeting}, ${capitalizedName}`,
     message: t.welcomeWaitlist,
     details: [
-      { label: 'EXCLUSIVE OFFER', value: t.exclusiveOffer }
+      { label: t.exclusiveOfferLabel, value: t.exclusiveOffer }
     ],
     code: {
       label: t.redemptionCode,
@@ -1975,7 +1987,7 @@ app.post("/make-server-b87b0c07/activate", async (c) => {
     // 5. Send login email with password setup link
     const appUrl = c.req.header('origin') || 'https://app.wellnestpilates.com';
     try {
-      await sendActivationEmail(normalizedEmail, user.name || '', verificationToken, appUrl, 'en');
+      await sendActivationEmail(normalizedEmail, user.name || '', verificationToken, appUrl, user.language || 'en');
       console.log(`Activation email sent to: ${normalizedEmail}`);
     } catch (emailError) {
       console.error('Failed to send login email:', emailError);
