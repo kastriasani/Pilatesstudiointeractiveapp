@@ -156,39 +156,66 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
     }
   }, [activeSessionToken]);
 
-  // Load available slots for rescheduling - uses /bookings endpoint like PackageOverview
+  // Load available slots for rescheduling - fetches ONLY live days from API
   const loadAvailableSlots = async () => {
     try {
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/bookings`,
-        {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${publicAnonKey}`,
-          },
-        }
-      );
+      // Fetch live days and bookings in parallel
+      const [liveDaysResponse, bookingsResponse] = await Promise.all([
+        fetch(
+          `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/slots/live-days`,
+          {
+            headers: { 'Authorization': `Bearer ${publicAnonKey}` },
+          }
+        ),
+        fetch(
+          `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/bookings`,
+          {
+            headers: { 'Authorization': `Bearer ${publicAnonKey}` },
+          }
+        ),
+      ]);
 
-      if (!response.ok) {
-        console.error('Failed to load bookings for slots');
+      if (!liveDaysResponse.ok) {
+        console.error('Failed to load live days');
         return;
       }
 
-      const data = await response.json();
-      const existingBookings = data.bookings || [];
+      const liveDaysData = await liveDaysResponse.json();
+      const liveDays: string[] = liveDaysData.dates || [];
 
-      // Generate next 7 weekdays
+      if (liveDays.length === 0) {
+        console.log('📅 No live days available');
+        setAvailableSlots([]);
+        return;
+      }
+
+      const bookingsData = bookingsResponse.ok ? await bookingsResponse.json() : { bookings: [] };
+      const existingBookings = bookingsData.bookings || [];
+
+      // Fetch time slots for each live day
+      const slotsPromises = liveDays.map(dateKey =>
+        fetch(
+          `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/slots?date=${dateKey}`,
+          { headers: { 'Authorization': `Bearer ${publicAnonKey}` } }
+        ).then(res => res.json())
+      );
+
+      const slotsResults = await Promise.all(slotsPromises);
+
       const slots: DateSlot[] = [];
-      const timeSlotList = ['09:00', '10:00', '16:00', '17:00', '18:00', '19:00', '20:00'];
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
 
-      for (let i = 0; i < 7; i++) {
-        const date = new Date();
-        date.setDate(date.getDate() + i);
+      liveDays.forEach((dateKey, index) => {
+        const [year, month, day] = dateKey.split('-').map(Number);
+        const date = new Date(year, month - 1, day);
+        const isToday = date.getTime() === today.getTime();
 
-        // Skip weekends
-        if (date.getDay() === 0 || date.getDay() === 6) continue;
-
-        const dateKey = date.toISOString().split('T')[0];
+        // Get time slots from API response (or use defaults)
+        const daySlots = slotsResults[index]?.slots || [];
+        const timeSlotList = daySlots.length > 0
+          ? daySlots.map((s: any) => s.start_time)
+          : ['09:00', '10:00', '17:00', '18:00', '19:00', '20:00'];
 
         // Get bookings for this date
         const dayBookings = existingBookings.filter((b: any) =>
@@ -196,18 +223,19 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
           (b.reservationStatus === 'confirmed' || b.reservationStatus === 'attended' || b.reservationStatus === 'pending')
         );
 
-        const availableTimeSlots = timeSlotList.map(time => {
+        const availableTimeSlots = timeSlotList.map((time: string) => {
           const slotBookings = dayBookings.filter((b: any) => b.timeSlot === time);
           const seatsOccupied = slotBookings.reduce((total: number, booking: any) => {
             return total + (booking.seatsOccupied || 1);
           }, 0);
           const hasPrivateSession = slotBookings.some((b: any) => b.isPrivateSession);
-          const available = hasPrivateSession ? 0 : Math.max(0, 4 - seatsOccupied);
+          const maxCapacity = daySlots.find((s: any) => s.start_time === time)?.max_capacity || 4;
+          const available = hasPrivateSession ? 0 : Math.max(0, maxCapacity - seatsOccupied);
 
           // Filter out past time slots for today
           const now = new Date();
           const [hours] = time.split(':').map(Number);
-          const isPastTime = i === 0 && hours <= now.getHours();
+          const isPastTime = isToday && hours <= now.getHours();
 
           return {
             time,
@@ -228,10 +256,10 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
             timeSlots: availableTimeSlots,
           });
         }
-      }
+      });
 
       setAvailableSlots(slots);
-      console.log('📅 Loaded', slots.length, 'available dates for rescheduling');
+      console.log('📅 Loaded', slots.length, 'available LIVE dates for booking');
     } catch (error) {
       console.error('Error loading slots:', error);
     }
