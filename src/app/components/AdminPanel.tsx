@@ -235,11 +235,19 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
     }
   };
 
+  // Convert "M-D" format to "YYYY-MM-DD" for backend
+  const convertToISODate = (dateKey: string): string => {
+    const [month, day] = dateKey.split('-').map(Number);
+    const year = new Date().getFullYear();
+    return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  };
+
   // Fetch custom time slots for a date
   const fetchSlotsForDate = async (date: string) => {
+    const isoDate = convertToISODate(date);
     try {
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/admin/slots?date=${date}`,
+        `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/admin/slots?date=${isoDate}`,
         {
           headers: {
             'Authorization': `Bearer ${publicAnonKey}`,
@@ -327,6 +335,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
   const handleAddSlot = async () => {
     if (!newSlotTime || !selectedDate) return;
 
+    const isoDate = convertToISODate(selectedDate);
     setSlotLoading(true);
     try {
       const response = await fetch(
@@ -338,7 +347,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
             'Authorization': `Bearer ${publicAnonKey}`,
             'X-Session-Token': getSessionToken(),
           },
-          body: JSON.stringify({ date: selectedDate, startTime: newSlotTime }),
+          body: JSON.stringify({ date: isoDate, startTime: newSlotTime }),
         }
       );
       if (response.ok) {
