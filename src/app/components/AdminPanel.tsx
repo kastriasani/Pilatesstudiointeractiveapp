@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Calendar, Users, LogOut, Mail, X, CheckCircle, Trash2, Ban, ShieldAlert, Settings, UserPlus, Send, AlertCircle, Loader2 } from 'lucide-react';
+import { Calendar, Users, LogOut, Mail, X, CheckCircle, Trash2, Ban, ShieldAlert, Settings, UserPlus, Send, AlertCircle, Loader2, Pencil, Plus } from 'lucide-react';
 import { logo } from '../../assets/images';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { DevTools } from './DevTools';
@@ -107,6 +107,15 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
   const [selectedWaitlistUsers, setSelectedWaitlistUsers] = useState<string[]>([]);
   const [isSendingInvites, setIsSendingInvites] = useState(false);
   const [inviteStatus, setInviteStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
+
+  // Timeslot management state
+  const [customSlots, setCustomSlots] = useState<any[]>([]);
+  const [editingSlotId, setEditingSlotId] = useState<string | null>(null);
+  const [editingTime, setEditingTime] = useState<string>('');
+  const [isAddingSlot, setIsAddingSlot] = useState(false);
+  const [newSlotTime, setNewSlotTime] = useState('');
+  const [slotLoading, setSlotLoading] = useState(false);
+  const [usesCustomSlots, setUsesCustomSlots] = useState(false);
 
   // Fetch all bookings on component mount
   useEffect(() => {
@@ -223,6 +232,126 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Fetch custom time slots for a date
+  const fetchSlotsForDate = async (date: string) => {
+    try {
+      const response = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/admin/slots?date=${date}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${publicAnonKey}`,
+            'X-Session-Token': getSessionToken(),
+          },
+        }
+      );
+      const data = await response.json();
+      if (data.success) {
+        setCustomSlots(data.slots);
+        setUsesCustomSlots(!data.isDefault);
+      }
+    } catch (error) {
+      console.error('Error fetching slots:', error);
+    }
+  };
+
+  // Fetch slots when date changes
+  useEffect(() => {
+    if (selectedDate) {
+      fetchSlotsForDate(selectedDate);
+    } else {
+      setCustomSlots([]);
+      setUsesCustomSlots(false);
+    }
+  }, [selectedDate]);
+
+  // Slot management handlers
+  const handleSaveSlot = async (slotId: string) => {
+    if (!selectedDate) return;
+    setSlotLoading(true);
+    try {
+      const response = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/admin/slots/${slotId}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${publicAnonKey}`,
+            'X-Session-Token': getSessionToken(),
+          },
+          body: JSON.stringify({ startTime: editingTime }),
+        }
+      );
+      if (response.ok) {
+        await fetchSlotsForDate(selectedDate);
+        setEditingSlotId(null);
+        setEditingTime('');
+      } else {
+        const data = await response.json();
+        alert(data.error || 'Failed to update slot');
+      }
+    } catch (error) {
+      console.error('Error saving slot:', error);
+    }
+    setSlotLoading(false);
+  };
+
+  const handleDeleteSlot = async (slotId: string) => {
+    if (!selectedDate) return;
+    if (!confirm('Remove this time slot?')) return;
+
+    try {
+      const response = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/admin/slots/${slotId}`,
+        {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${publicAnonKey}`,
+            'X-Session-Token': getSessionToken(),
+          },
+        }
+      );
+      if (response.ok) {
+        await fetchSlotsForDate(selectedDate);
+      } else {
+        const data = await response.json();
+        alert(data.error || 'Failed to delete slot');
+      }
+    } catch (error) {
+      console.error('Error deleting slot:', error);
+    }
+  };
+
+  const handleAddSlot = async () => {
+    if (!newSlotTime || !selectedDate) return;
+
+    setSlotLoading(true);
+    try {
+      const response = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/admin/slots`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${publicAnonKey}`,
+            'X-Session-Token': getSessionToken(),
+          },
+          body: JSON.stringify({ date: selectedDate, startTime: newSlotTime }),
+        }
+      );
+      if (response.ok) {
+        await fetchSlotsForDate(selectedDate);
+        setIsAddingSlot(false);
+        setNewSlotTime('');
+      } else {
+        const data = await response.json();
+        alert(data.error || 'Failed to add slot');
+      }
+    } catch (error) {
+      console.error('Error adding slot:', error);
+    }
+    setSlotLoading(false);
   };
 
   const handleSendInvites = async (emails: string[], bulk = false) => {
@@ -761,24 +890,31 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
               <div className="bg-white rounded-xl shadow-sm overflow-hidden">
                 {/* Timeline List */}
                 <div className="divide-y divide-stone-100">
-                  {timeSlots.map((timeSlot) => {
-                    const bookingsCount = getTimeSlotCapacity(selectedDate, timeSlot.time);
-                    const isSelected = selectedTimeSlot === timeSlot.time;
-                    const slotBookings = getBookingsForTimeSlot(selectedDate, timeSlot.time);
+                  {(customSlots.length > 0 ? customSlots : timeSlots.map((ts, i) => ({
+                    id: `default-${i}`,
+                    start_time: ts.time.split(' - ')[0],
+                    max_capacity: ts.maxCapacity,
+                    isDefault: true
+                  }))).map((slot: any) => {
+                    const slotTime = slot.start_time?.substring(0, 5) || slot.start_time;
+                    const timeSlotKey = `${slotTime} - ${slotTime}`;
+                    const bookingsCount = getBookingsForTimeSlot(selectedDate, timeSlotKey).length;
+                    const isSelected = selectedTimeSlot === timeSlotKey;
+                    const slotBookings = getBookingsForTimeSlot(selectedDate, timeSlotKey);
                     const hasPaidBooking = slotBookings.some((b: any) => b.paymentStatus === 'paid');
                     const hasUnpaidBooking = slotBookings.some((b: any) => b.paymentStatus !== 'paid');
+                    const hasBookings = bookingsCount > 0;
 
                     // Status dot color: green=paid, amber=unpaid, stone=empty
                     let dotColor = 'bg-stone-300'; // empty
                     if (hasPaidBooking) dotColor = 'bg-green-500';
                     else if (hasUnpaidBooking) dotColor = 'bg-amber-500';
 
-                    const startTime = timeSlot.time.split(' - ')[0];
+                    const isEditingThis = editingSlotId === slot.id;
 
                     return (
-                      <div key={timeSlot.time}>
-                        <button
-                          onClick={() => setSelectedTimeSlot(isSelected ? null : timeSlot.time)}
+                      <div key={slot.id}>
+                        <div
                           className={`
                             w-full flex items-center gap-3 px-4 py-3 min-h-[52px]
                             border-l-2 transition-all
@@ -788,19 +924,71 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                           {/* Status Dot */}
                           <div className={`w-2 h-2 rounded-full flex-shrink-0 ${dotColor}`} />
 
-                          {/* Time */}
-                          <span className="text-sm font-medium text-stone-800 w-12">{startTime}</span>
+                          {/* Time - Editable or Static */}
+                          {isEditingThis ? (
+                            <>
+                              <input
+                                type="time"
+                                value={editingTime}
+                                onChange={(e) => setEditingTime(e.target.value)}
+                                className="border border-stone-300 rounded px-2 py-1 w-24 text-sm"
+                                autoFocus
+                              />
+                              <button
+                                onClick={() => handleSaveSlot(slot.id)}
+                                disabled={slotLoading}
+                                className="text-sm text-green-600 hover:text-green-800 disabled:opacity-50"
+                              >
+                                {slotLoading ? 'Saving...' : 'Save'}
+                              </button>
+                              <button
+                                onClick={() => { setEditingSlotId(null); setEditingTime(''); }}
+                                className="text-sm text-stone-500 hover:text-stone-700"
+                              >
+                                Cancel
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => setSelectedTimeSlot(isSelected ? null : timeSlotKey)}
+                                className="flex items-center gap-3 flex-1"
+                              >
+                                <span className="text-sm font-medium text-stone-800 w-12">{slotTime}</span>
+                                <div className="flex-1 text-left">
+                                  <span className="text-sm text-stone-600">
+                                    {bookingsCount === 0 ? 'Available' : `${bookingsCount} booked`}
+                                  </span>
+                                </div>
+                                <span className="text-sm text-stone-400">{bookingsCount}/{slot.max_capacity || 4}</span>
+                              </button>
 
-                          {/* Info */}
-                          <div className="flex-1 text-left">
-                            <span className="text-sm text-stone-600">
-                              {bookingsCount === 0 ? 'Available' : `${bookingsCount} booked`}
-                            </span>
-                          </div>
+                              {/* Edit button */}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingSlotId(slot.id);
+                                  setEditingTime(slotTime);
+                                }}
+                                className="p-1.5 text-stone-400 hover:text-stone-700 transition-colors"
+                                title="Edit time"
+                              >
+                                <Pencil className="w-4 h-4" />
+                              </button>
 
-                          {/* Capacity */}
-                          <span className="text-sm text-stone-400">{bookingsCount}/{timeSlot.maxCapacity}</span>
-                        </button>
+                              {/* Delete button - only if no bookings and not a default slot (or custom slots active) */}
+                              {!hasBookings && !slot.isDefault && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleDeleteSlot(slot.id); }}
+                                  className="p-1.5 text-stone-400 hover:text-red-600 transition-colors"
+                                  title="Remove slot"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              )}
+                            </>
+                          )}
+                        </div>
 
                         {/* Expanded bookings */}
                         {isSelected && bookingsCount > 0 && (
@@ -898,10 +1086,45 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                       </div>
                     );
                   })}
+
+                  {/* Add Slot Section */}
+                  {isAddingSlot ? (
+                    <div className="flex items-center gap-3 px-4 py-3 bg-stone-50">
+                      <div className="w-2 h-2 rounded-full bg-stone-300" />
+                      <input
+                        type="time"
+                        value={newSlotTime}
+                        onChange={(e) => setNewSlotTime(e.target.value)}
+                        className="border border-stone-300 rounded px-2 py-1 w-24 text-sm"
+                        autoFocus
+                      />
+                      <button
+                        onClick={handleAddSlot}
+                        disabled={slotLoading || !newSlotTime}
+                        className="text-sm text-green-600 hover:text-green-800 disabled:opacity-50"
+                      >
+                        {slotLoading ? 'Adding...' : 'Add'}
+                      </button>
+                      <button
+                        onClick={() => { setIsAddingSlot(false); setNewSlotTime(''); }}
+                        className="text-sm text-stone-500 hover:text-stone-700"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setIsAddingSlot(true)}
+                      className="flex items-center gap-3 px-4 py-3 text-sm text-stone-500 hover:text-stone-700 hover:bg-stone-50 w-full transition-colors"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Add Time Slot
+                    </button>
+                  )}
                 </div>
 
-                {getBookingsForDate(selectedDate).length === 0 && (
-                  <p className="text-sm text-stone-500 text-center py-8">
+                {getBookingsForDate(selectedDate).length === 0 && !isAddingSlot && (
+                  <p className="text-sm text-stone-500 text-center py-4">
                     No bookings for this date
                   </p>
                 )}

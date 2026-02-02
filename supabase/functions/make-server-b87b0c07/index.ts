@@ -2455,6 +2455,213 @@ app.get("/make-server-b87b0c07/admin/calendar", async (c) => {
   }
 });
 
+// ============ TIMESLOT MANAGEMENT ENDPOINTS ============
+
+// Default time slots used when no custom slots exist for a date
+const DEFAULT_TIME_SLOTS = [
+  { start_time: '09:00', max_capacity: 4 },
+  { start_time: '10:00', max_capacity: 4 },
+  { start_time: '11:00', max_capacity: 4 },
+  { start_time: '17:00', max_capacity: 4 },
+  { start_time: '18:00', max_capacity: 4 },
+  { start_time: '19:00', max_capacity: 4 },
+  { start_time: '20:00', max_capacity: 4 },
+];
+
+// GET /admin/slots - Get time slots for a specific date
+app.get("/make-server-b87b0c07/admin/slots", async (c) => {
+  try {
+    const adminAuth = await verifyAdminSession(c);
+    if (!adminAuth.valid) {
+      return c.json({ error: adminAuth.error }, 401);
+    }
+
+    const date = c.req.query('date'); // YYYY-MM-DD
+    if (!date) {
+      return c.json({ error: 'Date required' }, 400);
+    }
+
+    const supabase = getSupabase();
+    const { data: slots, error } = await supabase
+      .from('time_slots')
+      .select('*')
+      .eq('date', date)
+      .order('start_time', { ascending: true });
+
+    if (error) {
+      console.error('Error fetching slots:', error);
+      return c.json({ error: 'Failed to fetch slots' }, 500);
+    }
+
+    // If no custom slots, return default slots
+    if (!slots || slots.length === 0) {
+      const defaultSlots = DEFAULT_TIME_SLOTS.map((slot, index) => ({
+        id: `default-${index + 1}`,
+        date,
+        start_time: slot.start_time,
+        max_capacity: slot.max_capacity,
+        isDefault: true,
+      }));
+      return c.json({ success: true, slots: defaultSlots, isDefault: true });
+    }
+
+    return c.json({ success: true, slots, isDefault: false });
+  } catch (error) {
+    console.error('Error fetching slots:', error);
+    return c.json({ error: 'Failed to fetch slots', details: error.message }, 500);
+  }
+});
+
+// POST /admin/slots - Create a new time slot
+app.post("/make-server-b87b0c07/admin/slots", async (c) => {
+  try {
+    const adminAuth = await verifyAdminSession(c);
+    if (!adminAuth.valid) {
+      return c.json({ error: adminAuth.error }, 401);
+    }
+
+    const { date, startTime, maxCapacity = 4 } = await c.req.json();
+    if (!date || !startTime) {
+      return c.json({ error: 'Date and startTime required' }, 400);
+    }
+
+    const supabase = getSupabase();
+
+    // Check if we're adding to a date that only has default slots
+    // If so, we need to first initialize with default slots, then add the new one
+    const { data: existingSlots } = await supabase
+      .from('time_slots')
+      .select('id')
+      .eq('date', date)
+      .limit(1);
+
+    if (!existingSlots || existingSlots.length === 0) {
+      // Initialize with default slots first
+      const defaultInserts = DEFAULT_TIME_SLOTS.map(slot => ({
+        date,
+        start_time: slot.start_time,
+        max_capacity: slot.max_capacity,
+      }));
+      await supabase.from('time_slots').insert(defaultInserts);
+    }
+
+    // Now add the new slot
+    const { data, error } = await supabase
+      .from('time_slots')
+      .insert({
+        date,
+        start_time: startTime,
+        max_capacity: maxCapacity,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      if (error.code === '23505') {
+        return c.json({ error: 'Slot already exists for this time' }, 409);
+      }
+      console.error('Error creating slot:', error);
+      return c.json({ error: 'Failed to create slot' }, 500);
+    }
+
+    console.log(`📅 Created time slot for ${date} at ${startTime}`);
+    return c.json({ success: true, slot: data });
+  } catch (error) {
+    console.error('Error creating slot:', error);
+    return c.json({ error: 'Failed to create slot', details: error.message }, 500);
+  }
+});
+
+// PATCH /admin/slots/:id - Update a time slot
+app.patch("/make-server-b87b0c07/admin/slots/:id", async (c) => {
+  try {
+    const adminAuth = await verifyAdminSession(c);
+    if (!adminAuth.valid) {
+      return c.json({ error: adminAuth.error }, 401);
+    }
+
+    const id = c.req.param('id');
+    const { startTime, maxCapacity } = await c.req.json();
+
+    const supabase = getSupabase();
+    const updates: Record<string, any> = { updated_at: new Date().toISOString() };
+    if (startTime) updates.start_time = startTime;
+    if (maxCapacity !== undefined) updates.max_capacity = maxCapacity;
+
+    const { data, error } = await supabase
+      .from('time_slots')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error updating slot:', error);
+      return c.json({ error: 'Failed to update slot' }, 500);
+    }
+
+    console.log(`📅 Updated time slot ${id}`);
+    return c.json({ success: true, slot: data });
+  } catch (error) {
+    console.error('Error updating slot:', error);
+    return c.json({ error: 'Failed to update slot', details: error.message }, 500);
+  }
+});
+
+// DELETE /admin/slots/:id - Delete a time slot (only if no bookings)
+app.delete("/make-server-b87b0c07/admin/slots/:id", async (c) => {
+  try {
+    const adminAuth = await verifyAdminSession(c);
+    if (!adminAuth.valid) {
+      return c.json({ error: adminAuth.error }, 401);
+    }
+
+    const id = c.req.param('id');
+    const supabase = getSupabase();
+
+    // Get the slot to check date and time
+    const { data: slot, error: fetchError } = await supabase
+      .from('time_slots')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (fetchError || !slot) {
+      return c.json({ error: 'Slot not found' }, 404);
+    }
+
+    // Check if slot has bookings
+    const { data: bookings } = await supabase
+      .from('reservations')
+      .select('id')
+      .eq('date_key', slot.date)
+      .eq('time_slot', slot.start_time.substring(0, 5))
+      .in('reservation_status', ['confirmed', 'attended'])
+      .limit(1);
+
+    if (bookings && bookings.length > 0) {
+      return c.json({ error: 'Cannot delete slot with existing bookings' }, 400);
+    }
+
+    // Delete the slot
+    const { error } = await supabase
+      .from('time_slots')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error deleting slot:', error);
+      return c.json({ error: 'Failed to delete slot' }, 500);
+    }
+
+    console.log(`🗑️ Deleted time slot ${id}`);
+    return c.json({ success: true, message: 'Slot deleted' });
+  } catch (error) {
+    console.error('Error deleting slot:', error);
+    return c.json({ error: 'Failed to delete slot', details: error.message }, 500);
+  }
+});
+
 // ============ DEV ENDPOINTS ============
 
 app.post("/make-server-b87b0c07/dev/clear-all-data", async (c) => {
