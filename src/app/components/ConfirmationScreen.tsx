@@ -43,16 +43,16 @@ export function ConfirmationScreen({ bookingData, onConfirm, onBack, onPaymentTo
           'Authorization': `Bearer ${publicAnonKey}`,
         },
         body: JSON.stringify({
+          userId: bookingData.email, // Use email as userId
+          serviceType: 'single', // Single session booking
           name: bookingData.name,
           surname: bookingData.surname,
           mobile: bookingData.mobile,
           email: bookingData.email,
-          date: bookingData.date,
           dateKey: bookingData.dateKey,
           timeSlot: bookingData.timeSlot,
           instructor: bookingData.instructor,
-          selectedPackage: bookingData.selectedPackage,
-          payInStudio: bookingData.payInStudio,
+          packageType: bookingData.selectedPackage,
           language: language,
         }),
       });
