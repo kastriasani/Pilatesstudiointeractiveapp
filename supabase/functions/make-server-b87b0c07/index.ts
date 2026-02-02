@@ -2407,7 +2407,7 @@ app.get("/make-server-b87b0c07/admin/calendar", async (c) => {
 
     const dateReservations = reservations || [];
 
-    const calendarData = TIME_SLOTS.map((timeSlot) => {
+    const calendarData = DEFAULT_TIME_SLOTS.map((timeSlot) => {
       // Filter confirmed/attended reservations for this slot
       const slotReservations = dateReservations.filter((r: any) =>
         r.time_slot === timeSlot &&
@@ -2458,17 +2458,6 @@ app.get("/make-server-b87b0c07/admin/calendar", async (c) => {
 });
 
 // ============ TIMESLOT MANAGEMENT ENDPOINTS ============
-
-// Default time slots used when no custom slots exist for a date
-const DEFAULT_TIME_SLOTS = [
-  { start_time: '09:00', max_capacity: 4 },
-  { start_time: '10:00', max_capacity: 4 },
-  { start_time: '11:00', max_capacity: 4 },
-  { start_time: '17:00', max_capacity: 4 },
-  { start_time: '18:00', max_capacity: 4 },
-  { start_time: '19:00', max_capacity: 4 },
-  { start_time: '20:00', max_capacity: 4 },
-];
 
 // GET /slots - Public endpoint for user booking flow (only live days)
 app.get("/make-server-b87b0c07/slots", async (c) => {
@@ -2587,11 +2576,11 @@ app.get("/make-server-b87b0c07/admin/slots", async (c) => {
 
     // If no custom slots, return default slots
     if (!slots || slots.length === 0) {
-      const defaultSlots = DEFAULT_TIME_SLOTS.map((slot, index) => ({
+      const defaultSlots = DEFAULT_TIME_SLOTS.map((time, index) => ({
         id: `default-${index + 1}`,
         date,
-        start_time: slot.start_time,
-        max_capacity: slot.max_capacity,
+        start_time: time,
+        max_capacity: DEFAULT_MAX_CAPACITY,
         isDefault: true,
       }));
       return c.json({ success: true, slots: defaultSlots, isDefault: true, dayStatus });
@@ -2703,10 +2692,10 @@ app.post("/make-server-b87b0c07/admin/slots", async (c) => {
 
     if (!existingSlots || existingSlots.length === 0) {
       // Initialize with default slots first
-      const defaultInserts = DEFAULT_TIME_SLOTS.map(slot => ({
+      const defaultInserts = DEFAULT_TIME_SLOTS.map(time => ({
         date,
-        start_time: slot.start_time,
-        max_capacity: slot.max_capacity,
+        start_time: time,
+        max_capacity: DEFAULT_MAX_CAPACITY,
       }));
       await supabase.from('time_slots').insert(defaultInserts);
     }
@@ -2809,11 +2798,11 @@ app.delete("/make-server-b87b0c07/admin/slots/:id", async (c) => {
 
       // Initialize custom slots for this date, excluding the one being deleted
       const slotsToInsert = DEFAULT_TIME_SLOTS
-        .filter(slot => slot.start_time !== startTime)
-        .map(slot => ({
+        .filter(time => time !== startTime)
+        .map(time => ({
           date,
-          start_time: slot.start_time,
-          max_capacity: slot.max_capacity,
+          start_time: time,
+          max_capacity: DEFAULT_MAX_CAPACITY,
         }));
 
       const { error: insertError } = await supabase
