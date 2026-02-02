@@ -596,7 +596,7 @@ async function sendActivationEmail(
   language: string = 'en'
 ) {
   const t = getEmailTranslations(language);
-  const loginUrl = `${appUrl}#/setup-password?token=${verificationToken}`;
+  const loginUrl = `${appUrl}/setup-password?token=${verificationToken}`;
 
   const content: EmailContent = {
     greeting: `${t.greeting}, ${name}`,
@@ -1395,6 +1395,19 @@ app.post("/make-server-b87b0c07/reservations", async (c) => {
     // Call atomic RPC for reservation creation
     // This handles: capacity check, duplicate check, package decrement - all atomically
     const supabase = getSupabase();
+
+    // Log the request parameters for debugging
+    console.log('Creating reservation with params:', {
+      p_user_email: normalizedEmail,
+      p_service_type: serviceType,
+      p_date_key: dateKey,
+      p_time_slot: timeSlot,
+      p_instructor: instructor,
+      p_name: name,
+      p_surname: surname,
+      p_package_id: packageId || null
+    });
+
     const { data: rpcResult, error: rpcError } = await supabase.rpc('create_reservation', {
       p_user_email: normalizedEmail,
       p_package_id: packageId || null,
@@ -1412,6 +1425,15 @@ app.post("/make-server-b87b0c07/reservations", async (c) => {
 
     if (rpcError) {
       console.error('RPC error creating reservation:', rpcError);
+      // Check if RPC function doesn't exist
+      if (rpcError.message?.includes('function') && rpcError.message?.includes('does not exist')) {
+        console.error('RPC function create_reservation does not exist. Please run the migration.');
+        return c.json({
+          error: 'Booking system unavailable',
+          details: 'Database function missing. Contact admin.',
+          debug: rpcError.message
+        }, 500);
+      }
       return c.json({ error: 'Failed to create reservation', details: rpcError.message }, 500);
     }
 
