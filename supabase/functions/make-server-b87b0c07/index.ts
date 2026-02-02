@@ -295,6 +295,14 @@ async function calculateSlotCapacity(dateKey: string, timeSlot: string): Promise
 
 // ============ EMAIL FUNCTIONS ============
 
+// Helper: Capitalize name properly (e.g., "kaci" -> "Kaci", "JOHN" -> "John")
+function capitalizeName(name: string): string {
+  if (!name) return '';
+  return name.split(' ')
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(' ');
+}
+
 // ============ UNIFIED EMAIL TEMPLATE ============
 
 type EmailContent = {
@@ -303,7 +311,7 @@ type EmailContent = {
   details?: Array<{label: string; value: string}>;
   highlight?: {title: string; lines: string[]};
   code?: {label: string; value: string; note?: string};
-  button?: {text: string; url: string};
+  button?: {text: string; url: string; hideUrl?: boolean};
   note?: string;
   instructions?: {title: string; steps: string[]};
   closing?: string;
@@ -338,20 +346,20 @@ function generateEmailTemplate(content: EmailContent, language: 'sq' | 'mk' | 'e
     </table>
   ` : '';
 
-  // Build code section (redemption code, etc.)
+  // Build code section (redemption code, etc.) - styled for easy copying
   const codeHtml = content.code ? `
-    <table width="100%" cellpadding="0" cellspacing="0" style="border: 2px dashed #e0e0e0; border-radius: 4px; margin: 24px 0;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background: #f5f0eb; border: 2px dashed #c4b5a4; border-radius: 12px; margin: 24px 0;">
       <tr>
-        <td style="padding: 24px; text-align: center;">
-          <p style="margin: 0 0 8px 0; color: #888888; font-size: 11px; text-transform: uppercase; letter-spacing: 2px;">${content.code.label}</p>
-          <p style="margin: 0; color: #452F21; font-size: 28px; font-weight: 700; letter-spacing: 3px; font-family: Georgia, serif;">${content.code.value}</p>
-          ${content.code.note ? `<p style="margin: 12px 0 0 0; color: #888888; font-size: 12px;">${content.code.note}</p>` : ''}
+        <td style="padding: 20px; text-align: center;">
+          <p style="font-size: 12px; color: #6b5949; margin: 0 0 8px 0; text-transform: uppercase; letter-spacing: 1px;">${content.code.label}</p>
+          <p style="font-size: 28px; font-weight: bold; font-family: monospace; color: #3d2f28; margin: 0; letter-spacing: 3px; -webkit-user-select: all; -moz-user-select: all; -ms-user-select: all; user-select: all;">${content.code.value}</p>
+          ${content.code.note ? `<p style="font-size: 11px; color: #9a8575; margin: 8px 0 0 0;">${content.code.note}</p>` : ''}
         </td>
       </tr>
     </table>
   ` : '';
 
-  // Build button section
+  // Build button section (optionally hide URL below button)
   const buttonHtml = content.button ? `
     <table width="100%" cellpadding="0" cellspacing="0" style="margin: 24px 0;">
       <tr>
@@ -360,9 +368,7 @@ function generateEmailTemplate(content: EmailContent, language: 'sq' | 'mk' | 'e
         </td>
       </tr>
     </table>
-    <p style="margin: 0; text-align: center; color: #888888; font-size: 12px;">
-      ${content.button.url}
-    </p>
+    ${content.button.hideUrl ? '' : `<p style="margin: 0; text-align: center; color: #888888; font-size: 12px;">${content.button.url}</p>`}
   ` : '';
 
   // Build note section
@@ -376,12 +382,15 @@ function generateEmailTemplate(content: EmailContent, language: 'sq' | 'mk' | 'e
     </table>
   ` : '';
 
-  // Build instructions section
+  // Build instructions section (plain text for single step, numbered for multiple)
   const instructionsHtml = content.instructions ? `
-    <p style="margin: 24px 0 12px 0; color: #888888; font-size: 11px; text-transform: uppercase; letter-spacing: 2px;">${content.instructions.title}</p>
-    <ol style="margin: 0; padding-left: 20px; color: #333333; font-size: 14px; line-height: 1.8;">
-      ${content.instructions.steps.map(step => `<li style="margin-bottom: 8px;">${step}</li>`).join('')}
-    </ol>
+    ${content.instructions.title ? `<p style="margin: 24px 0 12px 0; color: #888888; font-size: 11px; text-transform: uppercase; letter-spacing: 2px;">${content.instructions.title}</p>` : ''}
+    ${content.instructions.steps.length === 1
+      ? `<p style="margin: 12px 0 0 0; color: #666666; font-size: 13px; font-style: italic;">${content.instructions.steps[0]}</p>`
+      : `<ol style="margin: 0; padding-left: 20px; color: #333333; font-size: 14px; line-height: 1.8;">
+          ${content.instructions.steps.map(step => `<li style="margin-bottom: 8px;">${step}</li>`).join('')}
+        </ol>`
+    }
   ` : '';
 
   return `
@@ -490,7 +499,8 @@ function getEmailTranslations(language: string) {
       welcomeWaitlist: 'Mire se vini ne WellNest Pilates!',
       exclusiveOffer: 'Blini nje pakete me 8 klase dhe merrni klasen e pare FALAS!',
       redemptionCode: 'KODI I SHPERBLIMIT',
-      presentCode: 'Paraqisni kete kod ne studio',
+      presentCode: 'Prekni për të zgjedhur • Tregoni në studio',
+      bookNow: 'Rezervo Tani',
       whatBring: 'Cfare te sillni: Rroba te rehatshme, shishe uji, peshqir i vogel.',
     },
     mk: {
@@ -510,7 +520,8 @@ function getEmailTranslations(language: string) {
       welcomeWaitlist: 'Dobrodojdovte vo WellNest Pilates!',
       exclusiveOffer: 'Kupete paket od 8 klasi i dobijte ja prvata klasa BESPLATNO!',
       redemptionCode: 'KOD ZA ISKORISTUVANJE',
-      presentCode: 'Prezentirajte go ovoj kod vo studioto',
+      presentCode: 'Dopreni za izbor • Pokaži vo studio',
+      bookNow: 'Rezervirajte Sega',
       whatBring: 'Shto da ponesete: Udobna obleka, shishe so voda, mala krpa.',
     },
     en: {
@@ -530,7 +541,8 @@ function getEmailTranslations(language: string) {
       welcomeWaitlist: 'Welcome to WellNest Pilates!',
       exclusiveOffer: 'Purchase an 8-class package and get your first session FREE!',
       redemptionCode: 'REDEMPTION CODE',
-      presentCode: 'Present this code at the studio',
+      presentCode: 'Tap to select • Show at studio',
+      bookNow: 'Book Now',
       whatBring: 'What to bring: Comfortable clothes, water bottle, small towel.',
     }
   };
@@ -597,13 +609,15 @@ async function sendActivationEmail(
 ) {
   const t = getEmailTranslations(language);
   const loginUrl = `${appUrl}/setup-password?token=${verificationToken}`;
+  const capitalizedName = capitalizeName(name);
 
   const content: EmailContent = {
-    greeting: `${t.greeting}, ${name}`,
+    greeting: `${t.greeting}, ${capitalizedName}`,
     message: t.accountReady,
     button: {
       text: t.setPassword,
-      url: loginUrl
+      url: loginUrl,
+      hideUrl: true
     },
     instructions: {
       title: '',
@@ -629,9 +643,10 @@ async function sendWaitlistInviteEmail(
   language: string = 'en'
 ) {
   const t = getEmailTranslations(language);
+  const capitalizedName = capitalizeName(name);
 
   const content: EmailContent = {
-    greeting: `${t.greeting}, ${name}`,
+    greeting: `${t.greeting}, ${capitalizedName}`,
     message: t.welcomeWaitlist,
     details: [
       { label: 'EXCLUSIVE OFFER', value: t.exclusiveOffer }
@@ -640,6 +655,11 @@ async function sendWaitlistInviteEmail(
       label: t.redemptionCode,
       value: redemptionCode,
       note: t.presentCode
+    },
+    button: {
+      text: t.bookNow,
+      url: 'https://app.wellnestpilates.com',
+      hideUrl: true
     },
     note: t.whatBring,
     closing: t.lookForward
