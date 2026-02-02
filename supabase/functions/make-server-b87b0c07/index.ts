@@ -3677,6 +3677,115 @@ app.post("/make-server-b87b0c07/user/packages/:id/reschedule", async (c) => {
   }
 });
 
+// POST /user/packages/:id/book-session - Book a session for a package (when no first session exists)
+app.post("/make-server-b87b0c07/user/packages/:id/book-session", async (c) => {
+  try {
+    const packageId = c.req.param('id');
+    const body = await c.req.json();
+    const { dateKey, timeSlot } = body;
+
+    if (!dateKey || !timeSlot) {
+      return c.json({ error: "Missing required fields" }, 400);
+    }
+
+    const supabase = getSupabase();
+    const now = new Date().toISOString();
+
+    // Read package from Supabase
+    const { data: pkg, error: pkgError } = await supabase
+      .from('user_packages')
+      .select('*')
+      .eq('id', packageId)
+      .single();
+
+    if (pkgError || !pkg) {
+      return c.json({ error: "Package not found" }, 404);
+    }
+
+    if (pkg.classes_remaining <= 0) {
+      return c.json({ error: "No sessions remaining in this package" }, 400);
+    }
+
+    const serviceType = extractServiceType(pkg.package_type);
+    const capacity = await calculateSlotCapacity(dateKey, timeSlot);
+
+    if (serviceType === 'individual' && capacity.available < 4) {
+      return c.json({ error: "Slot not available for 1-on-1 session" }, 400);
+    } else if (serviceType === 'duo' && capacity.available < 2) {
+      return c.json({ error: "Slot not available for DUO session" }, 400);
+    } else if (capacity.available < 1) {
+      return c.json({ error: "Slot is full" }, 400);
+    }
+
+    const dateString = formatDateString(dateKey);
+    const endTime = calculateEndTime(timeSlot);
+    const reservationId = `res_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    // Create reservation in Supabase
+    const { data: newReservation, error: insertError } = await supabase
+      .from('reservations')
+      .insert({
+        id: reservationId,
+        user_email: pkg.user_email,
+        package_id: packageId,
+        service_type: serviceType,
+        date_key: dateKey,
+        time_slot: timeSlot,
+        reservation_status: 'confirmed',
+        payment_status: pkg.payment_status || 'paid',
+        created_at: now,
+        updated_at: now
+      })
+      .select()
+      .single();
+
+    if (insertError) {
+      console.error('Error creating reservation:', insertError);
+      return c.json({ error: 'Failed to book session', details: insertError.message }, 500);
+    }
+
+    // Update package: set first_reservation_id and decrement classes_remaining
+    const { error: updatePkgError } = await supabase
+      .from('user_packages')
+      .update({
+        first_reservation_id: reservationId,
+        classes_remaining: pkg.classes_remaining - 1,
+        updated_at: now
+      })
+      .eq('id', packageId);
+
+    if (updatePkgError) {
+      console.error('Error updating package:', updatePkgError);
+      // Don't fail - reservation was created
+    }
+
+    console.log(`📅 Booked first session for package ${packageId}: ${reservationId}`);
+
+    // Build response in camelCase for frontend
+    const reservation = {
+      id: newReservation.id,
+      userId: newReservation.user_email,
+      packageId: newReservation.package_id,
+      dateKey: newReservation.date_key,
+      date: dateString,
+      timeSlot: newReservation.time_slot,
+      endTime,
+      reservationStatus: newReservation.reservation_status,
+      createdAt: newReservation.created_at
+    };
+
+    return c.json({
+      success: true,
+      message: "Session booked successfully",
+      reservation
+    });
+
+  } catch (error) {
+    console.error('Error booking session:', error);
+    return c.json({ error: 'Failed to book session', details: error.message }, 500);
+  }
+});
+
 // ============ DEBUG ENDPOINT ============
 
 app.get("/make-server-b87b0c07/debug/check-users", async (c) => {

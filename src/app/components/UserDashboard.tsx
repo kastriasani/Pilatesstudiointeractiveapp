@@ -60,6 +60,7 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
   const [selectedPackage, setSelectedPackage] = useState<PackageDetails | null>(null);
   const [availableSlots, setAvailableSlots] = useState<DateSlot[]>([]);
   const [isRescheduling, setIsRescheduling] = useState(false);
+  const [modalMode, setModalMode] = useState<'reschedule' | 'book'>('reschedule');
 
   // Get session token from prop or localStorage as fallback
   const activeSessionToken = sessionToken || localStorage.getItem('wellnest_session') || '';
@@ -253,6 +254,19 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
     }
 
     setSelectedPackage(pkg);
+    setModalMode('reschedule');
+    await loadAvailableSlots();
+    setShowRescheduleModal(true);
+  };
+
+  const handleBookFirstSession = async (pkg: PackageDetails) => {
+    if (pkg.remainingSessions <= 0) {
+      alert('No sessions remaining in this package');
+      return;
+    }
+
+    setSelectedPackage(pkg);
+    setModalMode('book');
     await loadAvailableSlots();
     setShowRescheduleModal(true);
   };
@@ -302,6 +316,62 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
       console.error('Error rescheduling:', error);
       alert('An error occurred. Please try again.');
       setIsRescheduling(false);
+    }
+  };
+
+  const handleBookSubmit = async (dateKey: string, timeSlot: string) => {
+    if (!selectedPackage) return;
+
+    setIsRescheduling(true);
+
+    try {
+      const response = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/user/packages/${selectedPackage.id}/book-session`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${publicAnonKey}`,
+            'X-Session-Token': activeSessionToken,
+          },
+          body: JSON.stringify({
+            dateKey,
+            timeSlot,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        alert(data.error || 'Failed to book session');
+        setIsRescheduling(false);
+        return;
+      }
+
+      console.log('✅ Session booked successfully:', data);
+      alert(t.sessionBookedSuccess || 'Session booked successfully!');
+
+      // Reload packages
+      await loadPackages();
+
+      // Close modal
+      setShowRescheduleModal(false);
+      setSelectedPackage(null);
+      setIsRescheduling(false);
+
+    } catch (error) {
+      console.error('Error booking session:', error);
+      alert('An error occurred. Please try again.');
+      setIsRescheduling(false);
+    }
+  };
+
+  const handleModalSubmit = (dateKey: string, timeSlot: string) => {
+    if (modalMode === 'book') {
+      handleBookSubmit(dateKey, timeSlot);
+    } else {
+      handleRescheduleSubmit(dateKey, timeSlot);
     }
   };
 
@@ -442,10 +512,19 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
                   </button>
                 </div>
               ) : (
-                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-3">
-                  <p className="text-xs text-amber-800">
+                <div className="bg-gradient-to-br from-[#f5f0ed] to-[#f0ebe6] rounded-xl p-4 mb-3">
+                  <p className="text-xs text-[#6b5949] mb-3">
                     {t.noFirstSessionBooked || 'First session not booked yet'}
                   </p>
+                  {pkg.remainingSessions > 0 && (
+                    <button
+                      onClick={() => handleBookFirstSession(pkg)}
+                      className="w-full bg-gradient-to-r from-[#9ca571] to-[#8a9463] text-white py-2.5 rounded-lg text-xs font-medium hover:shadow-lg transition-all flex items-center justify-center gap-2"
+                    >
+                      <Calendar className="w-3.5 h-3.5" />
+                      {t.bookYourClass || 'Book Your Class'}
+                    </button>
+                  )}
                 </div>
               )}
 
@@ -516,14 +595,16 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
         </div>
       )}
 
-      {/* Reschedule Modal */}
+      {/* Reschedule/Book Modal */}
       {showRescheduleModal && selectedPackage && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end justify-center">
           <div className="bg-white rounded-t-3xl w-full max-h-[80vh] overflow-y-auto pb-safe">
             {/* Modal Header */}
             <div className="sticky top-0 bg-white border-b border-[#e8e6e3] px-5 py-4 flex items-center justify-between">
               <h2 className="text-base font-semibold text-[#3d2f28]">
-                {t.rescheduleSession || 'Reschedule Session'}
+                {modalMode === 'book'
+                  ? (t.bookSession || 'Book Session')
+                  : (t.rescheduleSession || 'Reschedule Session')}
               </h2>
               <button
                 onClick={() => setShowRescheduleModal(false)}
@@ -533,20 +614,24 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
               </button>
             </div>
 
-            {/* Current Session Info */}
-            <div className="px-5 py-4 bg-gradient-to-br from-[#f5f0ed] to-[#f0ebe6]">
-              <p className="text-xs font-semibold text-[#6b5949] mb-2">
-                {t.currentSession || 'Current Session'}
-              </p>
-              <p className="text-sm text-[#3d2f28]">
-                {selectedPackage.firstSession?.date} at {selectedPackage.firstSession?.time}
-              </p>
-            </div>
+            {/* Current Session Info - only show for reschedule */}
+            {modalMode === 'reschedule' && selectedPackage.firstSession && (
+              <div className="px-5 py-4 bg-gradient-to-br from-[#f5f0ed] to-[#f0ebe6]">
+                <p className="text-xs font-semibold text-[#6b5949] mb-2">
+                  {t.currentSession || 'Current Session'}
+                </p>
+                <p className="text-sm text-[#3d2f28]">
+                  {selectedPackage.firstSession?.date} at {selectedPackage.firstSession?.time}
+                </p>
+              </div>
+            )}
 
             {/* Available Slots */}
             <div className="px-5 py-4">
               <p className="text-xs font-semibold text-[#6b5949] mb-4">
-                {t.selectNewDateTime || 'Select New Date & Time'}
+                {modalMode === 'book'
+                  ? (t.selectDateTime || 'Select Date & Time')
+                  : (t.selectNewDateTime || 'Select New Date & Time')}
               </p>
 
               {availableSlots.length === 0 ? (
@@ -566,7 +651,7 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
                         {dateSlot.timeSlots.map((timeSlot) => (
                           <button
                             key={timeSlot.time}
-                            onClick={() => handleRescheduleSubmit(dateSlot.dateKey, timeSlot.time)}
+                            onClick={() => handleModalSubmit(dateSlot.dateKey, timeSlot.time)}
                             disabled={timeSlot.available <= 0 || isRescheduling}
                             className={`py-2.5 px-3 rounded-lg text-xs font-medium transition-all ${
                               timeSlot.available > 0 && !isRescheduling
