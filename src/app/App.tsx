@@ -1,5 +1,10 @@
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { LanguageProvider } from '@/contexts/LanguageContext';
 import { MainApp } from '@/app/components/MainApp';
+import { AdminRoute } from '@/app/components/AdminRoute';
+import { UserRoute } from '@/app/components/UserRoute';
+import { LoginPage } from '@/app/components/LoginPage';
+import { PasswordSetupPage } from '@/app/components/PasswordSetupPage';
 
 // Booking data type definition
 export type BookingData = {
@@ -20,7 +25,14 @@ export type BookingData = {
 export default function App() {
   return (
     <LanguageProvider>
-      <MainApp />
+      <Routes>
+        <Route path="/" element={<MainApp />} />
+        <Route path="/admin" element={<AdminRoute />} />
+        <Route path="/dashboard" element={<UserRoute />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/setup-password" element={<PasswordSetupPage />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
     </LanguageProvider>
   );
 }

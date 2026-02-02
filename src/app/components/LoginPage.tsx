@@ -1,14 +1,16 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 
 interface LoginPageProps {
-  onLogin: (session: string, user: any) => void;
-  onBack: () => void;
+  onLogin?: (session: string, user: any) => void;
+  onBack?: () => void;
 }
 
 export function LoginPage({ onLogin, onBack }: LoginPageProps) {
-  const { t } = useLanguage();
+  const navigate = useNavigate();
+  const { language } = useLanguage();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -47,17 +49,32 @@ export function LoginPage({ onLogin, onBack }: LoginPageProps) {
         throw new Error(data.error || 'Login failed');
       }
 
-      // Store session in localStorage
+      // Store session in localStorage with expiry
       localStorage.setItem('wellnest_session', data.session);
       localStorage.setItem('wellnest_user', JSON.stringify(data.user));
+      const expiryTime = Date.now() + (30 * 24 * 60 * 60 * 1000); // 30 days
+      localStorage.setItem('wellnest_session_expiry', expiryTime.toString());
 
-      onLogin(data.session, data.user);
+      // Use callback if provided, otherwise navigate
+      if (onLogin) {
+        onLogin(data.session, data.user);
+      } else {
+        navigate('/dashboard');
+      }
 
     } catch (err: any) {
       console.error('Login error:', err);
       setError(err.message || 'Login failed. Please try again.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleBack = () => {
+    if (onBack) {
+      onBack();
+    } else {
+      navigate('/');
     }
   };
 
@@ -126,13 +143,13 @@ export function LoginPage({ onLogin, onBack }: LoginPageProps) {
           <p className="text-sm text-[#6b5949]">
             Don't have an account?{' '}
             <button
-              onClick={onBack}
+              onClick={handleBack}
               className="text-[#9ca571] hover:underline font-medium"
             >
               Book a package
             </button>
           </p>
-          
+
           <div className="pt-3 border-t border-[#e8e6e3]">
             <p className="text-xs text-[#8b7764]">
               Haven't completed registration? Check your email for the setup link.

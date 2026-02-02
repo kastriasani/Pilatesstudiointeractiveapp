@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Globe, User, Shield } from 'lucide-react';
 import { useLanguage, Language } from '@/contexts/LanguageContext';
 import { translations } from '@/app/translations';
@@ -12,11 +13,6 @@ import { SuccessScreen } from './SuccessScreen';
 import { InstructorProfile } from './InstructorProfile';
 import { MemberActivationModal } from './MemberActivationModal';
 import { LoginRegisterModal } from './LoginRegisterModal';
-import { UserDashboard } from './UserDashboard';
-import { AdminLogin } from './AdminLogin';
-import { AdminPanel } from './AdminPanel';
-import { PasswordSetupPage } from './PasswordSetupPage';
-import { LoginPage } from './LoginPage';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 
 type Screen =
@@ -27,51 +23,19 @@ type Screen =
   | { type: 'duo' }
   | { type: 'confirmation'; bookingData: any }
   | { type: 'success'; bookingData: any }
-  | { type: 'instructorProfile'; instructorName: string }
-  | { type: 'userDashboard'; userEmail: string; userName: string; userSurname: string; userPackage: string | null; sessionsRemaining: number }
-  | { type: 'adminLogin' }
-  | { type: 'adminPanel' };
+  | { type: 'instructorProfile'; instructorName: string };
 
 export function MainApp() {
   const { language, setLanguage } = useLanguage();
+  const navigate = useNavigate();
   const t = translations[language];
-  
+
   const [screen, setScreen] = useState<Screen>({ type: 'trainingType' });
   const [showMemberActivation, setShowMemberActivation] = useState(false);
   const [showLoginRegister, setShowLoginRegister] = useState(false);
   const [hasCleared, setHasCleared] = useState(false);
   const [logoClickCount, setLogoClickCount] = useState(0);
   const [logoClickTimer, setLogoClickTimer] = useState<NodeJS.Timeout | null>(null);
-  const [currentRoute, setCurrentRoute] = useState<string>('');
-  const [userSession, setUserSession] = useState<string | null>(null);
-  const [currentUser, setCurrentUser] = useState<any>(null);
-  const [adminSessionToken, setAdminSessionToken] = useState<string | null>(null);
-
-  // Handle hash-based routing for authentication pages
-  useEffect(() => {
-    const handleHashChange = () => {
-      const hash = window.location.hash;
-      setCurrentRoute(hash);
-    };
-
-    // Initial check
-    handleHashChange();
-
-    // Listen for hash changes
-    window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
-  }, []);
-
-  // Check for existing session on mount
-  useEffect(() => {
-    const session = localStorage.getItem('wellnest_session');
-    const user = localStorage.getItem('wellnest_user');
-    
-    if (session && user) {
-      setUserSession(session);
-      setCurrentUser(JSON.parse(user));
-    }
-  }, []);
 
   // Scroll to top on every screen change
   useEffect(() => {
@@ -148,20 +112,14 @@ export function MainApp() {
     // Check if user was auto-logged in (session token in localStorage)
     const session = localStorage.getItem('wellnest_session');
     const userStr = localStorage.getItem('wellnest_user');
-    
+
     if (session && userStr) {
       // User was auto-logged in, go to dashboard
-      const user = JSON.parse(userStr);
-      setUserSession(session);
-      setCurrentUser(user);
       console.log('✅ User auto-logged in after booking, redirecting to dashboard');
-      
-      setScreen({
-        type: 'userDashboard',
-        userEmail: user.email,
-        userName: user.name,
-        userSurname: user.surname
-      });
+      // Set session expiry for 30 days
+      const expiryTime = Date.now() + (30 * 24 * 60 * 60 * 1000);
+      localStorage.setItem('wellnest_session_expiry', expiryTime.toString());
+      navigate('/dashboard');
     } else {
       // No session, show success screen
       setScreen({ type: 'success', bookingData });
@@ -187,31 +145,13 @@ export function MainApp() {
   const handleLoginSuccess = (user: any, needsActivation: boolean) => {
     console.log('🎯 handleLoginSuccess called for user:', user.email);
     setShowLoginRegister(false);
-    
-    // Store session and user data
-    const session = localStorage.getItem('wellnest_session');
-    console.log('📦 Session from localStorage:', session ? '✅ Found' : '❌ Not found');
-    
-    if (session) {
-      setUserSession(session);
-      setCurrentUser(user);
-      console.log('✅ User session and current user set');
-    } else {
-      console.error('❌ No session found in localStorage!');
-    }
-    
-    setScreen({
-      type: 'userDashboard',
-      userEmail: user.email,
-      userName: user.name,
-      userSurname: user.surname,
-      userPackage: user.package,
-      sessionsRemaining: user.sessionsRemaining
-    });
-  };
 
-  const handleUserDashboardBack = () => {
-    setScreen({ type: 'trainingType' });
+    // Set session expiry for 30 days
+    const expiryTime = Date.now() + (30 * 24 * 60 * 60 * 1000);
+    localStorage.setItem('wellnest_session_expiry', expiryTime.toString());
+
+    // Navigate to dashboard
+    navigate('/dashboard');
   };
 
   const cycleLanguage = () => {
@@ -235,60 +175,13 @@ export function MainApp() {
 
     const newTimer = setTimeout(() => {
       if (logoClickCount >= 5) {
-        setScreen({ type: 'adminLogin' });
+        navigate('/admin');
       }
       setLogoClickCount(0);
     }, 1000);
 
     setLogoClickTimer(newTimer);
   };
-
-  // Render auth pages first (full screen, no container)
-  if (currentRoute.includes('#/setup-password') || currentRoute === '#/login') {
-    return (
-      <>
-        {currentRoute.includes('#/setup-password') && (
-          <PasswordSetupPage
-            onComplete={(session, user) => {
-              setUserSession(session);
-              setCurrentUser(user);
-              window.location.hash = '';
-              setScreen({
-                type: 'userDashboard',
-                userEmail: user.email,
-                userName: user.name,
-                userSurname: user.surname,
-                userPackage: null,
-                sessionsRemaining: 0
-              });
-            }}
-          />
-        )}
-
-        {currentRoute === '#/login' && !currentRoute.includes('setup-password') && (
-          <LoginPage
-            onLogin={(session, user) => {
-              setUserSession(session);
-              setCurrentUser(user);
-              window.location.hash = '';
-              setScreen({
-                type: 'userDashboard',
-                userEmail: user.email,
-                userName: user.name,
-                userSurname: user.surname,
-                userPackage: null,
-                sessionsRemaining: 0
-              });
-            }}
-            onBack={() => {
-              window.location.hash = '';
-              setScreen({ type: 'trainingType' });
-            }}
-          />
-        )}
-      </>
-    );
-  }
 
   return (
     <div className="relative w-full max-w-[440px] h-[956px] mx-auto bg-[#f5f0ed] overflow-hidden shadow-2xl">
@@ -300,7 +193,7 @@ export function MainApp() {
           onLanguageChange={setLanguage}
           onMemberLoginClick={() => setShowLoginRegister(true)}
           onLogoClick={handleLogoClick}
-          onAdminClick={() => setScreen({ type: 'adminLogin' })}
+          onAdminClick={() => navigate('/admin')}
         />
       )}
 
@@ -368,44 +261,6 @@ export function MainApp() {
 
       {screen.type === 'instructorProfile' && (
         <InstructorProfile instructorName={screen.instructorName} onBack={handleBack} language={language} />
-      )}
-
-      {screen.type === 'userDashboard' && (
-        <UserDashboard
-          sessionToken={userSession || localStorage.getItem('wellnest_session') || ''}
-          userEmail={screen.userEmail}
-          onBack={() => {
-            // Logout and go back to home
-            localStorage.removeItem('wellnest_session');
-            localStorage.removeItem('wellnest_user');
-            setUserSession(null);
-            setCurrentUser(null);
-            setScreen({ type: 'trainingType' });
-          }}
-          language={language}
-        />
-      )}
-
-      {screen.type === 'adminLogin' && (
-        <AdminLogin
-          onBack={handleBack}
-          onLogin={(sessionToken) => {
-            setAdminSessionToken(sessionToken);
-            setScreen({ type: 'adminPanel' });
-          }}
-        />
-      )}
-
-      {screen.type === 'adminPanel' && (
-        <AdminPanel
-          onLogout={() => {
-            // Clear admin session
-            localStorage.removeItem('adminSessionToken');
-            setAdminSessionToken(null);
-            handleBack();
-          }}
-          sessionToken={adminSessionToken || undefined}
-        />
       )}
 
       {/* Member Activation Modal (Deprecated - shows info message) */}

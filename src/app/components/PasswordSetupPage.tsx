@@ -1,13 +1,16 @@
 import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 
 interface PasswordSetupPageProps {
-  onComplete: (session: string, user: any) => void;
+  onComplete?: (session: string, user: any) => void;
 }
 
 export function PasswordSetupPage({ onComplete }: PasswordSetupPageProps) {
-  const { t } = useLanguage();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const { language } = useLanguage();
   const [token, setToken] = useState<string>('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -16,17 +19,20 @@ export function PasswordSetupPage({ onComplete }: PasswordSetupPageProps) {
   const [success, setSuccess] = useState(false);
 
   useEffect(() => {
-    // Extract token from URL hash
+    // Extract token from URL query params or hash (for backwards compatibility)
+    const tokenFromParams = searchParams.get('token');
     const hash = window.location.hash;
-    const params = new URLSearchParams(hash.split('?')[1] || '');
-    const tokenFromUrl = params.get('token');
-    
-    if (tokenFromUrl) {
-      setToken(tokenFromUrl);
+    const hashParams = new URLSearchParams(hash.split('?')[1] || '');
+    const tokenFromHash = hashParams.get('token');
+
+    const foundToken = tokenFromParams || tokenFromHash;
+
+    if (foundToken) {
+      setToken(foundToken);
     } else {
       setError('No registration token found in URL. Please use the link from your email.');
     }
-  }, []);
+  }, [searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -68,14 +74,20 @@ export function PasswordSetupPage({ onComplete }: PasswordSetupPageProps) {
       }
 
       setSuccess(true);
-      
-      // Store session in localStorage
+
+      // Store session in localStorage with expiry
       localStorage.setItem('wellnest_session', data.session);
       localStorage.setItem('wellnest_user', JSON.stringify(data.user));
+      const expiryTime = Date.now() + (30 * 24 * 60 * 60 * 1000); // 30 days
+      localStorage.setItem('wellnest_session_expiry', expiryTime.toString());
 
       // Redirect to dashboard after 2 seconds
       setTimeout(() => {
-        onComplete(data.session, data.user);
+        if (onComplete) {
+          onComplete(data.session, data.user);
+        } else {
+          navigate('/dashboard');
+        }
       }, 2000);
 
     } catch (err: any) {
@@ -184,7 +196,7 @@ export function PasswordSetupPage({ onComplete }: PasswordSetupPageProps) {
           <p className="text-sm text-[#6b5949]">
             Already have an account?{' '}
             <button
-              onClick={() => window.location.hash = '#/login'}
+              onClick={() => navigate('/login')}
               className="text-[#9ca571] hover:underline font-medium"
             >
               Log in
