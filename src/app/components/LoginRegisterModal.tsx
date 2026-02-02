@@ -1,5 +1,5 @@
-import { X, Loader } from 'lucide-react';
 import { useState } from 'react';
+import { User, ArrowLeft, Loader } from 'lucide-react';
 import { Language, translations } from '../translations';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { logo } from '../../assets/images';
@@ -20,6 +20,7 @@ export function LoginRegisterModal({ onClose, onLoginSuccess, language }: LoginR
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
       setError(t.memberActivation?.error || 'Please fill in all fields');
+      setTimeout(() => setError(''), 3000);
       return;
     }
 
@@ -48,6 +49,7 @@ export function LoginRegisterModal({ onClose, onLoginSuccess, language }: LoginR
       } catch (jsonError) {
         console.error('Failed to parse login response as JSON:', jsonError);
         setError('Server error. Please try again.');
+        setTimeout(() => setError(''), 3000);
         setIsSubmitting(false);
         return;
       }
@@ -55,6 +57,7 @@ export function LoginRegisterModal({ onClose, onLoginSuccess, language }: LoginR
       if (!response.ok) {
         console.error('Login error:', data);
         setError(data.error || 'Invalid email or password');
+        setTimeout(() => setError(''), 3000);
         setIsSubmitting(false);
         return;
       }
@@ -73,6 +76,7 @@ export function LoginRegisterModal({ onClose, onLoginSuccess, language }: LoginR
     } catch (error) {
       console.error('Login error:', error);
       setError('Network error. Please try again.');
+      setTimeout(() => setError(''), 3000);
       setIsSubmitting(false);
     }
   };
@@ -84,70 +88,69 @@ export function LoginRegisterModal({ onClose, onLoginSuccess, language }: LoginR
   };
 
   return (
-    <div className="fixed inset-0 bg-[#f5f0ed] bg-opacity-95 flex items-center justify-center z-50 p-4">
-      <div className="bg-[#f5f0ed] rounded-xl w-full max-w-md relative shadow-xl border border-[#e8dfd8]">
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-[#e8dfd8]">
-          <div className="flex items-center gap-3">
-            <img src={logo} alt="Logo" className="w-8 h-8" />
-            <h2 className="text-lg text-[#3d2f28]">{t.memberLogin}</h2>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-1 hover:bg-[#e8dfd8] rounded-lg transition-colors"
-            disabled={isSubmitting}
-          >
-            <X className="w-5 h-5 text-[#6b5949]" />
-          </button>
+    <div className="fixed inset-0 bg-[#f5f0ed] flex items-center justify-center z-50 px-4 pt-12">
+      {/* Back Button */}
+      <button
+        onClick={onClose}
+        className="absolute top-6 left-6 hover:bg-[#e8dfd8] rounded-lg p-2 transition-colors z-10"
+        disabled={isSubmitting}
+      >
+        <ArrowLeft className="w-5 h-5 text-[#6b5949]" />
+      </button>
+
+      <div className="w-full max-w-md">
+        {/* Logo */}
+        <div className="text-center mb-8">
+          <img src={logo} alt="Logo" className="w-16 h-16 mx-auto mb-4" />
+          <h1 className="text-2xl text-[#3d2f28] mb-2">{t.memberLogin}</h1>
+          <p className="text-sm text-[#6b5949]">{t.memberLoginDesc}</p>
         </div>
 
-        {/* Content */}
-        <div className="p-4">
-          <p className="text-sm text-[#6b5949] mb-4">
-            {t.memberLoginDesc}
-          </p>
+        {/* Login Card */}
+        <div className="bg-white rounded-xl p-6 shadow-lg">
+          <div className="flex items-center justify-center mb-6">
+            <div className="w-12 h-12 bg-[#e8dfd8] rounded-full flex items-center justify-center">
+              <User className="w-6 h-6 text-[#6b5949]" />
+            </div>
+          </div>
 
-          <div className="space-y-3">
+          <div className="space-y-4">
             <div>
-              <label className="block text-sm text-[#3d2f28] mb-1">
-                {t.email}
-              </label>
+              <label className="block text-sm text-[#3d2f28] mb-1">{t.email}</label>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 onKeyPress={handleKeyPress}
                 placeholder={t.emailPlaceholder}
-                className="w-full px-3 py-2 rounded-lg bg-white text-sm text-[#3d2f28] placeholder:text-[#8b7764] focus:outline-none focus:ring-2 focus:ring-[#6b5949]"
+                className="w-full px-3 py-2 rounded-lg bg-[#f5f0ed] text-sm text-[#3d2f28] placeholder:text-[#8b7764] focus:outline-none focus:ring-2 focus:ring-[#6b5949]"
                 disabled={isSubmitting}
               />
             </div>
 
             <div>
-              <label className="block text-sm text-[#3d2f28] mb-1">
-                {t.password}
-              </label>
+              <label className="block text-sm text-[#3d2f28] mb-1">{t.password}</label>
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 onKeyPress={handleKeyPress}
                 placeholder={t.passwordPlaceholder || 'Enter your password'}
-                className="w-full px-3 py-2 rounded-lg bg-white text-sm text-[#3d2f28] placeholder:text-[#8b7764] focus:outline-none focus:ring-2 focus:ring-[#6b5949]"
+                className="w-full px-3 py-2 rounded-lg bg-[#f5f0ed] text-sm text-[#3d2f28] placeholder:text-[#8b7764] focus:outline-none focus:ring-2 focus:ring-[#6b5949]"
                 disabled={isSubmitting}
               />
             </div>
 
             {error && (
-              <div className="px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
+              <div className="bg-red-100 text-red-700 px-3 py-2 rounded-lg text-sm">
                 {error}
               </div>
             )}
 
             <button
               onClick={handleLogin}
-              className="w-full bg-[#9ca571] text-white py-3 rounded-lg text-sm font-medium hover:bg-[#8a9463] transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
               disabled={isSubmitting}
+              className="w-full bg-[#6b5949] text-white py-3 rounded-lg text-sm hover:bg-[#5a4838] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {isSubmitting ? (
                 <>
@@ -160,7 +163,8 @@ export function LoginRegisterModal({ onClose, onLoginSuccess, language }: LoginR
             </button>
           </div>
 
-          <div className="text-center pt-4 border-t border-[#e8dfd8] mt-4">
+          {/* Contact Info */}
+          <div className="text-center mt-6 pt-4 border-t border-[#e8dfd8]">
             <p className="text-xs text-[#8b7764] mb-1">
               {t.needHelp || 'Need help?'}
             </p>
@@ -168,6 +172,12 @@ export function LoginRegisterModal({ onClose, onLoginSuccess, language }: LoginR
               {t.contactUs} info@wellnestpilates.mk
             </p>
           </div>
+        </div>
+
+        {/* Footer */}
+        <div className="text-center mt-8">
+          <p className="text-xs text-[#8b7764]">Gjuro Gjakovikj 59, Kumanovo 1300</p>
+          <p className="text-xs text-[#8b7764] mt-1">© 2025 Wellnest Pilates</p>
         </div>
       </div>
     </div>
