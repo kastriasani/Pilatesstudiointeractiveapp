@@ -109,21 +109,9 @@ export function MainApp() {
   };
 
   const handleConfirmBooking = (bookingData: any) => {
-    // Check if user was auto-logged in (session token in localStorage)
-    const session = localStorage.getItem('wellnest_session');
-    const userStr = localStorage.getItem('wellnest_user');
-
-    if (session && userStr) {
-      // User was auto-logged in, go to dashboard
-      console.log('✅ User auto-logged in after booking, redirecting to dashboard');
-      // Set session expiry for 30 days
-      const expiryTime = Date.now() + (30 * 24 * 60 * 60 * 1000);
-      localStorage.setItem('wellnest_session_expiry', expiryTime.toString());
-      navigate('/dashboard');
-    } else {
-      // No session, show success screen
-      setScreen({ type: 'success', bookingData });
-    }
+    // Single session bookings always show success screen
+    // Dashboard access requires: admin activation → password setup → login
+    setScreen({ type: 'success', bookingData });
   };
 
   const handleInstructorClick = (instructorName: string) => {
@@ -254,6 +242,8 @@ export function MainApp() {
       {screen.type === 'success' && (
         <SuccessScreen
           bookingData={screen.bookingData}
+          onViewOther={() => setScreen({ type: 'trainingType' })}
+          onViewPackages={() => setScreen({ type: 'package' })}
           onBack={handleSuccessBack}
           language={language}
         />

@@ -80,14 +80,10 @@ export function ConfirmationScreen({ bookingData, onConfirm, onBack, onPaymentTo
       }
 
       console.log('Booking created successfully:', data);
-      
-      // Store session token if provided (auto-login)
-      if (data.session && data.user) {
-        localStorage.setItem('wellnest_session', data.session);
-        localStorage.setItem('wellnest_user', JSON.stringify(data.user));
-        console.log('✅ Session token stored after booking:', data.session);
-      }
-      
+
+      // NOTE: Booking flow must NOT store session data
+      // Dashboard access only after admin activation + password setup
+
       // Show success message
       if (data.activationCode) {
         alert(`Success! Your booking is confirmed.\n\nActivation code: ${data.activationCode}`);
