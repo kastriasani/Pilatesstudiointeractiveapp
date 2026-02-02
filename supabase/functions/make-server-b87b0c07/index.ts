@@ -2793,9 +2793,51 @@ app.patch("/make-server-b87b0c07/admin/slots/:id", async (c) => {
     }
 
     const id = c.req.param('id');
-    const { startTime, maxCapacity } = await c.req.json();
+    const { startTime, maxCapacity, date } = await c.req.json();
 
     const supabase = getSupabase();
+
+    // Handle default slots (id starts with "default-")
+    if (id.startsWith('default-')) {
+      if (!date) {
+        return c.json({ error: 'Date required for editing default slot' }, 400);
+      }
+
+      // Get the original default slot time from the index
+      const defaultIndex = parseInt(id.replace('default-', '')) - 1;
+      const originalTime = DEFAULT_TIME_SLOTS[defaultIndex];
+
+      if (!originalTime) {
+        return c.json({ error: 'Invalid default slot ID' }, 400);
+      }
+
+      // Initialize all default slots for this date, but with the edited time for this slot
+      const slotsToInsert = DEFAULT_TIME_SLOTS.map((time, idx) => ({
+        date,
+        start_time: idx === defaultIndex ? (startTime || time) : time,
+        max_capacity: idx === defaultIndex ? (maxCapacity ?? DEFAULT_MAX_CAPACITY) : DEFAULT_MAX_CAPACITY,
+      }));
+
+      const { data: inserted, error: insertError } = await supabase
+        .from('time_slots')
+        .insert(slotsToInsert)
+        .select();
+
+      if (insertError) {
+        console.error('Error creating slots from default:', insertError);
+        return c.json({ error: 'Failed to update slot', details: insertError.message }, 500);
+      }
+
+      // Find the updated slot
+      const updatedSlot = inserted?.find((s: any) =>
+        s.start_time === (startTime || originalTime)
+      );
+
+      console.log(`📅 Created custom slots for ${date}, updated slot at ${startTime || originalTime}`);
+      return c.json({ success: true, slot: updatedSlot });
+    }
+
+    // Regular slot update
     const updates: Record<string, any> = { updated_at: new Date().toISOString() };
     if (startTime) updates.start_time = startTime;
     if (maxCapacity !== undefined) updates.max_capacity = maxCapacity;
@@ -2809,14 +2851,14 @@ app.patch("/make-server-b87b0c07/admin/slots/:id", async (c) => {
 
     if (error) {
       console.error('Error updating slot:', error);
-      return c.json({ error: 'Failed to update slot' }, 500);
+      return c.json({ error: 'Failed to update slot', details: error.message }, 500);
     }
 
     console.log(`📅 Updated time slot ${id}`);
     return c.json({ success: true, slot: data });
   } catch (error) {
     console.error('Error updating slot:', error);
-    return c.json({ error: 'Failed to update slot', details: error.message }, 500);
+    return c.json({ error: 'Failed to update slot', details: (error as Error).message }, 500);
   }
 });
 

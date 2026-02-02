@@ -370,6 +370,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
   const handleSaveSlot = async (slotId: string) => {
     if (!selectedDate) return;
     setSlotLoading(true);
+    const isoDate = convertToISODate(selectedDate);
     try {
       const response = await fetch(
         `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/admin/slots/${slotId}`,
@@ -380,7 +381,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
             'Authorization': `Bearer ${publicAnonKey}`,
             'X-Session-Token': getSessionToken(),
           },
-          body: JSON.stringify({ startTime: editingTime }),
+          body: JSON.stringify({ startTime: editingTime, date: isoDate }),
         }
       );
       if (response.ok) {
@@ -389,7 +390,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
         setEditingTime('');
       } else {
         const data = await response.json();
-        alert(data.error || 'Failed to update slot');
+        alert(data.details ? `${data.error}: ${data.details}` : data.error || 'Failed to update slot');
       }
     } catch (error) {
       console.error('Error saving slot:', error);
