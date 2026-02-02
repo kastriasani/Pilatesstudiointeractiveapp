@@ -116,6 +116,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
   const [newSlotTime, setNewSlotTime] = useState('');
   const [slotLoading, setSlotLoading] = useState(false);
   const [usesCustomSlots, setUsesCustomSlots] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
 
   // Fetch all bookings on component mount
   useEffect(() => {
@@ -888,6 +889,20 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
             {/* Selected Date - Timeline View */}
             {selectedDate && (
               <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+                {/* Header with Edit Mode Toggle */}
+                <div className="flex items-center justify-between px-4 py-2 border-b border-stone-100">
+                  <span className="text-sm font-medium text-stone-600">Time Slots</span>
+                  <button
+                    onClick={() => setIsEditMode(!isEditMode)}
+                    className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                      isEditMode
+                        ? 'bg-stone-200 text-stone-700 font-medium'
+                        : 'text-stone-400 hover:text-stone-600 hover:bg-stone-100'
+                    }`}
+                  >
+                    {isEditMode ? 'Done' : <Pencil className="w-4 h-4" />}
+                  </button>
+                </div>
                 {/* Timeline List */}
                 <div className="divide-y divide-stone-100">
                   {(customSlots.length > 0 ? customSlots : timeSlots.map((ts, i) => ({
@@ -963,28 +978,32 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                 <span className="text-sm text-stone-400">{bookingsCount}/{slot.max_capacity || 4}</span>
                               </button>
 
-                              {/* Edit button */}
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setEditingSlotId(slot.id);
-                                  setEditingTime(slotTime);
-                                }}
-                                className="p-1.5 text-stone-400 hover:text-stone-700 transition-colors"
-                                title="Edit time"
-                              >
-                                <Pencil className="w-4 h-4" />
-                              </button>
+                              {/* Edit/Delete buttons - only in edit mode */}
+                              {isEditMode && (
+                                <>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setEditingSlotId(slot.id);
+                                      setEditingTime(slotTime);
+                                    }}
+                                    className="p-1.5 text-stone-400 hover:text-stone-700 transition-colors"
+                                    title="Edit time"
+                                  >
+                                    <Pencil className="w-4 h-4" />
+                                  </button>
 
-                              {/* Delete button - only if no bookings and not a default slot (or custom slots active) */}
-                              {!hasBookings && !slot.isDefault && (
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); handleDeleteSlot(slot.id); }}
-                                  className="p-1.5 text-stone-400 hover:text-red-600 transition-colors"
-                                  title="Remove slot"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
+                                  {/* Delete button - only if no bookings and not a default slot */}
+                                  {!hasBookings && !slot.isDefault && (
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); handleDeleteSlot(slot.id); }}
+                                      className="p-1.5 text-stone-400 hover:text-red-600 transition-colors"
+                                      title="Remove slot"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  )}
+                                </>
                               )}
                             </>
                           )}
@@ -1087,39 +1106,41 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                     );
                   })}
 
-                  {/* Add Slot Section */}
-                  {isAddingSlot ? (
-                    <div className="flex items-center gap-3 px-4 py-3 bg-stone-50">
-                      <div className="w-2 h-2 rounded-full bg-stone-300" />
-                      <input
-                        type="time"
-                        value={newSlotTime}
-                        onChange={(e) => setNewSlotTime(e.target.value)}
-                        className="border border-stone-300 rounded px-2 py-1 w-24 text-sm"
-                        autoFocus
-                      />
+                  {/* Add Slot Section - only in edit mode */}
+                  {isEditMode && (
+                    isAddingSlot ? (
+                      <div className="flex items-center gap-3 px-4 py-3 bg-stone-50">
+                        <div className="w-2 h-2 rounded-full bg-stone-300" />
+                        <input
+                          type="time"
+                          value={newSlotTime}
+                          onChange={(e) => setNewSlotTime(e.target.value)}
+                          className="border border-stone-300 rounded px-2 py-1 w-24 text-sm"
+                          autoFocus
+                        />
+                        <button
+                          onClick={handleAddSlot}
+                          disabled={slotLoading || !newSlotTime}
+                          className="text-sm text-green-600 hover:text-green-800 disabled:opacity-50"
+                        >
+                          {slotLoading ? 'Adding...' : 'Add'}
+                        </button>
+                        <button
+                          onClick={() => { setIsAddingSlot(false); setNewSlotTime(''); }}
+                          className="text-sm text-stone-500 hover:text-stone-700"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
                       <button
-                        onClick={handleAddSlot}
-                        disabled={slotLoading || !newSlotTime}
-                        className="text-sm text-green-600 hover:text-green-800 disabled:opacity-50"
+                        onClick={() => setIsAddingSlot(true)}
+                        className="flex items-center gap-3 px-4 py-3 text-sm text-stone-500 hover:text-stone-700 hover:bg-stone-50 w-full transition-colors"
                       >
-                        {slotLoading ? 'Adding...' : 'Add'}
+                        <Plus className="w-4 h-4" />
+                        Add Time Slot
                       </button>
-                      <button
-                        onClick={() => { setIsAddingSlot(false); setNewSlotTime(''); }}
-                        className="text-sm text-stone-500 hover:text-stone-700"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => setIsAddingSlot(true)}
-                      className="flex items-center gap-3 px-4 py-3 text-sm text-stone-500 hover:text-stone-700 hover:bg-stone-50 w-full transition-colors"
-                    >
-                      <Plus className="w-4 h-4" />
-                      Add Time Slot
-                    </button>
+                    )
                   )}
                 </div>
 
