@@ -4111,7 +4111,7 @@ app.delete("/make-server-b87b0c07/admin/waitlist/:email", async (c) => {
       return c.json({ error: adminAuth.error }, 401);
     }
 
-    const email = c.req.param('email');
+    const email = decodeURIComponent(c.req.param('email'));
     const normalizedEmail = email.toLowerCase().trim();
     const supabase = getSupabase();
 

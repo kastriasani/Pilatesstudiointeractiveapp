@@ -514,7 +514,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
     if (!confirm(`Remove ${email} from waitlist?`)) return;
 
     try {
-      const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/admin/waitlist/${email}`, {
+      const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/admin/waitlist/${encodeURIComponent(email)}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
