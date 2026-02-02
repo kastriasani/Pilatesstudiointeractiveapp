@@ -132,11 +132,6 @@ export function AdminLogin({ onLogin, onBack }: AdminLoginProps) {
             </button>
           </div>
 
-          <div className="mt-6 text-center">
-            <p className="text-xs text-[#8b7764]">
-              For assistance, contact hello@wellnestpilates.com
-            </p>
-          </div>
         </div>
 
         {/* Footer */}

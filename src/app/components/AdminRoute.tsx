@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { AdminLogin } from './AdminLogin';
 import { AdminPanel } from './AdminPanel';
 
 export function AdminRoute() {
+  const navigate = useNavigate();
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [sessionToken, setSessionToken] = useState<string | null>(null);
 
@@ -36,6 +38,7 @@ export function AdminRoute() {
     localStorage.removeItem('adminSessionExpiry');
     setSessionToken(null);
     setIsAuthenticated(false);
+    navigate('/');
   };
 
   // Loading state
@@ -51,6 +54,6 @@ export function AdminRoute() {
   return isAuthenticated && sessionToken ? (
     <AdminPanel onLogout={handleLogout} sessionToken={sessionToken} />
   ) : (
-    <AdminLogin onLogin={handleLogin} />
+    <AdminLogin onLogin={handleLogin} onBack={() => navigate('/')} />
   );
 }
