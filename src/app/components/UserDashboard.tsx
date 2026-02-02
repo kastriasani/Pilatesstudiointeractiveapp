@@ -64,6 +64,36 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
   // Get session token from prop or localStorage as fallback
   const activeSessionToken = sessionToken || localStorage.getItem('wellnest_session') || '';
 
+  // Month names for date formatting
+  const monthNames: Record<Language, string[]> = {
+    sq: ['Janar', 'Shkurt', 'Mars', 'Prill', 'Maj', 'Qershor', 'Korrik', 'Gusht', 'Shtator', 'Tetor', 'Nëntor', 'Dhjetor'],
+    mk: ['Јануари', 'Февруари', 'Март', 'Април', 'Мај', 'Јуни', 'Јули', 'Август', 'Септември', 'Октомври', 'Ноември', 'Декември'],
+    en: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
+  };
+
+  // Format dateKey "M-D" to human readable "D Month YYYY"
+  const formatDateKey = (dateKey: string): string => {
+    if (!dateKey) return '';
+    const parts = dateKey.split('-');
+    if (parts.length !== 2) return dateKey; // Return as-is if not M-D format
+    const month = parseInt(parts[0], 10);
+    const day = parseInt(parts[1], 10);
+    if (isNaN(month) || isNaN(day)) return dateKey;
+    const monthName = monthNames[language]?.[month - 1] || monthNames.en[month - 1];
+    return `${day} ${monthName} 2026`;
+  };
+
+  // Format time slot to time range (50 min session)
+  const formatTimeRange = (timeSlot: string): string => {
+    if (!timeSlot) return '';
+    const [hours, minutes] = timeSlot.split(':').map(Number);
+    if (isNaN(hours) || isNaN(minutes)) return timeSlot;
+    const endMinutes = minutes + 50;
+    const endHours = hours + Math.floor(endMinutes / 60);
+    const endMins = endMinutes % 60;
+    return `${timeSlot} - ${endHours.toString().padStart(2, '0')}:${endMins.toString().padStart(2, '0')}`;
+  };
+
   // Debug: Log props on mount
   useEffect(() => {
     console.log('🎯 UserDashboard mounted with props:', {
@@ -445,10 +475,10 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
                       </div>
                       <div>
                         <p className="text-sm font-medium text-[#3d2f28]">
-                          {res.dateKey}
+                          {formatDateKey(res.dateKey)}
                         </p>
                         <p className="text-xs text-[#6b5949]">
-                          {res.timeSlot}
+                          {formatTimeRange(res.timeSlot)}
                         </p>
                       </div>
                     </div>
