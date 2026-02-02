@@ -393,9 +393,9 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
   const getStatusColor = (status: UserStatus) => {
     switch (status) {
       case 'confirmed':
-        return 'bg-green-100 text-green-700';
+        return 'bg-green-100 text-green-700';  // Paid
       case 'pending':
-        return 'bg-yellow-100 text-yellow-700';
+        return 'bg-amber-100 text-amber-700';  // Not Paid
       case 'cancelled':
         return 'bg-red-100 text-red-700';
       default:
@@ -408,7 +408,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
       case 'confirmed':
         return 'Paid';
       case 'pending':
-        return 'Pending';
+        return 'Not Paid';
       case 'cancelled':
         return 'Cancelled';
       default:
@@ -709,11 +709,18 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
             <div className="bg-white rounded-xl p-3 shadow-sm">
               <div className="flex gap-2 overflow-x-auto pb-1 snap-x snap-mandatory scrollbar-hide">
                 {dates.map((date) => {
-                  const bookingsCount = getBookingsForDate(date.dateKey).length;
-                  const hasBookings = bookingsCount > 0;
+                  const dayBookings = getBookingsForDate(date.dateKey);
+                  const bookingsCount = dayBookings.length;
+                  const hasPaidBooking = dayBookings.some((b: any) => b.paymentStatus === 'paid');
+                  const hasUnpaidBooking = dayBookings.some((b: any) => b.paymentStatus !== 'paid');
                   const isSelected = selectedDate === date.dateKey;
                   const todayKey = formatDateKeyLegacy(new Date());
                   const isToday = date.dateKey === todayKey;
+
+                  // Dot color: green=paid, amber=unpaid only, none=empty
+                  let dotColor = '';
+                  if (hasPaidBooking) dotColor = 'bg-green-500';
+                  else if (hasUnpaidBooking) dotColor = 'bg-amber-500';
 
                   return (
                     <button
@@ -736,8 +743,8 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                         {date.displayDate.split('.')[0]}
                       </span>
                       <div className="flex items-center gap-1 mt-0.5">
-                        {hasBookings && (
-                          <div className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white' : 'bg-green-500'}`} />
+                        {dotColor && (
+                          <div className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white' : dotColor}`} />
                         )}
                         <span className={`text-[10px] ${isSelected ? 'text-stone-300' : 'text-stone-400'}`}>
                           {bookingsCount}/{maxDailyCapacity}
@@ -758,13 +765,13 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                     const bookingsCount = getTimeSlotCapacity(selectedDate, timeSlot.time);
                     const isSelected = selectedTimeSlot === timeSlot.time;
                     const slotBookings = getBookingsForTimeSlot(selectedDate, timeSlot.time);
-                    const hasPending = slotBookings.some(b => b.status === 'pending');
+                    const hasPaidBooking = slotBookings.some((b: any) => b.paymentStatus === 'paid');
+                    const hasUnpaidBooking = slotBookings.some((b: any) => b.paymentStatus !== 'paid');
 
-                    // Status dot color
-                    let dotColor = 'bg-green-500'; // empty/available
-                    if (hasPending) dotColor = 'bg-blue-500';
-                    else if (bookingsCount >= 4) dotColor = 'bg-stone-500';
-                    else if (bookingsCount > 0) dotColor = 'bg-amber-500';
+                    // Status dot color: green=paid, amber=unpaid, stone=empty
+                    let dotColor = 'bg-stone-300'; // empty
+                    if (hasPaidBooking) dotColor = 'bg-green-500';
+                    else if (hasUnpaidBooking) dotColor = 'bg-amber-500';
 
                     const startTime = timeSlot.time.split(' - ')[0];
 
@@ -806,10 +813,8 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                               const isUpdatingPayment = paymentUpdatingEmail === booking.email;
                               const isPaid = booking.paymentStatus === 'paid';
 
-                              // Booking status dot
-                              let bookingDotColor = 'bg-stone-400';
-                              if (booking.status === 'confirmed') bookingDotColor = 'bg-green-500';
-                              else if (booking.status === 'pending') bookingDotColor = 'bg-blue-500';
+                              // Booking status dot: green=paid, amber=unpaid
+                              const bookingDotColor = isPaid ? 'bg-green-500' : 'bg-amber-500';
 
                               return (
                                 <div
@@ -931,13 +936,13 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                   onClick={() => setUserSubTab('pending')}
                   className={`px-4 py-3 text-sm transition-colors relative ${
                     userSubTab === 'pending'
-                      ? 'text-yellow-700 font-medium'
+                      ? 'text-amber-700 font-medium'
                       : 'text-[#8b7764] hover:text-[#6b5949]'
                   }`}
                 >
-                  Pending
+                  Not Paid
                   {userSubTab === 'pending' && (
-                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-yellow-700" />
+                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-700" />
                   )}
                 </button>
               </div>
@@ -996,16 +1001,19 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                 className={`px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-1.5 ${
                                   user.status === 'confirmed'
                                     ? 'bg-green-100 text-green-700'
-                                    : 'bg-yellow-100 text-yellow-700'
+                                    : 'bg-amber-100 text-amber-700'
                                 }`}
                               >
                                 {user.status === 'confirmed' ? (
                                   <>
                                     <CheckCircle className="w-4 h-4" />
-                                    Confirmed
+                                    Paid
                                   </>
                                 ) : (
-                                  <>⏳ Pending</>
+                                  <>
+                                    <AlertCircle className="w-4 h-4" />
+                                    Not Paid
+                                  </>
                                 )}
                               </div>
 
