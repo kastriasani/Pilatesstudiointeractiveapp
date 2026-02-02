@@ -23,7 +23,6 @@ type PackageDetails = {
     dateKey: string;
     time: string;
     endTime: string;
-    instructor: string;
   } | null;
   createdAt: string;
   activationCodeId: string;
@@ -46,7 +45,6 @@ type Reservation = {
   id: string;
   dateKey: string;
   timeSlot: string;
-  instructor: string;
   reservationStatus: 'pending' | 'confirmed' | 'attended' | 'cancelled' | 'no_show';
   paymentStatus: 'paid' | 'unpaid';
   packageId: string | null;
@@ -450,7 +448,7 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
                           {res.dateKey}
                         </p>
                         <p className="text-xs text-[#6b5949]">
-                          {res.timeSlot} • {res.instructor}
+                          {res.timeSlot}
                         </p>
                       </div>
                     </div>

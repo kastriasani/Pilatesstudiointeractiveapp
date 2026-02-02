@@ -51,7 +51,6 @@ export function ConfirmationScreen({ bookingData, onConfirm, onBack, onPaymentTo
           email: bookingData.email,
           dateKey: bookingData.dateKey,
           timeSlot: bookingData.timeSlot,
-          instructor: bookingData.instructor,
           packageType: bookingData.selectedPackage,
           language: language,
         }),

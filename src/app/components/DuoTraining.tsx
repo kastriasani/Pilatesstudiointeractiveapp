@@ -97,7 +97,6 @@ export function DuoTraining({ onBack, language, onLogoClick }: DuoTrainingProps)
             date: new Date().toLocaleDateString(),
             dateKey: 'duo',
             timeSlot: 'duo',
-            instructor: 'Rina Krasniqi',
             selectedPackage: packageType,
             payInStudio: formData.payInStudio,
             language,

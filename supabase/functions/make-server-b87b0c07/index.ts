@@ -1049,8 +1049,8 @@ app.post("/make-server-b87b0c07/packages/:id/first-session", async (c) => {
     const body = await c.req.json();
     const { dateKey, timeSlot, instructor, partnerName, partnerSurname, appUrl } = body;
 
-    if (!dateKey || !timeSlot || !instructor) {
-      return c.json({ error: "Missing required fields: dateKey, timeSlot, instructor" }, 400);
+    if (!dateKey || !timeSlot) {
+      return c.json({ error: "Missing required fields: dateKey, timeSlot" }, 400);
     }
 
     if (!appUrl) {
@@ -1376,7 +1376,7 @@ app.post("/make-server-b87b0c07/reservations", async (c) => {
       packageType
     } = body;
 
-    if (!userId || !serviceType || !dateKey || !timeSlot || !instructor) {
+    if (!userId || !serviceType || !dateKey || !timeSlot) {
       return c.json({ error: "Missing required fields" }, 400);
     }
 
@@ -1438,7 +1438,6 @@ app.post("/make-server-b87b0c07/reservations", async (c) => {
       p_service_type: serviceType,
       p_date_key: dateKey,
       p_time_slot: timeSlot,
-      p_instructor: instructor,
       p_name: name,
       p_surname: surname,
       p_package_id: packageId || null
@@ -1450,7 +1449,7 @@ app.post("/make-server-b87b0c07/reservations", async (c) => {
       p_service_type: serviceType,
       p_date_key: dateKey,
       p_time_slot: timeSlot,
-      p_instructor: instructor,
+      p_instructor: instructor || '',
       p_name: name,
       p_surname: surname,
       p_mobile: mobile,
@@ -2286,7 +2285,7 @@ app.get("/make-server-b87b0c07/bookings", async (c) => {
       date: r.date_key,
       dateKey: r.date_key,
       timeSlot: r.time_slot,
-      instructor: r.instructor || 'Rina',
+      instructor: r.instructor || '',
       selectedPackage: r.package_type,
       payInStudio: r.payment_status !== 'paid',
       language: 'EN',
@@ -2340,7 +2339,7 @@ app.post("/make-server-b87b0c07/migrate-bookings", async (c) => {
             fullDate: constructFullDate(booking.dateKey, booking.timeSlot),
             timeSlot: booking.timeSlot,
             endTime: calculateEndTime(booking.timeSlot),
-            instructor: booking.instructor || 'Rina Krasniqi',
+            instructor: booking.instructor || '',
             name: booking.name,
             surname: booking.surname,
             email: normalizeEmail(booking.email),
@@ -3501,7 +3500,7 @@ app.post("/make-server-b87b0c07/user/packages/:id/reschedule", async (c) => {
     const body = await c.req.json();
     const { dateKey, timeSlot, instructor } = body;
 
-    if (!dateKey || !timeSlot || !instructor) {
+    if (!dateKey || !timeSlot) {
       return c.json({ error: "Missing required fields" }, 400);
     }
 
@@ -3906,7 +3905,7 @@ app.get("/make-server-b87b0c07/waitlist/verify/:code", async (c) => {
 // Redeem waitlist offer (purchase 8-pack with free first session) - MIGRATED TO SUPABASE
 app.post("/make-server-b87b0c07/waitlist/redeem", async (c) => {
   try {
-    const { code, dateKey, timeSlot, instructor = 'Besa' } = await c.req.json();
+    const { code, dateKey, timeSlot, instructor = '' } = await c.req.json();
 
     if (!code || !dateKey || !timeSlot) {
       return c.json({ error: 'Missing required fields' }, 400);

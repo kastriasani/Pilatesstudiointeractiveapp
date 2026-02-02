@@ -345,7 +345,6 @@ export function PackageOverview({ onBack, language }: PackageOverviewProps) {
           body: JSON.stringify({
             dateKey: dateKey,
             timeSlot: timeSlot,
-            instructor: 'Rina Krasniqi',
             appUrl: window.location.origin, // Send current app URL for email link
           }),
         }

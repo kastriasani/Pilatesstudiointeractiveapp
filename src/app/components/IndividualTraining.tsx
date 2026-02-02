@@ -97,7 +97,6 @@ export function IndividualTraining({ onBack, language, onLogoClick }: Individual
             date: new Date().toLocaleDateString(),
             dateKey: 'individual',
             timeSlot: 'individual',
-            instructor: 'Rina Krasniqi',
             selectedPackage: packageType,
             payInStudio: formData.payInStudio,
             language,

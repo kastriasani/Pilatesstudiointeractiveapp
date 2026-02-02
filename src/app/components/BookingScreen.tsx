@@ -330,8 +330,7 @@ export function BookingScreen({ trainingType, onBack, onSubmit, onInstructorClic
                     onSubmit({
                       timeSlot: slot.time,
                       date: tabs[selectedTab].date,
-                      dateKey: tabs[selectedTab].key,
-                      instructor: 'Rina Krasniqi'
+                      dateKey: tabs[selectedTab].key
                     });
                   }
                 }}
