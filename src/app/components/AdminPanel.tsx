@@ -948,8 +948,6 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                 {dates.map((date) => {
                   const dayBookings = getBookingsForDate(date.dateKey);
                   const bookingsCount = dayBookings.length;
-                  const hasPaidBooking = dayBookings.some((b: any) => b.paymentStatus === 'paid');
-                  const hasUnpaidBooking = dayBookings.some((b: any) => b.paymentStatus !== 'paid');
                   const isSelected = selectedDate === date.dateKey;
                   const todayKey = formatDateKeyLegacy(new Date());
                   const isToday = date.dateKey === todayKey;
@@ -957,11 +955,6 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                   // Check if this date is live
                   const isoDateKey = convertToISODate(date.dateKey);
                   const isLive = liveDays.includes(isoDateKey);
-
-                  // Dot color: green=paid, amber=unpaid only, none=empty
-                  let dotColor = '';
-                  if (hasPaidBooking) dotColor = 'bg-green-500';
-                  else if (hasUnpaidBooking) dotColor = 'bg-amber-500';
 
                   return (
                     <div key={date.dateKey} className="flex flex-col items-center snap-center">
@@ -983,14 +976,9 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                         <span className={`text-lg font-semibold ${isSelected ? '' : 'text-stone-800'}`}>
                           {date.displayDate.split('.')[0]}
                         </span>
-                        <div className="flex items-center gap-1 mt-0.5">
-                          {dotColor && (
-                            <div className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white' : dotColor}`} />
-                          )}
-                          <span className={`text-[10px] ${isSelected ? 'text-stone-300' : 'text-stone-400'}`}>
-                            {bookingsCount}/{maxDailyCapacity}
-                          </span>
-                        </div>
+                        <span className={`text-[10px] mt-0.5 ${isSelected ? 'text-stone-300' : 'text-stone-400'}`}>
+                          {bookingsCount}/{maxDailyCapacity}
+                        </span>
                       </button>
 
                       {/* Status indicator/toggle under each day */}
