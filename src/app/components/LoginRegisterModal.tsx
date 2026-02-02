@@ -123,7 +123,7 @@ export function LoginRegisterModal({ onClose, onLoginSuccess, language }: LoginR
                 onChange={(e) => setEmail(e.target.value)}
                 onKeyPress={handleKeyPress}
                 placeholder={t.emailPlaceholder}
-                className="w-full px-3 py-2 rounded-lg bg-[#f5f0ed] text-sm text-[#3d2f28] placeholder:text-[#8b7764] focus:outline-none focus:ring-2 focus:ring-[#6b5949]"
+                className="w-full px-4 py-3 rounded-lg bg-white border border-[#e8e6e3] text-sm text-[#3d2f28] placeholder:text-[#8b7764] focus:outline-none focus:ring-2 focus:ring-[#6b5949] focus:border-transparent"
                 disabled={isSubmitting}
               />
             </div>
@@ -136,7 +136,7 @@ export function LoginRegisterModal({ onClose, onLoginSuccess, language }: LoginR
                 onChange={(e) => setPassword(e.target.value)}
                 onKeyPress={handleKeyPress}
                 placeholder={t.passwordPlaceholder || 'Enter your password'}
-                className="w-full px-3 py-2 rounded-lg bg-[#f5f0ed] text-sm text-[#3d2f28] placeholder:text-[#8b7764] focus:outline-none focus:ring-2 focus:ring-[#6b5949]"
+                className="w-full px-4 py-3 rounded-lg bg-white border border-[#e8e6e3] text-sm text-[#3d2f28] placeholder:text-[#8b7764] focus:outline-none focus:ring-2 focus:ring-[#6b5949] focus:border-transparent"
                 disabled={isSubmitting}
               />
             </div>
