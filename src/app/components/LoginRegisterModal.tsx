@@ -163,15 +163,6 @@ export function LoginRegisterModal({ onClose, onLoginSuccess, language }: LoginR
             </button>
           </div>
 
-          {/* Contact Info */}
-          <div className="text-center mt-6 pt-4 border-t border-[#e8dfd8]">
-            <p className="text-xs text-[#8b7764] mb-1">
-              {t.needHelp || 'Need help?'}
-            </p>
-            <p className="text-xs text-[#6b5949]">
-              {t.contactUs} info@wellnestpilates.mk
-            </p>
-          </div>
         </div>
 
         {/* Footer */}

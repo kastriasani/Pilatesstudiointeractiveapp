@@ -25,8 +25,9 @@ export type User = {
   bookingDate?: string;
   bookingTime?: string;
   totalSessions?: number; // Total sessions purchased across all packages
-  usedSessions?: number; // Sessions used
-  remainingSessions?: number; // Sessions remaining
+  usedSessions?: number; // Sessions used (computed from total - remaining)
+  remainingSessions?: number; // Sessions remaining (source of truth)
+  sessionsAdjustedAt?: string; // Last manual adjustment timestamp
   packages?: Array<{ // Track all packages purchased
     type: 'package8' | 'package10' | 'package12';
     sessions: number;
@@ -117,6 +118,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
   const [showDevTools, setShowDevTools] = useState(false);
   const [processingBookingId, setProcessingBookingId] = useState<string | null>(null);
   const [paymentUpdatingEmail, setPaymentUpdatingEmail] = useState<string | null>(null);
+  const [adjustingSessionsEmail, setAdjustingSessionsEmail] = useState<string | null>(null);
 
   // Waitlist state
   const [waitlistUsers, setWaitlistUsers] = useState<WaitlistUser[]>([]);
@@ -209,6 +211,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
           totalSessions: user.totalSessions,
           usedSessions: user.usedSessions,
           remainingSessions: user.remainingSessions,
+          sessionsAdjustedAt: user.sessionsAdjustedAt,
           packages: user.packages,
         };
       });
@@ -799,6 +802,82 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
     }
   };
 
+  // Handle session adjustment (+1 or -1)
+  const handleAdjustSessions = async (user: User, adjustment: 1 | -1) => {
+    // Save previous values for rollback
+    const previousRemaining = user.remainingSessions;
+
+    // Optimistic update
+    const newRemaining = (previousRemaining ?? 0) + adjustment;
+    setUsers(prevUsers =>
+      prevUsers.map(u =>
+        u.email === user.email
+          ? { ...u, remainingSessions: newRemaining }
+          : u
+      )
+    );
+
+    setAdjustingSessionsEmail(user.email);
+    try {
+      const response = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/admin/users/${encodeURIComponent(user.email)}/adjust-sessions`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${publicAnonKey}`,
+            'X-Session-Token': getSessionToken(),
+          },
+          body: JSON.stringify({ adjustment }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        console.error('Failed to adjust sessions:', data);
+        // Revert to previous value on error
+        setUsers(prevUsers =>
+          prevUsers.map(u =>
+            u.email === user.email
+              ? { ...u, remainingSessions: previousRemaining }
+              : u
+          )
+        );
+        alert(`Failed to adjust sessions: ${data.error || 'Unknown error'}`);
+        return;
+      }
+
+      console.log('Sessions adjusted:', data);
+
+      // Update with server response (authoritative)
+      setUsers(prevUsers =>
+        prevUsers.map(u =>
+          u.email === user.email
+            ? {
+                ...u,
+                remainingSessions: data.remainingSessions,
+                sessionsAdjustedAt: data.sessionsAdjustedAt,
+              }
+            : u
+        )
+      );
+    } catch (error) {
+      console.error('Error adjusting sessions:', error);
+      // Revert to previous value on network error
+      setUsers(prevUsers =>
+        prevUsers.map(u =>
+          u.email === user.email
+            ? { ...u, remainingSessions: previousRemaining }
+            : u
+        )
+      );
+      alert('Network error. Please check your connection.');
+    } finally {
+      setAdjustingSessionsEmail(null);
+    }
+  };
+
   // Handle booking status change (Attended, No Show, Cancel)
   const handleBookingStatusChange = async (bookingId: string, newStatus: string) => {
     console.log('📝 Updating booking status:', bookingId, newStatus);
@@ -1323,8 +1402,9 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                     const baseSessionCount = user.packageType === 'package8' ? 8 : user.packageType === 'package10' ? 10 : user.packageType === 'package12' ? 12 : 1;
                     const totalSessions = user.totalSessions || baseSessionCount;
                     const bonusSessions = totalSessions > baseSessionCount ? totalSessions - baseSessionCount : 0;
-                    const usedSessions = user.usedSessions || 0;
-                    const remainingSessions = user.remainingSessions || (totalSessions - usedSessions);
+                    // remaining is source of truth, used is computed
+                    const remainingSessions = user.remainingSessions ?? 0;
+                    const usedSessions = totalSessions - remainingSessions;
 
                     return (
                       <div
@@ -1424,6 +1504,45 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                     style={{ width: `${(usedSessions / totalSessions) * 100}%` }}
                                   />
                                 </div>
+                                {/* Adjust Sessions Buttons */}
+                                <div className="mt-3 flex justify-center gap-3">
+                                  <button
+                                    onClick={() => handleAdjustSessions(user, -1)}
+                                    disabled={remainingSessions <= 0 || adjustingSessionsEmail === user.email}
+                                    className={`w-10 h-10 rounded-md text-lg font-bold flex items-center justify-center transition-colors ${
+                                      remainingSessions <= 0 || adjustingSessionsEmail === user.email
+                                        ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                                        : 'bg-white border border-[#6b5949] text-[#6b5949] hover:bg-[#6b5949] hover:text-white'
+                                    }`}
+                                  >
+                                    {adjustingSessionsEmail === user.email ? (
+                                      <Loader2 className="w-4 h-4 animate-spin" />
+                                    ) : (
+                                      '−'
+                                    )}
+                                  </button>
+                                  <button
+                                    onClick={() => handleAdjustSessions(user, 1)}
+                                    disabled={remainingSessions >= totalSessions || adjustingSessionsEmail === user.email}
+                                    className={`w-10 h-10 rounded-md text-lg font-bold flex items-center justify-center transition-colors ${
+                                      remainingSessions >= totalSessions || adjustingSessionsEmail === user.email
+                                        ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                                        : 'bg-white border border-[#6b5949] text-[#6b5949] hover:bg-[#6b5949] hover:text-white'
+                                    }`}
+                                  >
+                                    {adjustingSessionsEmail === user.email ? (
+                                      <Loader2 className="w-4 h-4 animate-spin" />
+                                    ) : (
+                                      '+'
+                                    )}
+                                  </button>
+                                </div>
+                                {/* Last adjusted timestamp */}
+                                {user.sessionsAdjustedAt && (
+                                  <p className="mt-2 text-xs text-[#8b7764] text-center">
+                                    Last adjusted: {new Date(user.sessionsAdjustedAt).toLocaleString()}
+                                  </p>
+                                )}
                               </div>
                             )}
 

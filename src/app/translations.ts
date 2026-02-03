@@ -196,8 +196,7 @@ export const translations = {
     callUs: 'Na Telefononi',
     emailUs: 'Na Shkruani Email',
     phoneNumber: '+389 70 123 456',
-    emailAddress: 'info@wellnestpilates.mk',
-    
+
     // DUO Class
     whatIsDuo: 'Çfarë është klasë DUO?',
     duoBenefit1: 'Stërvituni me një mik ose partner',
@@ -493,8 +492,7 @@ export const translations = {
     callUs: 'Јавете се',
     emailUs: 'Испратете Email',
     phoneNumber: '+389 70 123 456',
-    emailAddress: 'info@wellnestpilates.mk',
-    
+
     // DUO Class
     whatIsDuo: 'Што е DUO класа?',
     duoBenefit1: 'Вежбајте со пријател или партнер',
@@ -790,8 +788,7 @@ export const translations = {
     callUs: 'Call Us',
     emailUs: 'Email Us',
     phoneNumber: '+389 70 123 456',
-    emailAddress: 'info@wellnestpilates.mk',
-    
+
     // Duo Class
     whatIsDuo: 'What is a Duo class?',
     duoBenefit1: 'Take class with a friend or partner',

@@ -2088,6 +2088,7 @@ app.get("/make-server-b87b0c07/admin/users", async (c) => {
         totalSessions: user.total_sessions || 0,
         usedSessions: user.used_sessions || 0,
         remainingSessions: user.remaining_sessions || 0,
+        sessionsAdjustedAt: user.sessions_adjusted_at || null,
         createdAt: user.created_at,
         blocked: user.blocked || false,
       };
@@ -2188,6 +2189,98 @@ app.patch("/make-server-b87b0c07/admin/users/:email/payment", async (c) => {
   } catch (error) {
     console.error('Error updating payment status:', error);
     return c.json({ error: 'Failed to update payment status', details: error.message }, 500);
+  }
+});
+
+// Adjust remaining sessions for a user (+1 or -1)
+// PATCH /admin/users/:email/adjust-sessions
+app.patch("/make-server-b87b0c07/admin/users/:email/adjust-sessions", async (c) => {
+  try {
+    // Verify admin session
+    const adminAuth = await verifyAdminSession(c);
+    if (!adminAuth.valid) {
+      return c.json({ error: adminAuth.error }, 401);
+    }
+
+    const email = c.req.param('email');
+    const body = await c.req.json();
+    const { adjustment } = body; // +1 or -1
+
+    if (!email) {
+      return c.json({ error: "Email is required" }, 400);
+    }
+
+    if (adjustment !== 1 && adjustment !== -1) {
+      return c.json({ error: "Adjustment must be +1 or -1" }, 400);
+    }
+
+    const normalizedEmail = normalizeEmail(email);
+    const supabase = getSupabase();
+
+    // Get current user
+    const { data: user, error: fetchError } = await supabase
+      .from('users')
+      .select('id, email, remaining_sessions, total_sessions')
+      .eq('email', normalizedEmail)
+      .single();
+
+    if (fetchError || !user) {
+      console.error('Error fetching user:', fetchError);
+      return c.json({ error: 'User not found' }, 404);
+    }
+
+    const currentRemaining = user.remaining_sessions || 0;
+    const totalSessions = user.total_sessions || 0;
+    const newRemaining = currentRemaining + adjustment;
+
+    // Validate bounds
+    if (newRemaining < 0) {
+      return c.json({ error: 'Cannot reduce below 0 sessions' }, 400);
+    }
+    if (newRemaining > totalSessions) {
+      return c.json({ error: 'Cannot exceed total sessions' }, 400);
+    }
+
+    // Update the users table
+    const adjustedAt = new Date().toISOString();
+    const { error: userUpdateError } = await supabase
+      .from('users')
+      .update({
+        remaining_sessions: newRemaining,
+        used_sessions: totalSessions - newRemaining,
+        sessions_adjusted_at: adjustedAt,
+        updated_at: adjustedAt,
+      })
+      .eq('email', normalizedEmail);
+
+    if (userUpdateError) {
+      console.error('Error updating user:', userUpdateError);
+      return c.json({ error: 'Failed to update user' }, 500);
+    }
+
+    // Also update user_packages if exists
+    await supabase
+      .from('user_packages')
+      .update({
+        remaining_sessions: newRemaining,
+        sessions_adjusted_at: adjustedAt,
+        updated_at: adjustedAt,
+      })
+      .eq('user_email', normalizedEmail);
+
+    console.log(`📊 Sessions adjusted for ${normalizedEmail}: ${currentRemaining} → ${newRemaining} (${adjustment > 0 ? '+1' : '-1'})`);
+
+    return c.json({
+      success: true,
+      email: normalizedEmail,
+      remainingSessions: newRemaining,
+      sessionsAdjustedAt: adjustedAt,
+      totalSessions: totalSessions,
+      usedSessions: totalSessions - newRemaining,
+    });
+  } catch (error) {
+    console.error('Error adjusting sessions:', error);
+    return c.json({ error: 'Failed to adjust sessions', details: error.message }, 500);
   }
 });
 
