@@ -95,8 +95,8 @@ export const translations = {
     successMessage: 'Rezervimi juaj u regjistrua me sukses. Do të merrni një email konfirmimi së shpejti.',
     nextSteps: 'Hapat vijues',
     step1: 'Do të merrni një email konfirmimi në adresën tuaj',
-    step2: 'Arrini 10 minuta para fillimit të seancës',
-    step3: 'Arrini 10 minuta para fillimit të klasës.',
+    step2: 'Arrini 10 minuta para fillimit të klasës.',
+    step3: 'Merrni me vete një shishe ujë.',
     viewOther: 'SHIKO TË TJERA ORARE',
     viewPackages: 'SHIKO PAKETA',
     
@@ -392,8 +392,8 @@ export const translations = {
     successMessage: 'Вашата резервација е успешно регистрирана. Наскоро ќе добиете потврден емаил.',
     nextSteps: 'След��и чекори',
     step1: 'Ќе добиете потврден емаил на вашата адреса',
-    step2: 'Пристигнете 10 минути пред поч��токот на сесијата',
-    step3: 'Дојдете 10 минути пред почетокот на часот.',
+    step2: 'Дојдете 10 минути пред почетокот на часот.',
+    step3: 'Понесете шише вода со вас.',
     viewOther: 'ПОГЛЕДНИ ДРУГИ ТЕРМИНИ',
     viewPackages: 'ПОГЛЕДНИ ПАКЕТИ',
     
@@ -689,8 +689,8 @@ export const translations = {
     successMessage: 'Your reservation has been successfully registered. You will receive a confirmation email shortly.',
     nextSteps: 'Next steps',
     step1: 'You will receive a confirmation email at your address',
-    step2: 'Arrive 10 minutes before the session starts',
-    step3: 'Arrive 10 minutes before the class starts.',
+    step2: 'Arrive 10 minutes before the class starts.',
+    step3: 'Bring a water bottle with you.',
     viewOther: 'VIEW OTHER TIME SLOTS',
     viewPackages: 'VIEW PACKAGES',
     
