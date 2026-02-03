@@ -3734,7 +3734,7 @@ app.get("/make-server-b87b0c07/user/packages", async (c) => {
     // Create a map of reservations by ID for quick lookup
     const reservationMap = new Map((reservations || []).map((r: any) => [r.id, r]));
 
-    // Map packages to camelCase and populate firstSession
+    // Map packages to camelCase and populate firstSession + bookedSessions
     const mappedPackages = (packages || []).map((pkg: any) => {
       // Find the first session reservation
       let firstSession = null;
@@ -3753,6 +3753,23 @@ app.get("/make-server-b87b0c07/user/packages", async (c) => {
         }
       }
 
+      // Build bookedSessions array from sessionsBooked IDs
+      const sessionsBookedIds = pkg.sessions_booked || [];
+      const bookedSessions = sessionsBookedIds.map((resId: string, index: number) => {
+        const res = reservationMap.get(resId);
+        if (res && res.reservation_status !== 'cancelled') {
+          return {
+            id: res.id,
+            date: formatDateString(res.date_key),
+            dateKey: res.date_key,
+            time: res.time_slot,
+            endTime: calculateEndTime(res.time_slot),
+            slotIndex: index
+          };
+        }
+        return null;
+      }).filter(Boolean);
+
       return {
         id: pkg.id,
         userId: pkg.user_email,
@@ -3764,6 +3781,7 @@ app.get("/make-server-b87b0c07/user/packages", async (c) => {
         redeemedCouponCode: pkg.redeemed_coupon_code,
         sessionsBooked: pkg.sessions_booked || [],
         sessionsAttended: pkg.sessions_attended || [],
+        bookedSessions,
         purchaseDate: pkg.purchase_date,
         activationDate: pkg.activation_date,
         expiryDate: pkg.expiry_date,
@@ -3945,7 +3963,7 @@ app.post("/make-server-b87b0c07/user/packages/:id/book-session", async (c) => {
       return c.json({ error: "Package not found" }, 404);
     }
 
-    if (pkg.classes_remaining <= 0) {
+    if (pkg.remaining_sessions <= 0) {
       return c.json({ error: "No sessions remaining in this package" }, 400);
     }
 
@@ -3987,14 +4005,23 @@ app.post("/make-server-b87b0c07/user/packages/:id/book-session", async (c) => {
       return c.json({ error: 'Failed to book session', details: insertError.message }, 500);
     }
 
-    // Update package: set first_reservation_id and decrement classes_remaining
+    // Update package: add to sessions_booked array, set first_reservation_id if not set, decrement remaining_sessions
+    const currentSessionsBooked = pkg.sessions_booked || [];
+    const newSessionsBooked = [...currentSessionsBooked, reservationId];
+    const updateData: any = {
+      sessions_booked: newSessionsBooked,
+      remaining_sessions: pkg.remaining_sessions - 1,
+      updated_at: now
+    };
+
+    // Only set first_reservation_id if not already set
+    if (!pkg.first_reservation_id) {
+      updateData.first_reservation_id = reservationId;
+    }
+
     const { error: updatePkgError } = await supabase
       .from('user_packages')
-      .update({
-        first_reservation_id: reservationId,
-        classes_remaining: pkg.classes_remaining - 1,
-        updated_at: now
-      })
+      .update(updateData)
       .eq('id', packageId);
 
     if (updatePkgError) {
@@ -4002,7 +4029,7 @@ app.post("/make-server-b87b0c07/user/packages/:id/book-session", async (c) => {
       // Don't fail - reservation was created
     }
 
-    console.log(`📅 Booked first session for package ${packageId}: ${reservationId}`);
+    console.log(`📅 Booked session for package ${packageId}: ${reservationId} (slot ${newSessionsBooked.length})`);
 
     // Build response in camelCase for frontend
     const reservation = {
