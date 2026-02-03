@@ -52,7 +52,7 @@ export const translations = {
     choosePackageBtn: 'ZGJIDH PAKETËN',
     chooseSingleBtn: 'ZGJIDH KLASËN',
     location: 'Gjuro Gjakovikj 59, Kumanovo 1300',
-    copyright: '© 2026 Wellnest Pilates',
+    copyright: '© 2025 Wellnest Pilates',
     
     // Confirmation Screen
     confirmReservation: 'Konfirmo rezervimin',
@@ -349,7 +349,7 @@ export const translations = {
     choosePackageBtn: 'ИЗБЕРИ ПАКЕТ',
     chooseSingleBtn: 'ИЗБЕРИ КЛАСА',
     location: 'Ѓуро Ѓаковиќ 59, Куманово 1300',
-    copyright: '© 2026 Wellnest Pilates',
+    copyright: '© 2025 Wellnest Pilates',
     
     // Confirmation Screen
     confirmReservation: 'Потврди резервација',
@@ -646,7 +646,7 @@ export const translations = {
     choosePackageBtn: 'CHOOSE PACKAGE',
     chooseSingleBtn: 'CHOOSE CLASS',
     location: 'Gjuro Gjakovikj 59, Kumanovo 1300',
-    copyright: '© 2026 Wellnest Pilates',
+    copyright: '© 2025 Wellnest Pilates',
     
     // Confirmation Screen
     confirmReservation: 'Confirm reservation',

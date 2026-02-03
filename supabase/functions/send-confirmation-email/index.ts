@@ -224,7 +224,7 @@ function getAlbanianEmailContent(
           <tr>
             <td style="background-color: #f8f6f3; padding: 25px 40px; text-align: center;">
               <p style="color: #999999; font-size: 12px; margin: 0;">
-                © 2026 WellNest Pilates Studio. Të gjitha të drejtat e rezervuara.
+                © 2025 Wellnest Pilates Studio. Të gjitha të drejtat e rezervuara.
               </p>
               <p style="color: #999999; font-size: 12px; margin: 10px 0 0 0;">
                 <a href="https://wellnestpilates.com" style="color: #8B7355; text-decoration: none;">wellnestpilates.com</a>
@@ -376,7 +376,7 @@ function getEnglishEmailContent(
           <tr>
             <td style="background-color: #f8f6f3; padding: 25px 40px; text-align: center;">
               <p style="color: #999999; font-size: 12px; margin: 0;">
-                © 2026 WellNest Pilates Studio. All rights reserved.
+                © 2025 Wellnest Pilates Studio. All rights reserved.
               </p>
               <p style="color: #999999; font-size: 12px; margin: 10px 0 0 0;">
                 <a href="https://wellnestpilates.com" style="color: #8B7355; text-decoration: none;">wellnestpilates.com</a>

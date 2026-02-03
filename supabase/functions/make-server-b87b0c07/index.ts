@@ -429,7 +429,7 @@ function generateEmailTemplate(content: EmailContent, language: 'sq' | 'mk' | 'e
                 <tr>
                   <td style="background-color: #f5f5f5; padding: 24px; text-align: center; border-top: 1px solid #e0e0e0;">
                     <p style="margin: 0 0 8px 0; color: #888888; font-size: 13px;">Gjuro Gjakovikj 59, Kumanovo 1300</p>
-                    <p style="margin: 0; color: #888888; font-size: 12px;">© 2026 WellNest Pilates</p>
+                    <p style="margin: 0; color: #888888; font-size: 12px;">© 2025 Wellnest Pilates</p>
                   </td>
                 </tr>
               </table>

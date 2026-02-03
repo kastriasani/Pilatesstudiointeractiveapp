@@ -67,7 +67,7 @@ Each slot shows:
 W
 
 Gjuro Gjakovčki 59, Kumanovo 1300
-© 2026 Wellnest Pilates
+© 2025 Wellnest Pilates
 ```
 
 ---
