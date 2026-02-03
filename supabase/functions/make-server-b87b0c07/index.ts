@@ -2220,7 +2220,7 @@ app.patch("/make-server-b87b0c07/admin/users/:email/adjust-sessions", async (c) 
     // Get current user
     const { data: user, error: fetchError } = await supabase
       .from('users')
-      .select('id, email, remaining_sessions, total_sessions')
+      .select('id, email, remaining_sessions, total_sessions, package_type')
       .eq('email', normalizedEmail)
       .single();
 
@@ -2229,8 +2229,13 @@ app.patch("/make-server-b87b0c07/admin/users/:email/adjust-sessions", async (c) 
       return c.json({ error: 'User not found' }, 404);
     }
 
+    // Infer total from package type if not set (fallback for legacy data)
+    const baseSessionCount = user.package_type === 'package8' ? 8
+      : user.package_type === 'package10' ? 10
+      : user.package_type === 'package12' ? 12
+      : 8; // default to 8
     const currentRemaining = user.remaining_sessions || 0;
-    const totalSessions = user.total_sessions || 0;
+    const totalSessions = user.total_sessions || baseSessionCount;
     const newRemaining = currentRemaining + adjustment;
 
     // Validate bounds
