@@ -1751,6 +1751,59 @@ app.patch("/make-server-b87b0c07/reservations/:id/status", async (c) => {
           }
         }
       }
+
+      if (reservationStatus === 'cancelled') {
+        // Cancel - restore session to package if linked
+        if (reservation.package_id) {
+          const { data: pkg } = await supabase
+            .from('user_packages')
+            .select('*')
+            .eq('id', reservation.package_id)
+            .single();
+
+          if (pkg) {
+            // Remove from sessions_booked and sessions_attended
+            const newSessionsBooked = (pkg.sessions_booked || []).filter((id: string) => id !== reservationId);
+            const newSessionsAttended = (pkg.sessions_attended || []).filter((id: string) => id !== reservationId);
+            const newRemainingSessions = pkg.total_sessions - newSessionsBooked.length;
+
+            await supabase
+              .from('user_packages')
+              .update({
+                sessions_booked: newSessionsBooked,
+                sessions_attended: newSessionsAttended,
+                remaining_sessions: newRemainingSessions,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', reservation.package_id);
+
+            console.log(`🔄 Session restored for cancelled reservation ${reservationId}. Remaining: ${newRemainingSessions}`);
+          }
+        }
+      }
+
+      if (reservationStatus === 'no_show') {
+        // No show - session is consumed as penalty, but mark it in attended array
+        // so we know it was "used" (even though user didn't show)
+        if (reservation.package_id) {
+          const { data: pkg } = await supabase
+            .from('user_packages')
+            .select('sessions_attended')
+            .eq('id', reservation.package_id)
+            .single();
+
+          if (pkg && !pkg.sessions_attended?.includes(reservationId)) {
+            await supabase
+              .from('user_packages')
+              .update({
+                sessions_attended: [...(pkg.sessions_attended || []), reservationId],
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', reservation.package_id);
+          }
+        }
+        console.log(`⚠️ No-show recorded for reservation ${reservationId}. Session consumed as penalty.`);
+      }
     }
 
     if (paymentStatus) {
@@ -2387,12 +2440,15 @@ app.delete("/make-server-b87b0c07/users/:email", async (c) => {
       return c.json({ error: adminAuth.error }, 401);
     }
 
-    const email = c.req.param('email');
-    if (!email) {
+    const emailParam = c.req.param('email');
+    if (!emailParam) {
       return c.json({ error: 'Email is required' }, 400);
     }
 
+    // Decode URL-encoded email and normalize
+    const email = decodeURIComponent(emailParam);
     const normalizedEmail = normalizeEmail(email);
+    console.log(`🗑️ Delete user request for: ${normalizedEmail}`);
     const supabase = getSupabase();
 
     // Check if user exists

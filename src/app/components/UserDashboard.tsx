@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Package, Calendar, Clock, CreditCard, CheckCircle, AlertCircle, Edit2, Plus } from 'lucide-react';
 import { Language, translations } from '../translations';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
+import { toast } from 'sonner';
 
 type UserDashboardProps = {
   onBack: () => void;
@@ -128,7 +129,7 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         console.error('❌ Failed to load packages:', response.status, errorData);
-        alert(`Failed to load packages: ${errorData.error || 'Unknown error'}`);
+        toast.error(`Failed to load packages: ${errorData.error || 'Unknown error'}`);
         return;
       }
 
@@ -267,7 +268,7 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
 
   const handleRescheduleClick = async (pkg: PackageDetails) => {
     if (!pkg.firstSession) {
-      alert('No first session booked yet');
+      toast.error('No first session booked yet');
       return;
     }
 
@@ -277,7 +278,7 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
     const hoursUntilClass = (classDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
 
     if (hoursUntilClass < 24) {
-      alert(`Cannot reschedule within 24 hours of class time. ${Math.round(hoursUntilClass * 10) / 10} hours remaining.`);
+      toast.error(`Cannot reschedule within 24 hours of class time. ${Math.round(hoursUntilClass * 10) / 10} hours remaining.`);
       return;
     }
 
@@ -289,7 +290,7 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
 
   const handleBookFirstSession = async (pkg: PackageDetails) => {
     if (pkg.remainingSessions <= 0) {
-      alert('No sessions remaining in this package');
+      toast.error('No sessions remaining in this package');
       return;
     }
 
@@ -324,13 +325,13 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
       const data = await response.json();
 
       if (!response.ok) {
-        alert(data.error || 'Failed to reschedule');
+        toast.error(data.error || 'Failed to reschedule');
         setIsRescheduling(false);
         return;
       }
 
       console.log('✅ Rescheduled successfully:', data);
-      alert('Session rescheduled successfully!');
+      toast.success('Session rescheduled successfully!');
       
       // Reload packages
       await loadPackages();
@@ -342,7 +343,7 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
 
     } catch (error) {
       console.error('Error rescheduling:', error);
-      alert('An error occurred. Please try again.');
+      toast.error('An error occurred. Please try again.');
       setIsRescheduling(false);
     }
   };
@@ -372,13 +373,13 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
       const data = await response.json();
 
       if (!response.ok) {
-        alert(data.error || 'Failed to book session');
+        toast.error(data.error || 'Failed to book session');
         setIsRescheduling(false);
         return;
       }
 
       console.log('✅ Session booked successfully:', data);
-      alert(t.sessionBookedSuccess || 'Session booked successfully!');
+      toast.success(t.sessionBookedSuccess || 'Session booked successfully!');
 
       // Reload packages
       await loadPackages();
@@ -390,7 +391,7 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
 
     } catch (error) {
       console.error('Error booking session:', error);
-      alert('An error occurred. Please try again.');
+      toast.error('An error occurred. Please try again.');
       setIsRescheduling(false);
     }
   };
