@@ -2014,6 +2014,95 @@ app.post("/make-server-b87b0c07/activate", async (c) => {
   }
 });
 
+// Resend login email to a paid user
+// POST /admin/users/:email/resend-login-email
+app.post("/make-server-b87b0c07/admin/users/:email/resend-login-email", async (c) => {
+  try {
+    // Verify admin session
+    const adminAuth = await verifyAdminSession(c);
+    if (!adminAuth.valid) {
+      return c.json({ error: adminAuth.error }, 401);
+    }
+
+    const email = c.req.param('email');
+    if (!email) {
+      return c.json({ error: 'Email is required' }, 400);
+    }
+
+    const normalizedEmail = normalizeEmail(email);
+    const supabase = getSupabase();
+    const now = new Date().toISOString();
+
+    // Get user
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', normalizedEmail)
+      .single();
+
+    if (userError || !user) {
+      return c.json({ error: 'User not found' }, 404);
+    }
+
+    // Check if user is paid
+    if (user.payment_status !== 'paid') {
+      return c.json({ error: 'User must be paid before sending login email' }, 400);
+    }
+
+    // Generate new verification token
+    const verificationToken = `verify_${Date.now()}_${Math.random().toString(36).substr(2, 16)}`;
+    const tokenKey = `verification_token:${verificationToken}`;
+    const tokenExpiry = new Date();
+    tokenExpiry.setHours(tokenExpiry.getHours() + 24);
+
+    await kv.set(tokenKey, {
+      id: tokenKey,
+      token: verificationToken,
+      email: normalizedEmail,
+      expiresAt: tokenExpiry.toISOString(),
+      used: false,
+      createdAt: now
+    });
+
+    // Send activation email
+    const appUrl = c.req.header('origin') || 'https://app.wellnestpilates.com';
+    const emailResult = await sendActivationEmail(
+      normalizedEmail,
+      user.name || '',
+      verificationToken,
+      appUrl,
+      user.language || 'en'
+    );
+
+    if (!emailResult.success) {
+      console.error('Failed to send login email:', emailResult.error);
+      return c.json({ error: 'Failed to send email', details: emailResult.error }, 500);
+    }
+
+    // Update user with email sent timestamp
+    await supabase
+      .from('users')
+      .update({
+        login_email_sent_at: now,
+        updated_at: now
+      })
+      .eq('email', normalizedEmail);
+
+    console.log(`Login email resent to: ${normalizedEmail}`);
+
+    return c.json({
+      success: true,
+      message: 'Login email sent successfully!',
+      email: normalizedEmail,
+      sentAt: now
+    });
+
+  } catch (error) {
+    console.error('Error resending login email:', error);
+    return c.json({ error: 'Failed to resend email', details: (error as Error).message }, 500);
+  }
+});
+
 // ============ ADMIN ENDPOINTS ============
 
 // Get all users with aggregated package and payment data - MIGRATED TO SUPABASE

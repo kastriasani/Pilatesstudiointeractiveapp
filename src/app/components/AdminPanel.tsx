@@ -119,6 +119,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
   const [processingBookingId, setProcessingBookingId] = useState<string | null>(null);
   const [paymentUpdatingEmail, setPaymentUpdatingEmail] = useState<string | null>(null);
   const [adjustingSessionsEmail, setAdjustingSessionsEmail] = useState<string | null>(null);
+  const [sendingLoginEmailTo, setSendingLoginEmailTo] = useState<string | null>(null);
 
   // Waitlist state
   const [waitlistUsers, setWaitlistUsers] = useState<WaitlistUser[]>([]);
@@ -878,6 +879,44 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
     }
   };
 
+  // Handle resend login email
+  const handleResendLoginEmail = async (user: User) => {
+    if (!confirm(`Send login email to ${user.name} ${user.surname} (${user.email})?`)) {
+      return;
+    }
+
+    setSendingLoginEmailTo(user.email);
+    try {
+      const response = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/admin/users/${encodeURIComponent(user.email)}/resend-login-email`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${publicAnonKey}`,
+            'X-Session-Token': getSessionToken(),
+          },
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        console.error('Failed to send login email:', data);
+        alert(`Failed to send email: ${data.error || 'Unknown error'}`);
+        return;
+      }
+
+      console.log('Login email sent:', data);
+      alert(`Login email sent to ${user.email}!`);
+    } catch (error) {
+      console.error('Error sending login email:', error);
+      alert('Network error. Please check your connection.');
+    } finally {
+      setSendingLoginEmailTo(null);
+    }
+  };
+
   // Handle booking status change (Attended, No Show, Cancel)
   const handleBookingStatusChange = async (bookingId: string, newStatus: string) => {
     console.log('📝 Updating booking status:', bookingId, newStatus);
@@ -1592,12 +1631,26 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                   Activate User
                                 </button>
                               ) : user.status === 'confirmed' ? (
-                                <div className="px-3 py-1.5 bg-green-100 text-green-700 rounded-md text-xs font-medium flex items-center gap-1.5">
-                                  <CheckCircle className="w-3 h-3" />
-                                  Activated
-                                </div>
+                                <>
+                                  <div className="px-3 py-1.5 bg-green-100 text-green-700 rounded-md text-xs font-medium flex items-center gap-1.5">
+                                    <CheckCircle className="w-3 h-3" />
+                                    Activated
+                                  </div>
+                                  <button
+                                    onClick={() => handleResendLoginEmail(user)}
+                                    disabled={sendingLoginEmailTo === user.email}
+                                    className="px-3 py-1.5 bg-blue-500 text-white rounded-md text-xs font-medium hover:bg-blue-600 transition-colors flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                                  >
+                                    {sendingLoginEmailTo === user.email ? (
+                                      <Loader2 className="w-3 h-3 animate-spin" />
+                                    ) : (
+                                      <Mail className="w-3 h-3" />
+                                    )}
+                                    Send Login Email
+                                  </button>
+                                </>
                               ) : null}
-                              
+
                               {/* Delete Button */}
                               <button
                                 onClick={() => handleDeleteUser(user)}
