@@ -96,7 +96,7 @@ export const translations = {
     nextSteps: 'Hapat vijues',
     step1: 'Do të merrni një email konfirmimi në adresën tuaj',
     step2: 'Arrini 10 minuta para fillimit të seancës',
-    step3: 'Sillni peshqir dhe ujë (mund të blini edhe në studio)',
+    step3: 'Arrini 10 minuta para fillimit të klasës.',
     viewOther: 'SHIKO TË TJERA ORARE',
     viewPackages: 'SHIKO PAKETA',
     
@@ -393,7 +393,7 @@ export const translations = {
     nextSteps: 'След��и чекори',
     step1: 'Ќе добиете потврден емаил на вашата адреса',
     step2: 'Пристигнете 10 минути пред поч��токот на сесијата',
-    step3: 'Понесете пешкир и вода (можете да купите и во студио)',
+    step3: 'Дојдете 10 минути пред почетокот на часот.',
     viewOther: 'ПОГЛЕДНИ ДРУГИ ТЕРМИНИ',
     viewPackages: 'ПОГЛЕДНИ ПАКЕТИ',
     
@@ -690,7 +690,7 @@ export const translations = {
     nextSteps: 'Next steps',
     step1: 'You will receive a confirmation email at your address',
     step2: 'Arrive 10 minutes before the session starts',
-    step3: 'Bring a towel and water (you can also buy at the studio)',
+    step3: 'Arrive 10 minutes before the class starts.',
     viewOther: 'VIEW OTHER TIME SLOTS',
     viewPackages: 'VIEW PACKAGES',
     
