@@ -1406,6 +1406,14 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                     const remainingSessions = user.remainingSessions ?? 0;
                     const usedSessions = totalSessions - remainingSessions;
 
+                    // Mini-bar visual: bonus consumed first
+                    const normalTotal = baseSessionCount;
+                    const bonusTotal = bonusSessions; // 0 or 1
+                    const bonusUsed = Math.min(usedSessions, bonusTotal);
+                    const bonusRemaining = bonusTotal - bonusUsed;
+                    const normalUsed = usedSessions - bonusUsed;
+                    const normalRemaining = normalTotal - normalUsed;
+
                     return (
                       <div
                         key={user.id}
@@ -1491,18 +1499,44 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                 <p className="text-xs text-[#8b7764] mb-1">Package Usage:</p>
                                 <div className="flex items-center justify-between">
                                   <p className="text-sm text-[#3d2f28]">
-                                    <span className="font-medium text-green-700">{remainingSessions}</span> / {totalSessions} sessions remaining
+                                    <span className="font-medium" style={{ color: '#7A8F3A' }}>{remainingSessions}</span> / {totalSessions} sessions remaining
                                   </p>
                                   <div className="text-xs text-[#8b7764]">
                                     Used: {usedSessions}
                                   </div>
                                 </div>
-                                {/* Progress Bar */}
-                                <div className="mt-2 h-2 bg-gray-200 rounded-full overflow-hidden">
-                                  <div
-                                    className="h-full bg-green-500 transition-all"
-                                    style={{ width: `${(usedSessions / totalSessions) * 100}%` }}
-                                  />
+                                {/* Mini-bar Visual */}
+                                <div className="mt-2 flex items-center">
+                                  {/* Normal package bars */}
+                                  <div className="flex" style={{ gap: '2px' }}>
+                                    {Array.from({ length: normalTotal }).map((_, i) => (
+                                      <span
+                                        key={`normal-${i}`}
+                                        style={{
+                                          width: '14px',
+                                          height: '10px',
+                                          borderRadius: '3px',
+                                          display: 'inline-block',
+                                          backgroundColor: i < normalUsed ? 'rgba(122,143,58,0.2)' : '#7A8F3A',
+                                        }}
+                                      />
+                                    ))}
+                                  </div>
+                                  {/* Bonus bar (if applicable) */}
+                                  {bonusTotal > 0 && (
+                                    <>
+                                      <span style={{ display: 'inline-block', width: '6px' }} />
+                                      <span
+                                        style={{
+                                          width: '14px',
+                                          height: '10px',
+                                          borderRadius: '3px',
+                                          display: 'inline-block',
+                                          backgroundColor: bonusRemaining > 0 ? '#D8A93B' : 'rgba(216,169,59,0.2)',
+                                        }}
+                                      />
+                                    </>
+                                  )}
                                 </div>
                                 {/* Adjust Sessions Buttons */}
                                 <div className="mt-3 flex justify-center gap-3">
