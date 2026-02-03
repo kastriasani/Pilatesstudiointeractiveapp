@@ -483,16 +483,16 @@ function getEmailTranslations(language: string) {
   const lang = (language?.toLowerCase() || 'en') as 'sq' | 'mk' | 'en';
   const translations = {
     sq: {
-      greeting: 'Pershendetje',
-      bookingConfirmed: 'Rezervimi juaj eshte konfirmuar.',
+      greeting: 'Përshëndetje',
+      bookingConfirmed: 'Rezervimi juaj është konfirmuar.',
       package: 'PAKETA',
-      price: 'CMIMI',
-      singleSession: 'SEANCE TEKE',
-      firstClass: 'KLASA E PARE',
+      price: 'ÇMIMI',
+      singleSession: 'Klasë TEKE',
+      firstClass: 'KLASA E PARË',
       date: 'Data',
       time: 'Ora',
-      important: 'I rendesishem: Llogaria juaj do te aktivizohet pas perfundimit te pageses ne studio.',
-      lookForward: 'Presim me padurim t\'ju shohim!',
+      important: 'E rëndësishme: Llogaria juaj do të aktivizohet pas përfundimit të pagesës në studio.',
+      lookForward: 'Me padurim presim t\'ju shohim!',
       accountReady: 'Llogaria juaj eshte gati!',
       setPassword: 'Vendos Fjalekalimin',
       linkExpires: 'Ky link skadon pas 24 oreve.',
