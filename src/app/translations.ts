@@ -303,7 +303,11 @@ export const translations = {
     bonusSession: 'Klasë bonus',
     spotFree: 'vend i lirë',
     spotsFree: 'vende të lira',
-    full: 'Plot',
+    yourSessions: 'Klasët tuaja',
+    selectDateAndTime: 'Zgjidh datën dhe orën',
+    booked: 'E rezervuar',
+    sessionBookedSuccess: 'Klasa u rezervua me sukses!',
+    bookYourClass: 'Rezervo klasën',
   },
   
   MK: {
@@ -608,9 +612,13 @@ export const translations = {
     bonusSession: 'Бонус класа',
     spotFree: 'место слободно',
     spotsFree: 'места слободни',
-    full: 'Полно',
+    yourSessions: 'Вашите класи',
+    selectDateAndTime: 'Изберете датум и време',
+    booked: 'Резервирано',
+    sessionBookedSuccess: 'Класата е успешно резервирана!',
+    bookYourClass: 'Резервирај класа',
   },
-  
+
   EN: {
     // Days
     monday: 'MONDAY',
@@ -913,6 +921,10 @@ export const translations = {
     bonusSession: 'Bonus session',
     spotFree: 'spot free',
     spotsFree: 'spots free',
-    full: 'Full',
+    yourSessions: 'Your sessions',
+    selectDateAndTime: 'Select date & time',
+    booked: 'Booked',
+    sessionBookedSuccess: 'Session booked successfully!',
+    bookYourClass: 'Book your class',
   },
 };

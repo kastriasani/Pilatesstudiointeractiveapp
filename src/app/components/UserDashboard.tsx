@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Package, Calendar, Clock, CreditCard, CheckCircle, AlertCircle, Edit2, Plus } from 'lucide-react';
+import { ArrowLeft, Package, Calendar, Clock, CreditCard, CheckCircle, AlertCircle, Edit2, Plus, ChevronDown, ChevronUp } from 'lucide-react';
 import { Language, translations } from '../translations';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { toast } from 'sonner';
@@ -11,6 +11,15 @@ type UserDashboardProps = {
   userEmail: string;
 };
 
+type BookedSession = {
+  id: string;
+  date: string;
+  dateKey: string;
+  time: string;
+  endTime: string;
+  slotIndex: number;
+};
+
 type PackageDetails = {
   id: string;
   packageType: string;
@@ -18,6 +27,7 @@ type PackageDetails = {
   totalSessions: number;
   remainingSessions: number;
   sessionsBooked: string[];
+  bookedSessions: BookedSession[]; // All booked sessions with details
   firstSession: {
     id: string;
     date: string;
@@ -32,7 +42,9 @@ type PackageDetails = {
 type TimeSlot = {
   time: string;
   available: number;
+  maxCapacity: number;
   isBooked: boolean;
+  userBookings: number; // How many times user booked this slot
 };
 
 type DateSlot = {
@@ -64,6 +76,10 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
   const [modalMode, setModalMode] = useState<'reschedule' | 'book'>('reschedule');
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [countdown, setCountdown] = useState<string>('');
+  const [selectedSlotIndex, setSelectedSlotIndex] = useState<number | null>(null);
+  const [liveDays, setLiveDays] = useState<string[]>([]);
+  const [expandedPackageId, setExpandedPackageId] = useState<string | null>(null);
+  const [inlineBookingPackageId, setInlineBookingPackageId] = useState<string | null>(null);
 
   // Get session token from prop or localStorage as fallback
   const activeSessionToken = sessionToken || localStorage.getItem('wellnest_session') || '';
@@ -96,6 +112,30 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
     const endHours = hours + Math.floor(endMinutes / 60);
     const endMins = endMinutes % 60;
     return `${timeSlot} - ${endHours.toString().padStart(2, '0')}:${endMins.toString().padStart(2, '0')}`;
+  };
+
+  // Format date to short "D Mon" format
+  const formatShortDate = (dateKey: string): string => {
+    if (!dateKey) return '';
+    const parts = dateKey.split('-');
+    // Handle both YYYY-MM-DD and M-D formats
+    let month: number, day: number;
+    if (parts.length === 3) {
+      month = parseInt(parts[1], 10);
+      day = parseInt(parts[2], 10);
+    } else if (parts.length === 2) {
+      month = parseInt(parts[0], 10);
+      day = parseInt(parts[1], 10);
+    } else {
+      return dateKey;
+    }
+    const shortMonths: Record<Language, string[]> = {
+      sq: ['Jan', 'Shk', 'Mar', 'Pri', 'Maj', 'Qer', 'Kor', 'Gus', 'Sht', 'Tet', 'Nën', 'Dhj'],
+      mk: ['Јан', 'Фев', 'Мар', 'Апр', 'Мај', 'Јун', 'Јул', 'Авг', 'Сеп', 'Окт', 'Ное', 'Дек'],
+      en: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+    };
+    const monthName = shortMonths[language]?.[month - 1] || shortMonths.en[month - 1];
+    return `${day} ${monthName}`;
   };
 
   // Get next session from packages or reservations
@@ -327,6 +367,11 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
           const maxCapacity = daySlots.find((s: any) => s.start_time === time)?.max_capacity || 4;
           const available = hasPrivateSession ? 0 : Math.max(0, maxCapacity - seatsOccupied);
 
+          // Count how many bookings the current user has on this slot
+          const userSlotBookings = slotBookings.filter((b: any) =>
+            b.email?.toLowerCase() === userEmail?.toLowerCase()
+          ).length;
+
           // Filter out past time slots for today
           const now = new Date();
           const [hours] = time.split(':').map(Number);
@@ -335,7 +380,9 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
           return {
             time,
             available: isPastTime ? 0 : available,
+            maxCapacity,
             isBooked: available <= 0 || isPastTime,
+            userBookings: userSlotBookings,
           };
         });
 
@@ -498,6 +545,109 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
     }
   };
 
+  // Handle inline slot click - expand calendar for booking
+  const handleSlotClick = async (pkg: PackageDetails, slotIndex: number) => {
+    // If already expanded for this package and same slot, close it
+    if (inlineBookingPackageId === pkg.id && selectedSlotIndex === slotIndex) {
+      setInlineBookingPackageId(null);
+      setSelectedSlotIndex(null);
+      return;
+    }
+
+    // Check if no remaining sessions and slot is not booked
+    const bookedSession = pkg.bookedSessions?.find((s) => s.slotIndex === slotIndex);
+    if (pkg.remainingSessions <= 0 && !bookedSession) {
+      toast.error(t.noSessionsRemaining || 'No sessions remaining');
+      return;
+    }
+
+    setSelectedPackage(pkg);
+    setSelectedSlotIndex(slotIndex);
+    setInlineBookingPackageId(pkg.id);
+
+    // Load available slots for inline calendar
+    await loadAvailableSlots();
+  };
+
+  // Handle inline booking from calendar
+  const handleInlineBook = async (pkg: PackageDetails, dateKey: string, timeSlot: string) => {
+    if (!pkg || selectedSlotIndex === null) return;
+
+    setIsRescheduling(true);
+
+    try {
+      const response = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/user/packages/${pkg.id}/book-session`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${publicAnonKey}`,
+            'X-Session-Token': activeSessionToken,
+          },
+          body: JSON.stringify({
+            dateKey,
+            timeSlot,
+            slotIndex: selectedSlotIndex,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        toast.error(data.error || 'Failed to book session');
+        setIsRescheduling(false);
+        return;
+      }
+
+      console.log('✅ Session booked via inline calendar:', data);
+      toast.success(t.sessionBookedSuccess || 'Session booked successfully!');
+
+      // Reload packages
+      await loadPackages();
+
+      // Auto-advance to next empty slot
+      const nextEmptySlot = findNextEmptySlot(pkg, selectedSlotIndex);
+      if (nextEmptySlot !== null && nextEmptySlot < pkg.totalSessions) {
+        setSelectedSlotIndex(nextEmptySlot);
+      } else {
+        // Close inline calendar if all slots are filled
+        setInlineBookingPackageId(null);
+        setSelectedSlotIndex(null);
+      }
+
+      setIsRescheduling(false);
+
+    } catch (error) {
+      console.error('Error booking session:', error);
+      toast.error('An error occurred. Please try again.');
+      setIsRescheduling(false);
+    }
+  };
+
+  // Find next empty slot in a package
+  const findNextEmptySlot = (pkg: PackageDetails, currentSlot: number): number | null => {
+    const bookedSlotIndices = pkg.bookedSessions?.map(s => s.slotIndex) || [];
+    for (let i = currentSlot + 1; i < pkg.totalSessions; i++) {
+      if (!bookedSlotIndices.includes(i)) {
+        return i;
+      }
+    }
+    // Wrap around to beginning if needed
+    for (let i = 0; i < currentSlot; i++) {
+      if (!bookedSlotIndices.includes(i)) {
+        return i;
+      }
+    }
+    return null;
+  };
+
+  // Get booked session for a specific slot index
+  const getBookedSessionForSlot = (pkg: PackageDetails, slotIndex: number): BookedSession | undefined => {
+    return pkg.bookedSessions?.find(s => s.slotIndex === slotIndex);
+  };
+
   const getPackageDisplayName = (packageType: string): string => {
     const typeMap: Record<string, string> = {
       'package8': t.package8Classes || '8 Classes Package',
@@ -579,167 +729,201 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
         </div>
       ) : (
         <div className="space-y-4">
-          {packages.map((pkg) => (
-            <div
-              key={pkg.id}
-              className="bg-white rounded-2xl p-5 shadow-md border border-[#e8e6e3]"
-            >
-              {/* Package Header */}
-              {(() => {
-                // Calculate session bars
-                const baseSessionCount = pkg.packageType === 'package8' ? 8 : pkg.packageType === 'package10' ? 10 : pkg.packageType === 'package12' ? 12 : pkg.totalSessions;
-                const bonusSessions = pkg.totalSessions > baseSessionCount ? pkg.totalSessions - baseSessionCount : 0;
-                const usedSessions = pkg.totalSessions - pkg.remainingSessions;
-                const bonusUsed = Math.min(usedSessions, bonusSessions);
-                const bonusRemaining = bonusSessions - bonusUsed;
-                const normalUsed = usedSessions - bonusUsed;
-                const normalRemaining = baseSessionCount - normalUsed;
+          {packages.map((pkg) => {
+            // Calculate session details
+            const baseSessionCount = pkg.packageType === 'package8' ? 8 : pkg.packageType === 'package10' ? 10 : pkg.packageType === 'package12' ? 12 : pkg.totalSessions;
+            const bonusSessions = pkg.totalSessions > baseSessionCount ? pkg.totalSessions - baseSessionCount : 0;
+            const bookedSlotIndices = pkg.bookedSessions?.map(s => s.slotIndex) || [];
+            const isInlineCalendarOpen = inlineBookingPackageId === pkg.id;
 
-                return (
-                  <>
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex-1">
-                        <h3 className="text-base font-semibold text-[#3d2f28] mb-1">
-                          {getPackageDisplayName(pkg.packageType)}
-                        </h3>
-                        <p className="text-xs text-[#6b5949]">
-                          <span className="font-semibold" style={{ color: '#7A8F3A' }}>{pkg.remainingSessions}</span> / {pkg.totalSessions} {t.sessionsRemaining || 'sessions remaining'}
-                        </p>
-                      </div>
-
-                      {/* Payment Status Badge */}
-                      <div className={`px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 ${
-                        pkg.packageStatus === 'active'
-                          ? 'bg-green-100 text-green-700'
-                          : 'bg-amber-100 text-amber-700'
-                      }`}>
-                        {pkg.packageStatus === 'active' ? (
-                          <>
-                            <CheckCircle className="w-3.5 h-3.5" />
-                            {t.paid || 'Paid'}
-                          </>
-                        ) : (
-                          <>
-                            <AlertCircle className="w-3.5 h-3.5" />
-                            {t.needsPayment || 'Needs Payment'}
-                          </>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Session Mini-Bars */}
-                    <div className="mb-4">
-                      <div className="flex items-center gap-1">
-                        {/* Normal package bars */}
-                        {Array.from({ length: baseSessionCount }).map((_, i) => (
-                          <span
-                            key={`normal-${i}`}
-                            style={{
-                              width: '16px',
-                              height: '12px',
-                              borderRadius: '4px',
-                              display: 'inline-block',
-                              backgroundColor: i < normalRemaining ? '#7A8F3A' : 'rgba(122,143,58,0.2)',
-                            }}
-                          />
-                        ))}
-                        {/* Bonus bar (if applicable) */}
-                        {bonusSessions > 0 && (
-                          <>
-                            <span style={{ display: 'inline-block', width: '8px' }} />
-                            <span
-                              style={{
-                                width: '16px',
-                                height: '12px',
-                                borderRadius: '4px',
-                                display: 'inline-block',
-                                backgroundColor: bonusRemaining > 0 ? '#D8A93B' : 'rgba(216,169,59,0.2)',
-                              }}
-                              title={t.bonusSession || 'Bonus session'}
-                            />
-                          </>
-                        )}
-                      </div>
-                      {/* Legend */}
-                      <div className="flex items-center gap-3 mt-2 text-xs text-[#8b7764]">
-                        <span className="flex items-center gap-1">
-                          <span style={{ width: '8px', height: '8px', borderRadius: '2px', backgroundColor: '#7A8F3A', display: 'inline-block' }} />
-                          {t.remaining || 'Remaining'}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <span style={{ width: '8px', height: '8px', borderRadius: '2px', backgroundColor: 'rgba(122,143,58,0.2)', display: 'inline-block' }} />
-                          {t.used || 'Used'}
-                        </span>
-                        {bonusSessions > 0 && (
-                          <span className="flex items-center gap-1">
-                            <span style={{ width: '8px', height: '8px', borderRadius: '2px', backgroundColor: '#D8A93B', display: 'inline-block' }} />
-                            {t.bonus || 'Bonus'}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </>
-                );
-              })()}
-
-              {/* First Session Info */}
-              {pkg.firstSession ? (
-                <div className="bg-gradient-to-br from-[#f5f0ed] to-[#f0ebe6] rounded-xl p-4 mb-3">
-                  <p className="text-xs font-semibold text-[#6b5949] mb-3">
-                    {t.firstSession || 'First Session'}
-                  </p>
-                  
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Calendar className="w-4 h-4 text-[#9ca571]" />
-                      <p className="text-sm text-[#3d2f28] font-medium">
-                        {pkg.firstSession.date}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Clock className="w-4 h-4 text-[#9ca571]" />
-                      <p className="text-sm text-[#3d2f28] font-medium">
-                        {pkg.firstSession.time} - {pkg.firstSession.endTime}
-                      </p>
-                    </div>
+            return (
+              <div
+                key={pkg.id}
+                className="bg-white rounded-2xl p-5 shadow-md border border-[#e8e6e3]"
+              >
+                {/* Package Header */}
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex-1">
+                    <h3 className="text-base font-semibold text-[#3d2f28] mb-1">
+                      {getPackageDisplayName(pkg.packageType)}
+                    </h3>
+                    <p className="text-xs text-[#6b5949]">
+                      <span className="font-semibold" style={{ color: '#7A8F3A' }}>{pkg.remainingSessions}</span> / {pkg.totalSessions} {t.sessionsRemaining || 'sessions remaining'}
+                    </p>
                   </div>
 
-                  {/* Reschedule Button */}
-                  <button
-                    onClick={() => handleRescheduleClick(pkg)}
-                    className="w-full mt-3 bg-white text-[#6b5949] py-2.5 rounded-lg text-xs font-medium border border-[#e8e6e3] hover:bg-[#f5f3f0] transition-all flex items-center justify-center gap-2"
-                  >
-                    <Edit2 className="w-3.5 h-3.5" />
-                    {t.reschedule || 'Reschedule'}
-                  </button>
+                  {/* Payment Status Badge */}
+                  <div className={`px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 ${
+                    pkg.packageStatus === 'active'
+                      ? 'bg-green-100 text-green-700'
+                      : 'bg-amber-100 text-amber-700'
+                  }`}>
+                    {pkg.packageStatus === 'active' ? (
+                      <>
+                        <CheckCircle className="w-3.5 h-3.5" />
+                        {t.paid || 'Paid'}
+                      </>
+                    ) : (
+                      <>
+                        <AlertCircle className="w-3.5 h-3.5" />
+                        {t.needsPayment || 'Needs Payment'}
+                      </>
+                    )}
+                  </div>
                 </div>
-              ) : (
-                <div className="bg-gradient-to-br from-[#f5f0ed] to-[#f0ebe6] rounded-xl p-4 mb-3">
-                  <p className="text-xs text-[#6b5949] mb-3">
-                    {t.noFirstSessionBooked || 'First session not booked yet'}
-                  </p>
-                  {pkg.remainingSessions > 0 && (
-                    <button
-                      onClick={() => handleBookFirstSession(pkg)}
-                      className="w-full bg-gradient-to-r from-[#9ca571] to-[#8a9463] text-white py-2.5 rounded-lg text-xs font-medium hover:shadow-lg transition-all flex items-center justify-center gap-2"
-                    >
-                      <Calendar className="w-3.5 h-3.5" />
-                      {t.bookYourClass || 'Book Your Class'}
-                    </button>
+
+                {/* Session Slots Row */}
+                <div className="mb-4">
+                  <p className="text-xs text-[#6b5949] mb-2">{t.yourSessions || 'Your sessions'}:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {Array.from({ length: pkg.totalSessions }).map((_, slotIndex) => {
+                      const bookedSession = getBookedSessionForSlot(pkg, slotIndex);
+                      const isBooked = !!bookedSession;
+                      const isSelected = selectedSlotIndex === slotIndex && inlineBookingPackageId === pkg.id;
+                      const isBonus = slotIndex >= baseSessionCount;
+
+                      return (
+                        <button
+                          key={slotIndex}
+                          onClick={() => handleSlotClick(pkg, slotIndex)}
+                          disabled={pkg.remainingSessions <= 0 && !isBooked}
+                          className={`relative flex flex-col items-center justify-center min-w-[48px] h-[52px] rounded-lg text-xs font-medium transition-all ${
+                            isBooked
+                              ? isSelected
+                                ? 'bg-[#7A8F3A] text-white ring-2 ring-offset-2 ring-[#7A8F3A]'
+                                : isBonus
+                                  ? 'bg-[#D8A93B] text-white'
+                                  : 'bg-[#7A8F3A] text-white'
+                              : isSelected
+                                ? 'bg-white border-2 border-[#7A8F3A] text-[#7A8F3A]'
+                                : pkg.remainingSessions > 0
+                                  ? 'bg-white border border-dashed border-[#9ca571] text-[#9ca571] hover:border-solid hover:bg-[#f5f3f0]'
+                                  : 'bg-[#f5f3f0] border border-[#e8e6e3] text-[#8b7764] cursor-not-allowed'
+                          }`}
+                        >
+                          {isBooked ? (
+                            <>
+                              <span className="text-[10px] font-bold">✓</span>
+                              <span className="text-[9px] opacity-90 leading-tight">
+                                {formatShortDate(bookedSession.dateKey)}
+                              </span>
+                              <span className="text-[9px] opacity-90 leading-tight">
+                                {bookedSession.time}
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <span className="text-lg">+</span>
+                              <span className="text-[9px]">{slotIndex + 1}</span>
+                            </>
+                          )}
+                          {/* Bonus indicator */}
+                          {isBonus && (
+                            <span className="absolute -top-1 -right-1 w-3 h-3 bg-[#D8A93B] rounded-full flex items-center justify-center text-[8px] text-white font-bold">
+                              B
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Inline Booking Calendar (when a slot is selected) */}
+                {isInlineCalendarOpen && selectedSlotIndex !== null && (
+                  <div className="mb-4 bg-gradient-to-br from-[#f5f0ed] to-[#f0ebe6] rounded-xl p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <p className="text-xs font-semibold text-[#6b5949]">
+                        {getBookedSessionForSlot(pkg, selectedSlotIndex)
+                          ? (t.rescheduleSession || 'Reschedule session')
+                          : (t.selectDateAndTime || 'Select date & time')}
+                        {' '}<span className="text-[#9ca571]">#{selectedSlotIndex + 1}</span>
+                      </p>
+                      <button
+                        onClick={() => {
+                          setInlineBookingPackageId(null);
+                          setSelectedSlotIndex(null);
+                        }}
+                        className="text-[#8b7764] hover:text-[#6b5949] text-sm"
+                      >
+                        ✕
+                      </button>
+                    </div>
+
+                    {availableSlots.length === 0 ? (
+                      <p className="text-xs text-[#6b5949] text-center py-4">
+                        {t.noSlotsAvailable || 'No slots available'}
+                      </p>
+                    ) : (
+                      <div className="space-y-3 max-h-[300px] overflow-y-auto">
+                        {availableSlots.map((dateSlot) => (
+                          <div key={dateSlot.dateKey} className="bg-white rounded-lg p-3">
+                            <p className="text-xs font-semibold text-[#3d2f28] mb-2">
+                              {dateSlot.displayDate}
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                              {dateSlot.timeSlots.map((timeSlot) => (
+                                <button
+                                  key={timeSlot.time}
+                                  onClick={() => handleInlineBook(pkg, dateSlot.dateKey, timeSlot.time)}
+                                  disabled={timeSlot.available <= 0 || isRescheduling}
+                                  className={`py-2 px-3 rounded-lg text-xs font-medium transition-all ${
+                                    timeSlot.available > 0 && !isRescheduling
+                                      ? 'bg-[#9ca571] text-white hover:bg-[#8a9463]'
+                                      : 'bg-[#e8e6e3] text-[#8b7764] cursor-not-allowed'
+                                  }`}
+                                >
+                                  <span className="font-semibold">{isRescheduling ? '...' : timeSlot.time}</span>
+                                  {timeSlot.userBookings > 0 && (
+                                    <span className="ml-1 text-[10px]">●{timeSlot.userBookings}</span>
+                                  )}
+                                  <span className={`block text-[10px] mt-0.5 ${timeSlot.available > 0 ? 'text-white/80' : 'text-[#8b7764]'}`}>
+                                    {timeSlot.available <= 0
+                                      ? (t.full || 'Full')
+                                      : `${timeSlot.available} ${timeSlot.available === 1
+                                          ? (t.spotFree || 'spot')
+                                          : (t.spotsFree || 'spots')}`
+                                    }
+                                  </span>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Legend */}
+                <div className="flex items-center gap-3 text-xs text-[#8b7764] mb-3">
+                  <span className="flex items-center gap-1">
+                    <span style={{ width: '8px', height: '8px', borderRadius: '2px', backgroundColor: '#7A8F3A', display: 'inline-block' }} />
+                    {t.booked || 'Booked'}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span style={{ width: '8px', height: '8px', borderRadius: '2px', border: '1px dashed #9ca571', display: 'inline-block' }} />
+                    {t.available || 'Available'}
+                  </span>
+                  {bonusSessions > 0 && (
+                    <span className="flex items-center gap-1">
+                      <span style={{ width: '8px', height: '8px', borderRadius: '2px', backgroundColor: '#D8A93B', display: 'inline-block' }} />
+                      {t.bonus || 'Bonus'}
+                    </span>
                   )}
                 </div>
-              )}
 
-              {/* Package Info Footer - only show activation code if not yet activated */}
-              {pkg.activationStatus !== 'activated' && (
-                <div className="pt-3 border-t border-[#e8e6e3]">
-                  <p className="text-xs text-[#8b7764]">
-                    {t.activationCode || 'Activation Code'}: {pkg.activationCodeId || 'Pending'}
-                  </p>
-                </div>
-              )}
-            </div>
-          ))}
+                {/* Package Info Footer - only show activation code if not yet activated */}
+                {pkg.activationStatus !== 'activated' && (
+                  <div className="pt-3 border-t border-[#e8e6e3]">
+                    <p className="text-xs text-[#8b7764]">
+                      {t.activationCode || 'Activation Code'}: {pkg.activationCodeId || 'Pending'}
+                    </p>
+                  </div>
+                )}
+              </div>
+            );
+          })}
 
           {/* Single Session Reservations (not linked to packages) */}
           {reservations.filter(r => !r.packageId).length > 0 && (
