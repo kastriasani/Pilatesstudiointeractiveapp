@@ -806,14 +806,14 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
           });
 
           if (!response.ok) {
-            let errorMessage = 'Unknown error';
+            let errorMessage = `HTTP ${response.status}`;
             try {
               const data = await response.json();
-              errorMessage = data.error || errorMessage;
+              errorMessage = data.error || data.message || errorMessage;
             } catch {
               // Response might not be JSON
             }
-            console.error('Failed to delete user:', errorMessage);
+            console.error('Failed to delete user:', response.status, errorMessage);
             toast.error(`Failed to delete user: ${errorMessage}`);
             return;
           }
