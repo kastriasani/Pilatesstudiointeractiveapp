@@ -1517,7 +1517,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                           height: '10px',
                                           borderRadius: '3px',
                                           display: 'inline-block',
-                                          backgroundColor: i < normalRemaining ? '#7A8F3A' : 'rgba(122,143,58,0.2)',
+                                          backgroundColor: i < normalUsed ? 'rgba(122,143,58,0.2)' : '#7A8F3A',
                                         }}
                                       />
                                     ))}
