@@ -18,6 +18,7 @@ export function ConfirmationScreen({ bookingData, onConfirm, onBack, onPaymentTo
   const t = translations[language];
   const [errors, setErrors] = useState<Record<string, boolean>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleConfirm = async () => {
     const newErrors: Record<string, boolean> = {};
@@ -33,6 +34,7 @@ export function ConfirmationScreen({ bookingData, onConfirm, onBack, onPaymentTo
     }
 
     setIsSubmitting(true);
+    setErrorMessage(null);
 
     try {
       // Save booking to backend
@@ -66,14 +68,14 @@ export function ConfirmationScreen({ bookingData, onConfirm, onBack, onPaymentTo
       } catch (jsonError) {
         console.error('Failed to parse response as JSON:', jsonError);
         console.error('Response was:', responseText);
-        alert('Server error. Please check console logs.');
+        setErrorMessage(t.bookingError || 'Server error. Please try again.');
         setIsSubmitting(false);
         return;
       }
 
       if (!response.ok) {
         console.error('Booking creation error:', data);
-        alert(data.error || 'Failed to create booking. Please try again.');
+        setErrorMessage(data.error || t.bookingError || 'Failed to create booking. Please try again.');
         setIsSubmitting(false);
         return;
       }
@@ -83,25 +85,24 @@ export function ConfirmationScreen({ bookingData, onConfirm, onBack, onPaymentTo
       // NOTE: Booking flow must NOT store session data
       // Dashboard access only after admin activation + password setup
 
-      // Show success message
-      if (data.activationCode) {
-        alert(`Success! Your booking is confirmed.\n\nActivation code: ${data.activationCode}`);
-      } else {
-        alert(data.message || 'Booking confirmed!');
-      }
-      
+      // Navigate to success page (no alert needed - success page shows confirmation)
       onConfirm();
     } catch (error) {
       console.error('Error creating booking:', error);
-      alert(`Failed to create booking: ${error.message}`);
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      setErrorMessage(`${t.bookingError || 'Failed to create booking'}: ${message}`);
       setIsSubmitting(false);
     }
   };
 
-  const handleInputChange = (field: keyof BookingData, value: string) => {
+  const handleInputChange = (field: 'name' | 'surname' | 'mobile' | 'email', value: string) => {
     onUpdateBookingData({ [field]: value });
     if (errors[field]) {
       setErrors({ ...errors, [field]: false });
+    }
+    // Clear error message when user starts typing
+    if (errorMessage) {
+      setErrorMessage(null);
     }
   };
 
@@ -220,6 +221,13 @@ export function ConfirmationScreen({ bookingData, onConfirm, onBack, onPaymentTo
           {t.payInStudio}
         </label>
       </div>
+
+      {/* Error Message */}
+      {errorMessage && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-3 mb-4">
+          <p className="text-sm text-red-600">{errorMessage}</p>
+        </div>
+      )}
 
       {/* Action Buttons */}
       <div className="space-y-2">

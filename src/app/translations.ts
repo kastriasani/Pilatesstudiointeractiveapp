@@ -78,6 +78,7 @@ export const translations = {
     payInStudioDesc: 'Pagesa n�� para ose me kartë në studio - kjo është e vetmja metodë e pagesës e disponueshme',
     confirmBooking: 'KONFIRMO REZERVIMIN',
     submitting: 'Duke konfirmuar...',
+    bookingError: 'Dështoi krijimi i rezervimit. Ju lutem provoni përsëri.',
     back: 'Kthehu',
     
     // Coupon/Redemption Code
@@ -374,8 +375,9 @@ export const translations = {
     payInStudioDesc: 'Плаќање во готово или со картичка во студио - ова е единствениот достапен начин н�� плаќање',
     confirmBooking: 'ПОТВРДИ РЕЗЕРВАЦИЈА',
     submitting: 'Потврдување...',
+    bookingError: 'Неуспешно креирање на резервација. Ве молиме обидете се повторно.',
     back: 'Назад',
-    
+
     // Coupon/Redemption Code
     couponCode: 'Купонски код',
     optional: 'Опционално',
@@ -670,8 +672,9 @@ export const translations = {
     payInStudioDesc: 'Payment in cash or card at studio - this is the only available payment method',
     confirmBooking: 'CONFIRM BOOKING',
     submitting: 'Confirming...',
+    bookingError: 'Failed to create booking. Please try again.',
     back: 'Back',
-    
+
     // Coupon/Redemption Code
     couponCode: 'Coupon Code',
     optional: 'Optional',
