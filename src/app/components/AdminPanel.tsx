@@ -1578,7 +1578,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                   )}
                                 </div>
                                 {/* Adjust Sessions Buttons */}
-                                <div className="mt-3 w-full flex justify-center gap-3">
+                                <div className="mt-3 flex gap-3">
                                   <button
                                     onClick={() => handleAdjustSessions(user, -1)}
                                     disabled={remainingSessions <= 0 || adjustingSessionsEmail === user.email}
@@ -1612,7 +1612,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                 </div>
                                 {/* Last adjusted timestamp */}
                                 {user.sessionsAdjustedAt && (
-                                  <p className="mt-2 w-full text-xs text-[#8b7764] text-center">
+                                  <p className="mt-2 text-xs text-[#8b7764]">
                                     Last adjusted: {new Date(user.sessionsAdjustedAt).toLocaleString()}
                                   </p>
                                 )}
