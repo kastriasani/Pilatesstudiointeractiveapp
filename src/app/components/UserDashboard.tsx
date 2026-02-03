@@ -62,6 +62,8 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
   const [availableSlots, setAvailableSlots] = useState<DateSlot[]>([]);
   const [isRescheduling, setIsRescheduling] = useState(false);
   const [modalMode, setModalMode] = useState<'reschedule' | 'book'>('reschedule');
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [countdown, setCountdown] = useState<string>('');
 
   // Get session token from prop or localStorage as fallback
   const activeSessionToken = sessionToken || localStorage.getItem('wellnest_session') || '';
@@ -95,6 +97,97 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
     const endMins = endMinutes % 60;
     return `${timeSlot} - ${endHours.toString().padStart(2, '0')}:${endMins.toString().padStart(2, '0')}`;
   };
+
+  // Get next session from packages or reservations
+  const getNextSession = (): { dateKey: string; time: string; date: string } | null => {
+    const now = new Date();
+    let nextSession: { dateKey: string; time: string; date: string; dateTime: Date } | null = null;
+
+    // Check package first sessions
+    packages.forEach(pkg => {
+      if (pkg.firstSession) {
+        const sessionDateTime = new Date(`${pkg.firstSession.dateKey}T${pkg.firstSession.time}`);
+        if (sessionDateTime > now && (!nextSession || sessionDateTime < nextSession.dateTime)) {
+          nextSession = {
+            dateKey: pkg.firstSession.dateKey,
+            time: pkg.firstSession.time,
+            date: pkg.firstSession.date,
+            dateTime: sessionDateTime
+          };
+        }
+      }
+    });
+
+    // Check standalone reservations
+    reservations.filter(r => !r.packageId && r.reservationStatus !== 'cancelled').forEach(res => {
+      // Convert M-D format to full date
+      const [month, day] = res.dateKey.split('-').map(Number);
+      const year = new Date().getFullYear();
+      const sessionDateTime = new Date(year, month - 1, day, ...res.timeSlot.split(':').map(Number));
+      if (sessionDateTime > now && (!nextSession || sessionDateTime < nextSession.dateTime)) {
+        nextSession = {
+          dateKey: res.dateKey,
+          time: res.timeSlot,
+          date: formatDateKey(res.dateKey),
+          dateTime: sessionDateTime
+        };
+      }
+    });
+
+    return nextSession ? { dateKey: nextSession.dateKey, time: nextSession.time, date: nextSession.date } : null;
+  };
+
+  // Calculate countdown string
+  const calculateCountdown = (dateKey: string, time: string): string => {
+    const [year, month, day] = dateKey.includes('-') && dateKey.length === 10
+      ? dateKey.split('-').map(Number)
+      : [new Date().getFullYear(), ...dateKey.split('-').map(Number)];
+    const [hours, minutes] = time.split(':').map(Number);
+
+    const sessionDate = dateKey.length === 10
+      ? new Date(year, month - 1, day, hours, minutes)
+      : new Date(year, month - 1, day, hours, minutes);
+
+    const now = new Date();
+    const diff = sessionDate.getTime() - now.getTime();
+
+    if (diff <= 0) return language === 'SQ' ? 'Tani' : language === 'MK' ? 'Сега' : 'Now';
+
+    const totalMinutes = Math.floor(diff / (1000 * 60));
+    const totalHours = Math.floor(totalMinutes / 60);
+    const days = Math.floor(totalHours / 24);
+    const hoursLeft = totalHours % 24;
+    const minutesLeft = totalMinutes % 60;
+
+    if (days > 0) {
+      const dayLabel = language === 'SQ' ? 'ditë' : language === 'MK' ? 'дена' : 'days';
+      const hourLabel = language === 'SQ' ? 'orë' : language === 'MK' ? 'часа' : 'h';
+      return `${days} ${dayLabel} ${hoursLeft}${hourLabel}`;
+    } else if (hoursLeft > 0) {
+      const hourLabel = language === 'SQ' ? 'orë' : language === 'MK' ? 'часа' : 'h';
+      const minLabel = language === 'SQ' ? 'min' : language === 'MK' ? 'мин' : 'min';
+      return `${hoursLeft}${hourLabel} ${minutesLeft}${minLabel}`;
+    } else {
+      const minLabel = language === 'SQ' ? 'minuta' : language === 'MK' ? 'минути' : 'minutes';
+      return `${minutesLeft} ${minLabel}`;
+    }
+  };
+
+  // Update countdown every minute
+  useEffect(() => {
+    const updateCountdown = () => {
+      const nextSession = getNextSession();
+      if (nextSession) {
+        setCountdown(calculateCountdown(nextSession.dateKey, nextSession.time));
+      } else {
+        setCountdown('');
+      }
+    };
+
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 60000); // Update every minute
+    return () => clearInterval(interval);
+  }, [packages, reservations, language]);
 
   // Debug: Log props on mount
   useEffect(() => {
@@ -137,6 +230,7 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
       if (data.success) {
         setPackages(data.packages || []);
         setReservations(data.reservations || []);
+        setLastUpdated(new Date());
         console.log('📦 Loaded user packages:', data.packages);
         console.log('📅 Loaded user reservations:', data.reservations);
       }
@@ -447,10 +541,25 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
         <div className="w-9" /> {/* Spacer */}
       </div>
 
-      {/* User Info */}
+      {/* User Info + Next Session Countdown */}
       <div className="bg-gradient-to-br from-[#9ca571] to-[#8a9463] rounded-2xl p-4 mb-6 text-white">
-        <p className="text-xs opacity-90 mb-1">{t.loggedInAs || 'Logged in as'}</p>
-        <p className="text-sm font-semibold">{userEmail}</p>
+        <div className="flex justify-between items-start">
+          <div>
+            <p className="text-xs opacity-90 mb-1">{t.loggedInAs || 'Logged in as'}</p>
+            <p className="text-sm font-semibold">{userEmail}</p>
+          </div>
+          {countdown && (
+            <div className="text-right">
+              <p className="text-xs opacity-90 mb-1">{t.nextClass || 'Next class'}</p>
+              <p className="text-lg font-bold">{countdown}</p>
+            </div>
+          )}
+        </div>
+        {lastUpdated && (
+          <p className="text-xs opacity-70 mt-2">
+            {t.lastUpdated || 'Last updated'}: {lastUpdated.toLocaleTimeString()}
+          </p>
+        )}
       </div>
 
       {/* Content: Packages + Reservations */}
@@ -476,38 +585,102 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
               className="bg-white rounded-2xl p-5 shadow-md border border-[#e8e6e3]"
             >
               {/* Package Header */}
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex-1">
-                  <h3 className="text-base font-semibold text-[#3d2f28] mb-2">
-                    {getPackageDisplayName(pkg.packageType)}
-                  </h3>
-                  <div className="flex items-center gap-2">
-                    <Package className="w-4 h-4 text-[#9ca571]" />
-                    <p className="text-xs text-[#6b5949]">
-                      {pkg.remainingSessions} / {pkg.totalSessions} {t.sessionsRemaining || 'sessions remaining'}
-                    </p>
-                  </div>
-                </div>
+              {(() => {
+                // Calculate session bars
+                const baseSessionCount = pkg.packageType === 'package8' ? 8 : pkg.packageType === 'package10' ? 10 : pkg.packageType === 'package12' ? 12 : pkg.totalSessions;
+                const bonusSessions = pkg.totalSessions > baseSessionCount ? pkg.totalSessions - baseSessionCount : 0;
+                const usedSessions = pkg.totalSessions - pkg.remainingSessions;
+                const bonusUsed = Math.min(usedSessions, bonusSessions);
+                const bonusRemaining = bonusSessions - bonusUsed;
+                const normalUsed = usedSessions - bonusUsed;
+                const normalRemaining = baseSessionCount - normalUsed;
 
-                {/* Payment Status Badge */}
-                <div className={`px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 ${
-                  pkg.packageStatus === 'active' 
-                    ? 'bg-green-100 text-green-700' 
-                    : 'bg-amber-100 text-amber-700'
-                }`}>
-                  {pkg.packageStatus === 'active' ? (
-                    <>
-                      <CheckCircle className="w-3.5 h-3.5" />
-                      {t.paid || 'Paid'}
-                    </>
-                  ) : (
-                    <>
-                      <AlertCircle className="w-3.5 h-3.5" />
-                      {t.needsPayment || 'Needs Payment'}
-                    </>
-                  )}
-                </div>
-              </div>
+                return (
+                  <>
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex-1">
+                        <h3 className="text-base font-semibold text-[#3d2f28] mb-1">
+                          {getPackageDisplayName(pkg.packageType)}
+                        </h3>
+                        <p className="text-xs text-[#6b5949]">
+                          <span className="font-semibold" style={{ color: '#7A8F3A' }}>{pkg.remainingSessions}</span> / {pkg.totalSessions} {t.sessionsRemaining || 'sessions remaining'}
+                        </p>
+                      </div>
+
+                      {/* Payment Status Badge */}
+                      <div className={`px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 ${
+                        pkg.packageStatus === 'active'
+                          ? 'bg-green-100 text-green-700'
+                          : 'bg-amber-100 text-amber-700'
+                      }`}>
+                        {pkg.packageStatus === 'active' ? (
+                          <>
+                            <CheckCircle className="w-3.5 h-3.5" />
+                            {t.paid || 'Paid'}
+                          </>
+                        ) : (
+                          <>
+                            <AlertCircle className="w-3.5 h-3.5" />
+                            {t.needsPayment || 'Needs Payment'}
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Session Mini-Bars */}
+                    <div className="mb-4">
+                      <div className="flex items-center gap-1">
+                        {/* Normal package bars */}
+                        {Array.from({ length: baseSessionCount }).map((_, i) => (
+                          <span
+                            key={`normal-${i}`}
+                            style={{
+                              width: '16px',
+                              height: '12px',
+                              borderRadius: '4px',
+                              display: 'inline-block',
+                              backgroundColor: i < normalRemaining ? '#7A8F3A' : 'rgba(122,143,58,0.2)',
+                            }}
+                          />
+                        ))}
+                        {/* Bonus bar (if applicable) */}
+                        {bonusSessions > 0 && (
+                          <>
+                            <span style={{ display: 'inline-block', width: '8px' }} />
+                            <span
+                              style={{
+                                width: '16px',
+                                height: '12px',
+                                borderRadius: '4px',
+                                display: 'inline-block',
+                                backgroundColor: bonusRemaining > 0 ? '#D8A93B' : 'rgba(216,169,59,0.2)',
+                              }}
+                              title={t.bonusSession || 'Bonus session'}
+                            />
+                          </>
+                        )}
+                      </div>
+                      {/* Legend */}
+                      <div className="flex items-center gap-3 mt-2 text-xs text-[#8b7764]">
+                        <span className="flex items-center gap-1">
+                          <span style={{ width: '8px', height: '8px', borderRadius: '2px', backgroundColor: '#7A8F3A', display: 'inline-block' }} />
+                          {t.remaining || 'Remaining'}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <span style={{ width: '8px', height: '8px', borderRadius: '2px', backgroundColor: 'rgba(122,143,58,0.2)', display: 'inline-block' }} />
+                          {t.used || 'Used'}
+                        </span>
+                        {bonusSessions > 0 && (
+                          <span className="flex items-center gap-1">
+                            <span style={{ width: '8px', height: '8px', borderRadius: '2px', backgroundColor: '#D8A93B', display: 'inline-block' }} />
+                            {t.bonus || 'Bonus'}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
 
               {/* First Session Info */}
               {pkg.firstSession ? (
@@ -682,15 +855,20 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
                             key={timeSlot.time}
                             onClick={() => handleModalSubmit(dateSlot.dateKey, timeSlot.time)}
                             disabled={timeSlot.available <= 0 || isRescheduling}
-                            className={`py-2.5 px-3 rounded-lg text-xs font-medium transition-all ${
+                            className={`py-3 px-3 rounded-lg text-sm font-medium transition-all ${
                               timeSlot.available > 0 && !isRescheduling
                                 ? 'bg-gradient-to-r from-[#9ca571] to-[#8a9463] text-white hover:shadow-lg'
                                 : 'bg-[#e8e6e3] text-[#8b7764] cursor-not-allowed'
                             }`}
                           >
-                            {isRescheduling ? 'Rescheduling...' : timeSlot.time}
-                            <span className="block text-xs mt-0.5 opacity-80">
-                              {timeSlot.available} {t.spotsLeft || 'spots'}
+                            <span className="font-semibold">{isRescheduling ? '...' : timeSlot.time}</span>
+                            <span className={`block text-xs mt-1 ${timeSlot.available > 0 ? 'text-white/80' : 'text-[#8b7764]'}`}>
+                              {timeSlot.available <= 0
+                                ? (t.full || 'Full')
+                                : `${timeSlot.available} ${timeSlot.available === 1
+                                    ? (t.spotFree || 'vend i lirë')
+                                    : (t.spotsFree || 'vende të lira')}`
+                              }
                             </span>
                           </button>
                         ))}
