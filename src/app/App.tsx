@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { LanguageProvider } from '@/contexts/LanguageContext';
 import { BookingProvider } from '@/contexts/BookingContext';
+import { Toaster } from '@/app/components/ui/sonner';
 import { AdminRoute } from '@/app/components/AdminRoute';
 import { UserRoute } from '@/app/components/UserRoute';
 import { LoginPage } from '@/app/components/LoginPage';
@@ -40,6 +41,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BookingProvider>
+      <Toaster position="bottom-right" richColors closeButton />
     </LanguageProvider>
   );
 }

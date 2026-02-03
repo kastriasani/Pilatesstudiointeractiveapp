@@ -214,7 +214,7 @@ export const translations = {
     individual8Classes: '8 KLASË',
     individual12Classes: '12 KLASË',
     individual1ClassDesc: 'Një klasë individuale',
-    duo1ClassDesc: 'Një klasë duo',
+    duo1ClassDesc: 'Një klasë DUO',
     individual8ClassDesc: 'Paketë me 8 klasë',
     individual12ClassDesc: 'Paket�� me 12 klasë',
     classDuration: '50 min',
@@ -454,7 +454,7 @@ export const translations = {
     multiPackageSubtitle: '8 или 10 класи во група.\nПрепорачано 2 пати неделно.\n12 класи (3 пати неделно препорачано).\nВажи 35 дена.',
     individualTrainingTitle: 'Индивидуална класа',
     individualTrainingSubtitle: 'Персонална класа 1 на 1.\nПриватна класа со целосно внимание од инструкторот.',
-    duoTrainingTitle: 'DUO Класа',
+    duoTrainingTitle: 'DUO класа',
     duoTrainingSubtitle: 'Класа за 2 лица заедно.\nСподелете го искуството со пријател.',
     
     // Package Overview
@@ -510,7 +510,7 @@ export const translations = {
     individual8Classes: '8 КЛАСИ',
     individual12Classes: '12 КЛАСИ',
     individual1ClassDesc: 'Една индивидуална класа',
-    duo1ClassDesc: 'Една дуо класа',
+    duo1ClassDesc: 'Една DUO класа',
     individual8ClassDesc: 'Пакет со 8 класи',
     individual12ClassDesc: 'Пакет со 12 класи',
     classDuration: '50 мин',
@@ -744,13 +744,13 @@ export const translations = {
     // Training Type Selection
     trainingTypeTitle: 'Choose a class type',
     trainingTypeSubtitle: 'You can change it later',
-    singleSessionTitle: 'Single Class',
+    singleSessionTitle: 'Single class',
     singleSessionSubtitle: 'One class (50min) in group.',
-    multiPackageTitle: 'Multi Package',
+    multiPackageTitle: 'Multi package',
     multiPackageSubtitle: '8 or 10 classes in group.\nRecommended 2 times per week.\n12 classes (3 times per week recommended).\nValid 35 days.',
-    individualTrainingTitle: 'Individual Class',
+    individualTrainingTitle: 'Individual class',
     individualTrainingSubtitle: '1-on-1 personal class.\nPrivate class with full instructor attention.',
-    duoTrainingTitle: 'Duo Class',
+    duoTrainingTitle: 'DUO class',
     duoTrainingSubtitle: 'Class for 2 people together.\nShare the experience with a friend.',
     
     // Package Overview
@@ -789,8 +789,8 @@ export const translations = {
     emailUs: 'Email Us',
     phoneNumber: '+389 70 123 456',
 
-    // Duo Class
-    whatIsDuo: 'What is a Duo class?',
+    // DUO Class
+    whatIsDuo: 'What is a DUO class?',
     duoBenefit1: 'Take class with a friend or partner',
     duoBenefit2: 'Program tailored for two people',
     duoBenefit3: 'Flexible schedule that fits you',
@@ -806,7 +806,7 @@ export const translations = {
     individual8Classes: '8 CLASSES',
     individual12Classes: '12 CLASSES',
     individual1ClassDesc: 'One individual class',
-    duo1ClassDesc: 'One duo class',
+    duo1ClassDesc: 'One DUO class',
     individual8ClassDesc: 'Package with 8 classes',
     individual12ClassDesc: 'Package with 12 classes',
     classDuration: '50 min',

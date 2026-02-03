@@ -3,6 +3,17 @@ import { Calendar, Users, LogOut, Mail, X, CheckCircle, Trash2, Ban, ShieldAlert
 import { logo } from '../../assets/images';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { DevTools } from './DevTools';
+import { toast } from 'sonner';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from './ui/alert-dialog';
 import {
   getCalendarDateRange,
   getCalendarDates,
@@ -120,6 +131,18 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
   const [paymentUpdatingEmail, setPaymentUpdatingEmail] = useState<string | null>(null);
   const [adjustingSessionsEmail, setAdjustingSessionsEmail] = useState<string | null>(null);
   const [sendingLoginEmailTo, setSendingLoginEmailTo] = useState<string | null>(null);
+
+  // Confirmation dialog state
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean;
+    title: string;
+    description: string;
+    onConfirm: () => void;
+  } | null>(null);
+
+  const showConfirm = (title: string, description: string, onConfirm: () => void) => {
+    setConfirmDialog({ open: true, title, description, onConfirm });
+  };
 
   // Waitlist state
   const [waitlistUsers, setWaitlistUsers] = useState<WaitlistUser[]>([]);
@@ -339,7 +362,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
       } else {
         const data = await response.json();
         console.error('Failed to update day status:', data);
-        alert(data.error || 'Failed to update day status');
+        toast.error(data.error || 'Failed to update day status');
       }
     } catch (error) {
       console.error('Error toggling day status:', error);
@@ -394,7 +417,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
         setEditingTime('');
       } else {
         const data = await response.json();
-        alert(data.details ? `${data.error}: ${data.details}` : data.error || 'Failed to update slot');
+        toast.error(data.details ? `${data.error}: ${data.details}` : data.error || 'Failed to update slot');
       }
     } catch (error) {
       console.error('Error saving slot:', error);
@@ -402,35 +425,36 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
     setSlotLoading(false);
   };
 
-  const handleDeleteSlot = async (slotId: string, slotTime?: string) => {
+  const handleDeleteSlot = (slotId: string, slotTime?: string) => {
     if (!selectedDate) return;
-    if (!confirm('Remove this time slot?')) return;
 
-    const isoDate = convertToISODate(selectedDate);
+    showConfirm('Remove Time Slot', 'Are you sure you want to remove this time slot?', async () => {
+      const isoDate = convertToISODate(selectedDate);
 
-    // For default slots, include date and startTime as query params
-    let url = `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/admin/slots/${slotId}`;
-    if (slotId.startsWith('default-') && slotTime) {
-      url += `?date=${isoDate}&startTime=${slotTime}`;
-    }
-
-    try {
-      const response = await fetch(url, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${publicAnonKey}`,
-          'X-Session-Token': getSessionToken(),
-        },
-      });
-      if (response.ok) {
-        await fetchSlotsForDate(selectedDate);
-      } else {
-        const data = await response.json();
-        alert(data.error || 'Failed to delete slot');
+      // For default slots, include date and startTime as query params
+      let url = `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/admin/slots/${slotId}`;
+      if (slotId.startsWith('default-') && slotTime) {
+        url += `?date=${isoDate}&startTime=${slotTime}`;
       }
-    } catch (error) {
-      console.error('Error deleting slot:', error);
-    }
+
+      try {
+        const response = await fetch(url, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${publicAnonKey}`,
+            'X-Session-Token': getSessionToken(),
+          },
+        });
+        if (response.ok) {
+          await fetchSlotsForDate(selectedDate);
+        } else {
+          const data = await response.json();
+          toast.error(data.error || 'Failed to delete slot');
+        }
+      } catch (error) {
+        console.error('Error deleting slot:', error);
+      }
+    });
   };
 
   const handleAddSlot = async () => {
@@ -457,7 +481,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
         setNewSlotTime('');
       } else {
         const data = await response.json();
-        alert(data.error || 'Failed to add slot');
+        toast.error(data.error || 'Failed to add slot');
       }
     } catch (error) {
       console.error('Error adding slot:', error);
@@ -531,30 +555,30 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
     }
   };
 
-  const handleDeleteWaitlistUser = async (email: string) => {
-    if (!confirm(`Remove ${email} from waitlist?`)) return;
+  const handleDeleteWaitlistUser = (email: string) => {
+    showConfirm('Remove from Waitlist', `Remove ${email} from the waitlist?`, async () => {
+      try {
+        const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/admin/waitlist/${encodeURIComponent(email)}`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${publicAnonKey}`,
+            'X-Session-Token': getSessionToken(),
+          },
+        });
 
-    try {
-      const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/admin/waitlist/${encodeURIComponent(email)}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${publicAnonKey}`,
-          'X-Session-Token': getSessionToken(),
-        },
-      });
-
-      const data = await response.json();
-      if (response.ok) {
-        fetchWaitlistUsers();
-      } else {
-        console.error('Delete waitlist error:', data);
-        alert(data.details ? `${data.error}: ${data.details}` : data.error || 'Failed to delete user');
+        const data = await response.json();
+        if (response.ok) {
+          fetchWaitlistUsers();
+        } else {
+          console.error('Delete waitlist error:', data);
+          toast.error(data.details ? `${data.error}: ${data.details}` : data.error || 'Failed to delete user');
+        }
+      } catch (error) {
+        console.error('Error deleting waitlist user:', error);
+        toast.error('Network error: ' + (error as Error).message);
       }
-    } catch (error) {
-      console.error('Error deleting waitlist user:', error);
-      alert('Network error: ' + (error as Error).message);
-    }
+    });
   };
 
   const handleAddBesaToWaitlist = async () => {
@@ -578,14 +602,14 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
       const data = await response.json();
 
       if (response.ok && data.success) {
-        alert(`✅ Successfully added Besa Ibrahimi!\nRedemption Code: ${data.waitlistUser.redemptionCode}`);
+        toast.success(`Successfully added Besa Ibrahimi! Redemption Code: ${data.waitlistUser.redemptionCode}`);
         fetchWaitlistUsers();
       } else {
-        alert(data.error || 'Failed to add user to waitlist');
+        toast.error(data.error || 'Failed to add user to waitlist');
       }
     } catch (error) {
       console.error('Error adding to waitlist:', error);
-      alert('An error occurred');
+      toast.error('An error occurred');
     } finally {
       setIsProcessing(false);
     }
@@ -714,93 +738,109 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
   };
 
   // Activate user (admin action after cash payment in studio)
-  const handleActivateUser = async (user: User) => {
-    if (!confirm(`Activate ${user.name} ${user.surname}?\n\nThis will:\n• Set status to Activated\n• Set payment to Paid\n• Send login email with password setup link`)) {
-      return;
-    }
-
-    setIsSendingEmail(true);
-
-    try {
-      const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/activate`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${publicAnonKey}`,
-          'X-Session-Token': getSessionToken(),
-        },
-        body: JSON.stringify({
-          email: user.email,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Failed to activate user:', errorText);
+  const handleActivateUser = (user: User) => {
+    showConfirm(
+      'Activate User',
+      `Activate ${user.name} ${user.surname}?\n\nThis will:\n• Set status to Activated\n• Set payment to Paid\n• Send login email with password setup link`,
+      async () => {
+        setIsSendingEmail(true);
 
         try {
-          const errorData = JSON.parse(errorText);
-          alert(errorData.error || 'Failed to activate user. Please try again.');
-        } catch {
-          alert('Failed to activate user. Please try again.');
+          const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/activate`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${publicAnonKey}`,
+              'X-Session-Token': getSessionToken(),
+            },
+            body: JSON.stringify({
+              email: user.email,
+            }),
+          });
+
+          if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Failed to activate user:', errorText);
+
+            try {
+              const errorData = JSON.parse(errorText);
+              toast.error(errorData.error || 'Failed to activate user. Please try again.');
+            } catch {
+              toast.error('Failed to activate user. Please try again.');
+            }
+
+            setIsSendingEmail(false);
+            return;
+          }
+
+          const data = await response.json();
+          console.log('User activated successfully:', data);
+
+          toast.success(`${user.name} ${user.surname} activated successfully! Login email sent to ${user.email}`);
+          setIsSendingEmail(false);
+
+          // Refresh user list to show updated status
+          fetchBookings(); // fetchBookings() fetches both bookings AND users
+        } catch (error) {
+          console.error('Error activating user:', error);
+          toast.error('Network error. Please check your connection.');
+          setIsSendingEmail(false);
         }
-
-        setIsSendingEmail(false);
-        return;
       }
-
-      const data = await response.json();
-      console.log('User activated successfully:', data);
-
-      alert(`${user.name} ${user.surname} activated successfully!\nLogin email sent to ${user.email}`);
-      setIsSendingEmail(false);
-
-      // Refresh user list to show updated status
-      fetchBookings(); // fetchBookings() fetches both bookings AND users
-    } catch (error) {
-      console.error('Error activating user:', error);
-      alert('Network error. Please check your connection.');
-      setIsSendingEmail(false);
-    }
+    );
   };
 
-  const handleDeleteUser = async (user: User) => {
-    // Confirm deletion
-    if (!confirm(`Are you sure you want to delete user ${user.name} ${user.surname}? This will delete all their bookings and cannot be undone.`)) {
-      return;
-    }
+  const handleDeleteUser = (user: User) => {
+    showConfirm(
+      'Delete User',
+      `Are you sure you want to delete ${user.name} ${user.surname}? This will delete all their bookings and cannot be undone.`,
+      async () => {
+        try {
+          const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/users/${encodeURIComponent(user.email)}`, {
+            method: 'DELETE',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${publicAnonKey}`,
+              'X-Session-Token': getSessionToken(),
+            },
+          });
 
-    try {
-      const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/users/${encodeURIComponent(user.email)}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${publicAnonKey}`,
-          'X-Session-Token': getSessionToken(),
-        },
-      });
+          if (!response.ok) {
+            let errorMessage = 'Unknown error';
+            try {
+              const data = await response.json();
+              errorMessage = data.error || errorMessage;
+            } catch {
+              // Response might not be JSON
+            }
+            console.error('Failed to delete user:', errorMessage);
+            toast.error(`Failed to delete user: ${errorMessage}`);
+            return;
+          }
 
-      const data = await response.json();
+          // Success - response might be empty or JSON
+          let data;
+          try {
+            data = await response.json();
+          } catch {
+            data = { success: true };
+          }
+          console.log('User deleted successfully:', data);
 
-      if (!response.ok) {
-        console.error('Failed to delete user:', data);
-        alert(`Failed to delete user: ${data.error || 'Unknown error'}`);
-        return;
+          // Refresh the bookings list to reflect the deletion
+          await fetchBookings();
+
+          // Close the expanded view if this was the expanded user
+          if (expandedUserId === user.id) {
+            setExpandedUserId(null);
+          }
+        } catch (error) {
+          console.error('Error deleting user:', error);
+          const message = error instanceof Error ? error.message : 'Unknown error';
+          toast.error(`Failed to delete user: ${message}`);
+        }
       }
-
-      console.log('User deleted successfully:', data);
-      
-      // Refresh the bookings list to reflect the deletion
-      await fetchBookings();
-      
-      // Close the expanded view if this was the expanded user
-      if (expandedUserId === user.id) {
-        setExpandedUserId(null);
-      }
-    } catch (error) {
-      console.error('Error deleting user:', error);
-      alert('Network error. Please check your connection.');
-    }
+    );
   };
 
   // Handle session adjustment (+1 or -1)
@@ -845,7 +885,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
               : u
           )
         );
-        alert(`Failed to adjust sessions: ${data.error || 'Unknown error'}`);
+        toast.error(`Failed to adjust sessions: ${data.error || 'Unknown error'}`);
         return;
       }
 
@@ -873,48 +913,50 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
             : u
         )
       );
-      alert('Network error. Please check your connection.');
+      toast.error('Network error. Please check your connection.');
     } finally {
       setAdjustingSessionsEmail(null);
     }
   };
 
   // Handle resend login email
-  const handleResendLoginEmail = async (user: User) => {
-    if (!confirm(`Send login email to ${user.name} ${user.surname} (${user.email})?`)) {
-      return;
-    }
+  const handleResendLoginEmail = (user: User) => {
+    showConfirm(
+      'Send Login Email',
+      `Send login email to ${user.name} ${user.surname} (${user.email})?`,
+      async () => {
+        setSendingLoginEmailTo(user.email);
+        try {
+          const response = await fetch(
+            `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/admin/users/${encodeURIComponent(user.email)}/resend-login-email`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${publicAnonKey}`,
+                'X-Session-Token': getSessionToken(),
+              },
+            }
+          );
 
-    setSendingLoginEmailTo(user.email);
-    try {
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/admin/users/${encodeURIComponent(user.email)}/resend-login-email`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${publicAnonKey}`,
-            'X-Session-Token': getSessionToken(),
-          },
+          const data = await response.json();
+
+          if (!response.ok) {
+            console.error('Failed to send login email:', data);
+            toast.error(`Failed to send email: ${data.error || 'Unknown error'}`);
+            return;
+          }
+
+          console.log('Login email sent:', data);
+          toast.success(`Login email sent to ${user.email}!`);
+        } catch (error) {
+          console.error('Error sending login email:', error);
+          toast.error('Network error. Please check your connection.');
+        } finally {
+          setSendingLoginEmailTo(null);
         }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        console.error('Failed to send login email:', data);
-        alert(`Failed to send email: ${data.error || 'Unknown error'}`);
-        return;
       }
-
-      console.log('Login email sent:', data);
-      alert(`Login email sent to ${user.email}!`);
-    } catch (error) {
-      console.error('Error sending login email:', error);
-      alert('Network error. Please check your connection.');
-    } finally {
-      setSendingLoginEmailTo(null);
-    }
+    );
   };
 
   // Handle booking status change (Attended, No Show, Cancel)
@@ -971,11 +1013,11 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
       } else {
         const errorData = await response.text();
         console.error('❌ Failed to activate user:', response.status, errorData);
-        alert(`Failed to activate ${name}. Check console for details.`);
+        toast.error(`Failed to activate ${name}. Check console for details.`);
       }
     } catch (error) {
       console.error('❌ Error activating user:', error);
-      alert('Network error. Please check your connection.');
+      toast.error('Network error. Please check your connection.');
     } finally {
       setPaymentUpdatingEmail(null);
     }
@@ -1861,12 +1903,34 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
         ) : null}
       </div>
 
-      {/* Email Confirmation Modal removed - activation now uses direct confirm() dialog */}
+      {/* Confirmation actions now use styled AlertDialog */}
 
       {/* Dev Tools Modal */}
       {showDevTools && (
         <DevTools onClose={() => setShowDevTools(false)} />
       )}
+
+      {/* Confirmation Dialog */}
+      <AlertDialog open={confirmDialog?.open} onOpenChange={(open) => !open && setConfirmDialog(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{confirmDialog?.title}</AlertDialogTitle>
+            <AlertDialogDescription className="whitespace-pre-line">
+              {confirmDialog?.description}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              const callback = confirmDialog?.onConfirm;
+              setConfirmDialog(null);
+              if (callback) callback();
+            }}>
+              Confirm
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
