@@ -1409,7 +1409,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                       : 'text-[#8b7764] hover:text-[#6b5949]'
                   }`}
                 >
-                  Paid
+                  Paid ({users.filter(u => u.status === 'confirmed').length})
                   {userSubTab === 'confirmed' && (
                     <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-green-700" />
                   )}
@@ -1422,7 +1422,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                       : 'text-[#8b7764] hover:text-[#6b5949]'
                   }`}
                 >
-                  Not Paid
+                  Not Paid ({users.filter(u => u.status === 'pending').length})
                   {userSubTab === 'pending' && (
                     <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-700" />
                   )}
