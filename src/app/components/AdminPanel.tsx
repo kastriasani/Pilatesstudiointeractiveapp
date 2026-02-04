@@ -154,8 +154,10 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
   const [customSlots, setCustomSlots] = useState<any[]>([]);
   const [editingSlotId, setEditingSlotId] = useState<string | null>(null);
   const [editingTime, setEditingTime] = useState<string>('');
+  const [editingCapacity, setEditingCapacity] = useState<number>(4);
   const [isAddingSlot, setIsAddingSlot] = useState(false);
   const [newSlotTime, setNewSlotTime] = useState('');
+  const [newSlotCapacity, setNewSlotCapacity] = useState<number>(4);
   const [slotLoading, setSlotLoading] = useState(false);
   const [usesCustomSlots, setUsesCustomSlots] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
@@ -408,13 +410,14 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
             'Authorization': `Bearer ${publicAnonKey}`,
             'X-Session-Token': getSessionToken(),
           },
-          body: JSON.stringify({ startTime: editingTime, date: isoDate }),
+          body: JSON.stringify({ startTime: editingTime, maxCapacity: editingCapacity, date: isoDate }),
         }
       );
       if (response.ok) {
         await fetchSlotsForDate(selectedDate);
         setEditingSlotId(null);
         setEditingTime('');
+        setEditingCapacity(4);
       } else {
         const data = await response.json();
         toast.error(data.details ? `${data.error}: ${data.details}` : data.error || 'Failed to update slot');
@@ -472,13 +475,14 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
             'Authorization': `Bearer ${publicAnonKey}`,
             'X-Session-Token': getSessionToken(),
           },
-          body: JSON.stringify({ date: isoDate, startTime: newSlotTime }),
+          body: JSON.stringify({ date: isoDate, startTime: newSlotTime, maxCapacity: newSlotCapacity }),
         }
       );
       if (response.ok) {
         await fetchSlotsForDate(selectedDate);
         setIsAddingSlot(false);
         setNewSlotTime('');
+        setNewSlotCapacity(4);
       } else {
         const data = await response.json();
         toast.error(data.error || 'Failed to add slot');
@@ -1229,6 +1233,17 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                 className="border border-stone-300 rounded px-2 py-1 w-24 text-sm"
                                 autoFocus
                               />
+                              <select
+                                value={editingCapacity}
+                                onChange={(e) => setEditingCapacity(Number(e.target.value))}
+                                className="border border-stone-300 rounded px-2 py-1 text-sm w-16"
+                                title="Max capacity"
+                              >
+                                <option value={1}>1</option>
+                                <option value={2}>2</option>
+                                <option value={3}>3</option>
+                                <option value={4}>4</option>
+                              </select>
                               <button
                                 onClick={() => handleSaveSlot(slot.id)}
                                 disabled={slotLoading}
@@ -1237,7 +1252,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                 {slotLoading ? 'Saving...' : 'Save'}
                               </button>
                               <button
-                                onClick={() => { setEditingSlotId(null); setEditingTime(''); }}
+                                onClick={() => { setEditingSlotId(null); setEditingTime(''); setEditingCapacity(4); }}
                                 className="text-sm text-stone-500 hover:text-stone-700"
                               >
                                 Cancel
@@ -1266,9 +1281,10 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                       e.stopPropagation();
                                       setEditingSlotId(slot.id);
                                       setEditingTime(slotTime);
+                                      setEditingCapacity(slot.max_capacity || 4);
                                     }}
                                     className="p-1.5 text-stone-400 hover:text-stone-700 transition-colors"
-                                    title="Edit time"
+                                    title="Edit slot"
                                   >
                                     <Pencil className="w-4 h-4" />
                                   </button>
@@ -1398,6 +1414,17 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                           className="border border-stone-300 rounded px-2 py-1 w-24 text-sm"
                           autoFocus
                         />
+                        <select
+                          value={newSlotCapacity}
+                          onChange={(e) => setNewSlotCapacity(Number(e.target.value))}
+                          className="border border-stone-300 rounded px-2 py-1 text-sm w-16"
+                          title="Max capacity"
+                        >
+                          <option value={1}>1</option>
+                          <option value={2}>2</option>
+                          <option value={3}>3</option>
+                          <option value={4}>4</option>
+                        </select>
                         <button
                           onClick={handleAddSlot}
                           disabled={slotLoading || !newSlotTime}
@@ -1406,7 +1433,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                           {slotLoading ? 'Adding...' : 'Add'}
                         </button>
                         <button
-                          onClick={() => { setIsAddingSlot(false); setNewSlotTime(''); }}
+                          onClick={() => { setIsAddingSlot(false); setNewSlotTime(''); setNewSlotCapacity(4); }}
                           className="text-sm text-stone-500 hover:text-stone-700"
                         >
                           Cancel
