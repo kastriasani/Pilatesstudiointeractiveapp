@@ -623,10 +623,12 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
   const generateAdminDates = () => {
     const { start, end } = getCalendarDateRange(5);
     const calendarDates = getCalendarDates(start, end);
+    const dayAbbr = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
     return calendarDates.map(date => ({
       displayDate: `${date.getDate()}. ${formatDateShort(date).split(' ')[1]}`,
       dateKey: formatDateKeyLegacy(date),
+      dayOfWeek: dayAbbr[date.getDay()],
     }));
   };
 
@@ -1125,7 +1127,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                       <button
                         onClick={() => setSelectedDate(date.dateKey)}
                         className={`
-                          flex-shrink-0 min-w-[52px] h-16 rounded-xl flex flex-col items-center justify-center
+                          flex-shrink-0 min-w-[52px] h-[72px] rounded-xl flex flex-col items-center justify-center
                           transition-all
                           ${isSelected
                             ? 'bg-stone-600 text-white'
@@ -1134,13 +1136,13 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                           ${isToday && !isSelected ? 'ring-1 ring-stone-400' : ''}
                         `}
                       >
-                        <span className={`text-[10px] uppercase tracking-wide ${isSelected ? 'text-stone-300' : 'text-stone-500'}`}>
-                          {date.displayDate.split(' ')[1]}
+                        <span className={`text-[9px] font-medium ${isSelected ? 'text-stone-300' : 'text-stone-500'}`}>
+                          {date.dayOfWeek}
                         </span>
                         <span className={`text-lg font-semibold ${isSelected ? '' : 'text-stone-800'}`}>
                           {date.displayDate.split('.')[0]}
                         </span>
-                        <span className={`text-[10px] mt-0.5 ${isSelected ? 'text-stone-300' : 'text-stone-400'}`}>
+                        <span className={`text-[9px] ${isSelected ? 'text-stone-300' : 'text-stone-400'}`}>
                           {bookingsCount}/{maxDailyCapacity}
                         </span>
                       </button>
