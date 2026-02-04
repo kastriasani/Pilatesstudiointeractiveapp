@@ -20,6 +20,7 @@ type TimeSlot = {
   time: string;
   status: 'available' | 'full';
   availableSpots?: number;
+  maxCapacity?: number;
   isPastOrTooSoon?: boolean;
 };
 
@@ -202,6 +203,7 @@ export function BookingScreen({ trainingType, onBack, onSubmit, onInstructorClic
         time,
         status: availableSpots === 0 || isPastOrTooSoon ? 'full' : 'available',
         availableSpots: availableSpots > 0 && !isPastOrTooSoon ? availableSpots : undefined,
+        maxCapacity,
         isPastOrTooSoon, // Flag to distinguish between fully booked and time-blocked
       };
     });
@@ -345,9 +347,14 @@ export function BookingScreen({ trainingType, onBack, onSubmit, onInstructorClic
               >
                 {isPastTime
                   ? t.timePassed || 'Kaluar'
-                  : slot.status === 'full' 
+                  : slot.status === 'full'
                   ? t.noSpots
-                  : t.bookNow}
+                  : (
+                    <div className="flex flex-col items-center leading-tight">
+                      <span className="text-sm font-semibold">{slot.availableSpots} / {slot.maxCapacity}</span>
+                      <span className="text-[10px]">{t.bookYourClass || 'Book'}</span>
+                    </div>
+                  )}
               </button>
             </div>
           );
