@@ -546,7 +546,7 @@ function getEmailTranslations(language: string) {
       setPassword: 'Vendos Fjalëkalimin',
       linkExpires: 'Ky link skadon pas 24 orëve.',
       welcomeWaitlist: 'Mirë se vini në Wellnest Pilates!',
-      exclusiveOffer: 'Blini një paketë me 8 klasa dhe merrni klasën e parë FALAS!',
+      exclusiveOffer: 'Oferta vlen vetëm nëse merrni pako mujore.',
       exclusiveOfferLabel: 'OFERTË EKSKLUZIVE',
       redemptionCode: 'KODI I SHPËRBLIMIT',
       presentCode: 'Prekni për të zgjedhur • Tregoni në studio',
