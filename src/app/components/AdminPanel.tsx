@@ -99,6 +99,16 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
   // Get session token from props or localStorage
   const getSessionToken = () => propSessionToken || localStorage.getItem('adminSessionToken') || '';
 
+  // Handle session expired errors - auto-logout admin
+  const handleSessionError = (error: string) => {
+    if (error === 'Session expired' || error === 'Invalid session') {
+      toast.error('Your session has expired. Please log in again.');
+      onLogout();
+      return true;
+    }
+    return false;
+  };
+
   // Format phone number as +389 XX XXX XXX
   const formatPhone = (phone: string): string => {
     if (!phone) return '';
@@ -199,6 +209,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
 
       if (!bookingsResponse.ok) {
         console.error('Failed to fetch bookings:', bookingsData);
+        if (handleSessionError(bookingsData.error)) return;
       } else {
         console.log('Fetched bookings:', bookingsData.bookings);
         setBookings(bookingsData.bookings || []);
@@ -218,6 +229,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
 
       if (!usersResponse.ok) {
         console.error('Failed to fetch users:', usersData);
+        if (handleSessionError(usersData.error)) return;
         return;
       }
 
@@ -962,6 +974,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
 
           if (!response.ok) {
             console.error('Failed to send login email:', data);
+            if (handleSessionError(data.error)) return;
             toast.error(`Failed to send email: ${data.error || 'Unknown error'}`);
             return;
           }

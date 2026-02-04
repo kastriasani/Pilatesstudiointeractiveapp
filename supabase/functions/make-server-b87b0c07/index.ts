@@ -86,7 +86,7 @@ const EMAIL_TRANSLATIONS = {
     time: 'Time',
     important: 'Important',
     paymentMessage: 'Your account will be activated after payment is completed at the studio.',
-    lookForward: 'We look forward to seeing you!',
+    lookForward: 'We look forward to seeing you! 😊',
     questionsContact: 'Questions? Contact us:',
     subject: 'Booking Confirmation - Wellnest Pilates',
   },
@@ -113,7 +113,7 @@ const EMAIL_TRANSLATIONS = {
     time: 'Ora',
     important: 'E rëndësishme',
     paymentMessage: 'Llogaria juaj do të aktivizohet pas përfundimit të pagesës në studio.',
-    lookForward: 'Presim me padurim t\'ju shohim!',
+    lookForward: 'Presim me padurim t\'ju shohim! 😊',
     questionsContact: 'Pyetje? Na kontaktoni:',
     subject: 'Konfirmim Rezervimi - Wellnest Pilates',
   },
@@ -140,9 +140,9 @@ const EMAIL_TRANSLATIONS = {
     time: 'Време',
     important: 'Важно',
     paymentMessage: 'Вашата сметка ќе биде активирана по завршувањето на уплатата во студиото.',
-    lookForward: 'Се радуваме да ве видиме!',
+    lookForward: 'Се радуваме да ве видиме! 😊',
     questionsContact: 'Прашања? Контактирајте нѐ:',
-    subject: 'Потврда за резервација - Wellnest Pilates',
+    subject: 'Потврда за резервација - Велнест Пилатес',
   }
 };
 
@@ -260,6 +260,14 @@ async function verifyAdminSession(c: any): Promise<{ valid: boolean; error?: str
   if (!session.isAdmin) {
     return { valid: false, error: 'Admin access required' };
   }
+
+  // Extend session expiry on each successful request (sliding expiration)
+  // This keeps active admins logged in
+  const newExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+  await kv.set(sessionKey, {
+    ...session,
+    expiresAt: newExpiry
+  });
 
   return { valid: true };
 }
@@ -439,8 +447,8 @@ function generateEmailTemplate(content: EmailContent, language: 'sq' | 'mk' | 'e
                 <!-- Footer -->
                 <tr>
                   <td style="background-color: #f5f5f5; padding: 24px; text-align: center; border-top: 1px solid #e0e0e0;">
-                    <p style="margin: 0 0 8px 0; color: #888888; font-size: 13px;">Gjuro Gjakovikj 59, Kumanovo 1300</p>
-                    <p style="margin: 0; color: #888888; font-size: 12px;">© 2025 Wellnest Pilates</p>
+                    <p style="margin: 0 0 8px 0; color: #888888; font-size: 13px;">${language === 'mk' ? 'Ѓуро Ѓаковиќ 59, Куманово 1300' : 'Gjuro Gjakovikj 59, Kumanovo 1300'}</p>
+                    <p style="margin: 0; color: #888888; font-size: 12px;">${language === 'mk' ? '© 2025 Велнест Пилатес' : '© 2025 Wellnest Pilates'}</p>
                   </td>
                 </tr>
               </table>
@@ -503,7 +511,7 @@ function getEmailTranslations(language: string) {
       date: 'Data',
       time: 'Ora',
       important: 'E rëndësishme: Llogaria juaj do të aktivizohet pas përfundimit të pagesës në studio.',
-      lookForward: 'Me padurim presim t\'ju shohim!',
+      lookForward: 'Me padurim presim t\'ju shohim! 😊',
       accountReady: 'Llogaria juaj është gati!',
       setPassword: 'Vendos Fjalëkalimin',
       linkExpires: 'Ky link skadon pas 24 orëve.',
@@ -528,11 +536,11 @@ function getEmailTranslations(language: string) {
       date: 'Датум',
       time: 'Време',
       important: 'Важно: Вашата сметка ќе биде активирана по завршувањето на уплатата во студиото.',
-      lookForward: 'Со нетрпение ве очекуваме!',
+      lookForward: 'Со нетрпение ве очекуваме! 😊',
       accountReady: 'Вашата сметка е готова!',
       setPassword: 'Постави Лозинка',
       linkExpires: 'Овој линк истекува за 24 часа.',
-      welcomeWaitlist: 'Добредојдовте во Wellnest Pilates!',
+      welcomeWaitlist: 'Добредојдовте во Велнест Пилатес!',
       exclusiveOffer: 'Купете пакет од 8 класи и добијте ја првата класа БЕСПЛАТНО!',
       exclusiveOfferLabel: 'ЕКСКЛУЗИВНА ПОНУДА',
       redemptionCode: 'КОД ЗА ИСКОРИСТУВАЊЕ',
@@ -553,7 +561,7 @@ function getEmailTranslations(language: string) {
       date: 'Date',
       time: 'Time',
       important: 'Important: Your account will be activated after payment is completed at the studio.',
-      lookForward: 'We look forward to seeing you!',
+      lookForward: 'We look forward to seeing you! 😊',
       accountReady: 'Your account is ready!',
       setPassword: 'Set Password',
       linkExpires: 'This link expires in 24 hours.',
@@ -616,7 +624,7 @@ async function sendBookingEmail(
 
   const html = generateEmailTemplate(content, (language?.toLowerCase() || 'en') as 'sq' | 'mk' | 'en');
   const subject = language?.toLowerCase() === 'sq' ? 'Konfirmim Rezervimi - Wellnest Pilates'
-    : language?.toLowerCase() === 'mk' ? 'Потврда за резервација - Wellnest Pilates'
+    : language?.toLowerCase() === 'mk' ? 'Потврда за резервација - Велнест Пилатес'
     : 'Booking Confirmation - Wellnest Pilates';
 
   return sendEmail(email, subject, html);
@@ -652,7 +660,7 @@ async function sendActivationEmail(
 
   const html = generateEmailTemplate(content, (language?.toLowerCase() || 'en') as 'sq' | 'mk' | 'en');
   const subject = language?.toLowerCase() === 'sq' ? 'Llogaria Juaj - Wellnest Pilates'
-    : language?.toLowerCase() === 'mk' ? 'Вашата сметка - Wellnest Pilates'
+    : language?.toLowerCase() === 'mk' ? 'Вашата сметка - Велнест Пилатес'
     : 'Your Account - Wellnest Pilates';
 
   return sendEmail(email, subject, html);
@@ -690,7 +698,7 @@ async function sendWaitlistInviteEmail(
 
   const html = generateEmailTemplate(content, (language?.toLowerCase() || 'en') as 'sq' | 'mk' | 'en');
   const subject = language?.toLowerCase() === 'sq' ? 'Mirë se vini në Wellnest Pilates!'
-    : language?.toLowerCase() === 'mk' ? 'Добредојдовте во Wellnest Pilates!'
+    : language?.toLowerCase() === 'mk' ? 'Добредојдовте во Велнест Пилатес!'
     : 'Welcome to Wellnest Pilates!';
 
   return sendEmail(email, subject, html);
@@ -1174,11 +1182,17 @@ app.post("/make-server-b87b0c07/packages/:id/first-session", async (c) => {
 
     const reservationId = insertedReservation.id;
 
-    // Update user_packages in Supabase (not KV)
+    // Update user_packages: add to sessions_booked, decrement remaining_sessions
+    const currentSessionsBooked = pkg.sessions_booked || [];
+    const newSessionsBooked = [...currentSessionsBooked, reservationId];
+    const newRemainingSessions = pkg.remaining_sessions - 1;
+
     const { error: updatePkgError } = await supabase
       .from('user_packages')
       .update({
         first_reservation_id: reservationId,
+        sessions_booked: newSessionsBooked,
+        remaining_sessions: newRemainingSessions,
         updated_at: now
       })
       .eq('id', packageId);
@@ -1186,6 +1200,17 @@ app.post("/make-server-b87b0c07/packages/:id/first-session", async (c) => {
     if (updatePkgError) {
       console.error('Error updating package in Supabase:', updatePkgError);
     }
+
+    // Sync to users table for backwards compatibility (Admin Panel reads from here)
+    const usedSessions = (pkg.total_sessions || 0) - newRemainingSessions;
+    await supabase
+      .from('users')
+      .update({
+        remaining_sessions: newRemainingSessions,
+        used_sessions: usedSessions,
+        updated_at: now
+      })
+      .eq('email', pkg.user_email);
 
     // Check user from Supabase and send email if needed
     try {
@@ -1258,7 +1283,7 @@ app.post("/make-server-b87b0c07/packages/:id/first-session", async (c) => {
       userId: pkg.user_email,
       packageType: pkg.package_type,
       totalSessions: pkg.total_sessions,
-      remainingSessions: pkg.remaining_sessions,
+      remainingSessions: newRemainingSessions,
       firstReservationId: reservationId,
       name: pkg.name,
       surname: pkg.surname,
@@ -3414,7 +3439,8 @@ app.post("/make-server-b87b0c07/auth/setup-password", async (c) => {
       user: {
         email: normalizedEmail,
         name: user.name,
-        surname: user.surname
+        surname: user.surname,
+        language: user.language || 'sq'
       }
     });
 
@@ -3582,7 +3608,8 @@ app.post("/make-server-b87b0c07/auth/login", async (c) => {
         email: normalizedEmail,
         name: user.name,
         surname: user.surname,
-        mobile: user.mobile
+        mobile: user.mobile,
+        language: user.language || 'sq'
       }
     });
 
@@ -3699,6 +3726,57 @@ app.post("/make-server-b87b0c07/auth/admin/login", async (c) => {
 });
 
 // ============ USER ENDPOINTS ============
+
+// PATCH /user/language - Update user's language preference
+app.patch("/make-server-b87b0c07/user/language", async (c) => {
+  try {
+    const sessionToken = c.req.header('X-Session-Token');
+
+    if (!sessionToken) {
+      return c.json({ error: "No session token provided" }, 401);
+    }
+
+    const sessionKey = `session:${sessionToken}`;
+    const session = await kv.get(sessionKey);
+
+    if (!session) {
+      return c.json({ error: "Invalid session" }, 401);
+    }
+
+    if (new Date(session.expiresAt) < new Date()) {
+      return c.json({ error: "Session expired" }, 401);
+    }
+
+    const body = await c.req.json();
+    const { language } = body;
+
+    if (!language || !['sq', 'mk', 'en'].includes(language.toLowerCase())) {
+      return c.json({ error: "Invalid language. Must be 'sq', 'mk', or 'en'" }, 400);
+    }
+
+    const normalizedEmail = normalizeEmail(session.email);
+    const normalizedLanguage = language.toLowerCase();
+    const supabase = getSupabase();
+
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({ language: normalizedLanguage, updated_at: new Date().toISOString() })
+      .eq('email', normalizedEmail);
+
+    if (updateError) {
+      console.error('Error updating user language:', updateError);
+      return c.json({ error: 'Failed to update language' }, 500);
+    }
+
+    console.log(`Language updated for ${normalizedEmail}: ${normalizedLanguage}`);
+
+    return c.json({ success: true, language: normalizedLanguage });
+
+  } catch (error) {
+    console.error('Error updating language:', error);
+    return c.json({ error: 'Failed to update language', details: (error as Error).message }, 500);
+  }
+});
 
 app.get("/make-server-b87b0c07/user/packages", async (c) => {
   try {
@@ -4485,7 +4563,7 @@ app.post("/make-server-b87b0c07/admin/waitlist/send-invite", async (c) => {
         console.log(`Generated new code for ${normalizedEmail}: ${redemptionCode}`);
       }
 
-      // Detect language based on name/surname
+      // Use stored language, or detect based on name/surname as fallback
       const detectLanguage = (name: string, surname: string): 'sq' | 'mk' | 'en' => {
         const albanianEndings = ['aj', 'ush', 'ues', 'i'];
         const macedonianEndings = ['ski', 'ovski', 'evski', 'ov', 'ova', 'ev', 'eva'];
@@ -4501,8 +4579,9 @@ app.post("/make-server-b87b0c07/admin/waitlist/send-invite", async (c) => {
         return 'en';
       };
 
-      const language = detectLanguage(waitlistUser.name, waitlistUser.surname);
-      console.log(`Detected language for ${waitlistUser.name}: ${language}`);
+      // Use stored language if available, otherwise detect from name
+      const language = waitlistUser.language || detectLanguage(waitlistUser.name, waitlistUser.surname);
+      console.log(`Using language for ${waitlistUser.name}: ${language} (stored: ${waitlistUser.language || 'none'})`);
 
       // Send email using unified template
       try {
