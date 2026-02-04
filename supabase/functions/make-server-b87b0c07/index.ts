@@ -4129,6 +4129,65 @@ app.get("/make-server-b87b0c07/debug/check-users", async (c) => {
   }
 });
 
+// POST /admin/sync-user-sessions - Sync all user_packages data to users table
+app.post("/make-server-b87b0c07/admin/sync-user-sessions", async (c) => {
+  try {
+    // Verify admin session
+    const adminAuth = await verifyAdminSession(c);
+    if (!adminAuth.valid) {
+      return c.json({ error: adminAuth.error }, 401);
+    }
+
+    const supabase = getSupabase();
+    const now = new Date().toISOString();
+
+    // Get all user_packages
+    const { data: packages, error: pkgError } = await supabase
+      .from('user_packages')
+      .select('*');
+
+    if (pkgError) {
+      return c.json({ error: 'Failed to fetch packages', details: pkgError.message }, 500);
+    }
+
+    let synced = 0;
+    let errors = 0;
+
+    // For each package, update the corresponding user
+    for (const pkg of packages || []) {
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({
+          remaining_sessions: pkg.remaining_sessions,
+          used_sessions: (pkg.total_sessions || 0) - (pkg.remaining_sessions || 0),
+          total_sessions: pkg.total_sessions,
+          updated_at: now
+        })
+        .eq('email', pkg.user_email);
+
+      if (updateError) {
+        console.error(`Failed to sync user ${pkg.user_email}:`, updateError);
+        errors++;
+      } else {
+        synced++;
+      }
+    }
+
+    console.log(`🔄 Synced ${synced} users, ${errors} errors`);
+
+    return c.json({
+      success: true,
+      message: `Synced ${synced} users from user_packages to users table`,
+      synced,
+      errors
+    });
+
+  } catch (error: any) {
+    console.error('Error syncing user sessions:', error);
+    return c.json({ error: 'Failed to sync', details: error.message }, 500);
+  }
+});
+
 // ============ WAITLIST ENDPOINTS ============
 
 // Add user to waitlist
