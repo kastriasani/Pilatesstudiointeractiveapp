@@ -19,6 +19,7 @@ type BookedSession = {
   endTime: string;
   slotIndex: number;
   attended?: boolean;
+  createdAt?: string;
 };
 
 type PackageDetails = {
@@ -649,7 +650,9 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
     return pkg.bookedSessions?.find(s => s.slotIndex === slotIndex);
   };
 
-  // Check if a session can be cancelled (24+ hours before)
+  // Check if a session can be cancelled
+  // Rules: 24+ hours before → always cancellable
+  //        Within 24 hours → only within 2-minute grace period after booking
   const canCancelSession = (bookedSession: BookedSession): boolean => {
     if (!bookedSession || bookedSession.attended) return false;
 
@@ -669,16 +672,56 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
     const sessionDateTime = new Date(year, month - 1, day, hours, minutes);
     const hoursUntilSession = (sessionDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
 
-    return hoursUntilSession >= 24;
+    // 24+ hours before → can cancel
+    if (hoursUntilSession >= 24) return true;
+
+    // Within 24 hours → check grace period (2 minutes from booking)
+    if (bookedSession.createdAt) {
+      const createdAt = new Date(bookedSession.createdAt);
+      const minutesSinceBooking = (now.getTime() - createdAt.getTime()) / (1000 * 60);
+      return minutesSinceBooking <= 2;
+    }
+
+    return false;
+  };
+
+  // Get remaining grace period seconds (for sessions within 24h)
+  const getGracePeriodRemaining = (bookedSession: BookedSession): number => {
+    if (!bookedSession || !bookedSession.createdAt) return 0;
+
+    const now = new Date();
+    const createdAt = new Date(bookedSession.createdAt);
+    const gracePeriodMs = 2 * 60 * 1000; // 2 minutes
+    const elapsedMs = now.getTime() - createdAt.getTime();
+    const remainingMs = gracePeriodMs - elapsedMs;
+
+    return Math.max(0, Math.ceil(remainingMs / 1000));
+  };
+
+  // Check if session is within 24 hours
+  const isWithin24Hours = (bookedSession: BookedSession): boolean => {
+    if (!bookedSession) return false;
+
+    const now = new Date();
+    const dateKey = bookedSession.dateKey;
+
+    let year: number, month: number, day: number;
+    if (dateKey.length > 5 && dateKey.includes('-')) {
+      [year, month, day] = dateKey.split('-').map(Number);
+    } else {
+      [month, day] = dateKey.split('-').map(Number);
+      year = now.getFullYear();
+    }
+
+    const [hours, minutes] = bookedSession.time.split(':').map(Number);
+    const sessionDateTime = new Date(year, month - 1, day, hours, minutes);
+    const hoursUntilSession = (sessionDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
+
+    return hoursUntilSession < 24;
   };
 
   // Cancel a booked session
   const handleCancelSession = async (pkg: PackageDetails, bookedSession: BookedSession) => {
-    if (!canCancelSession(bookedSession)) {
-      toast.error(t.cannotCancelWithin24h || 'Cannot cancel within 24 hours of session');
-      return;
-    }
-
     // Confirm cancellation
     if (!window.confirm(t.confirmCancelSession || 'Are you sure you want to cancel this session?')) {
       return;
@@ -930,21 +973,38 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
                     {(() => {
                       const selectedSession = getBookedSessionForSlot(pkg, selectedSlotIndex);
                       if (selectedSession && canCancelSession(selectedSession)) {
+                        const within24h = isWithin24Hours(selectedSession);
+                        const graceSeconds = within24h ? getGracePeriodRemaining(selectedSession) : 0;
+
                         return (
-                          <div className="mb-3 p-3 bg-white rounded-lg border border-red-200">
+                          <div className={`mb-3 p-3 bg-white rounded-lg border ${within24h ? 'border-orange-300' : 'border-red-200'}`}>
                             <div className="flex items-center justify-between">
                               <div className="text-xs text-[#6b5949]">
                                 <span className="font-medium">{t.currentBooking || 'Current booking'}:</span>{' '}
                                 {formatShortDate(selectedSession.dateKey)} {t.at || 'at'} {selectedSession.time}
+                                {within24h && graceSeconds > 0 && (
+                                  <span className="ml-2 text-orange-600 font-semibold">
+                                    ⏱️ {Math.floor(graceSeconds / 60)}:{String(graceSeconds % 60).padStart(2, '0')}
+                                  </span>
+                                )}
                               </div>
                               <button
                                 onClick={() => handleCancelSession(pkg, selectedSession)}
                                 disabled={isRescheduling}
-                                className="px-3 py-1.5 bg-red-500 text-white text-xs font-medium rounded-lg hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                className={`px-3 py-1.5 text-white text-xs font-medium rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${
+                                  within24h
+                                    ? 'bg-orange-500 hover:bg-orange-600'
+                                    : 'bg-red-500 hover:bg-red-600'
+                                }`}
                               >
                                 {isRescheduling ? '...' : (t.cancelSession || 'Cancel')}
                               </button>
                             </div>
+                            {within24h && (
+                              <p className="text-[10px] text-orange-600 mt-1">
+                                {t.gracePeriodWarning || 'Grace period - cancel within 2 min of booking'}
+                              </p>
+                            )}
                           </div>
                         );
                       }

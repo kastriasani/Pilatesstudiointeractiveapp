@@ -3779,7 +3779,8 @@ app.get("/make-server-b87b0c07/user/packages", async (c) => {
             time: res.time_slot,
             endTime: calculateEndTime(res.time_slot),
             slotIndex: index,
-            attended: true
+            attended: true,
+            createdAt: res.created_at
           };
         }
         return null;
@@ -3796,7 +3797,8 @@ app.get("/make-server-b87b0c07/user/packages", async (c) => {
             time: res.time_slot,
             endTime: calculateEndTime(res.time_slot),
             slotIndex: sessionsAttendedIds.length + index,
-            attended: false
+            attended: false,
+            createdAt: res.created_at
           };
         }
         return null;
@@ -4157,11 +4159,25 @@ app.delete("/make-server-b87b0c07/user/packages/:id/reservations/:reservationId"
     const sessionDateTime = new Date(year, month - 1, day, hours, minutes);
     const hoursUntilSession = (sessionDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
 
+    // Check cancellation rules:
+    // 1. If 24+ hours before session → can always cancel
+    // 2. If within 24 hours → can only cancel within 2 minutes of booking (grace period)
     if (hoursUntilSession < 24) {
-      return c.json({
-        error: "Cannot cancel within 24 hours of session",
-        hoursUntilSession: Math.round(hoursUntilSession * 10) / 10
-      }, 400);
+      const createdAt = new Date(reservation.created_at);
+      const minutesSinceBooking = (now.getTime() - createdAt.getTime()) / (1000 * 60);
+      const gracePeriodMinutes = 2;
+
+      if (minutesSinceBooking > gracePeriodMinutes) {
+        const secondsRemaining = Math.max(0, (gracePeriodMinutes * 60) - (now.getTime() - createdAt.getTime()) / 1000);
+        return c.json({
+          error: "Cannot cancel - grace period expired",
+          hoursUntilSession: Math.round(hoursUntilSession * 10) / 10,
+          gracePeriodExpired: true,
+          minutesSinceBooking: Math.round(minutesSinceBooking * 10) / 10
+        }, 400);
+      }
+      // Within grace period - allow cancellation
+      console.log(`🕐 Grace period cancel: ${minutesSinceBooking.toFixed(1)} min since booking`);
     }
 
     // Cancel the reservation
