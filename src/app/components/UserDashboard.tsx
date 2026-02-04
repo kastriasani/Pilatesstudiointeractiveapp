@@ -3,6 +3,7 @@ import { ArrowLeft, Package, Calendar, Clock, CreditCard, CheckCircle, AlertCirc
 import { Language, translations } from '../translations';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { toast } from 'sonner';
+import { getSkopjeTime } from '../../utils/dateUtils';
 
 type UserDashboardProps = {
   onBack: () => void;
@@ -445,9 +446,21 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
       return;
     }
 
-    // Check if >24h before class
-    const classDateTime = new Date(`${pkg.firstSession.dateKey}T${pkg.firstSession.time}`);
-    const now = new Date();
+    // Check if >24h before class (use Skopje timezone - sessions are in Skopje time)
+    const now = getSkopjeTime();
+    const dateKey = pkg.firstSession.dateKey;
+
+    // Parse date from both formats: "YYYY-MM-DD" or "M-D"
+    let year: number, month: number, day: number;
+    if (dateKey.length > 5 && dateKey.includes('-')) {
+      [year, month, day] = dateKey.split('-').map(Number);
+    } else {
+      [month, day] = dateKey.split('-').map(Number);
+      year = now.getFullYear();
+    }
+
+    const [hours, minutes] = pkg.firstSession.time.split(':').map(Number);
+    const classDateTime = new Date(year, month - 1, day, hours, minutes);
     const hoursUntilClass = (classDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
 
     if (hoursUntilClass < 24) {
@@ -686,7 +699,8 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
   const canCancelSession = (bookedSession: BookedSession): boolean => {
     if (!bookedSession || bookedSession.attended) return false;
 
-    const now = new Date();
+    // Use Skopje timezone for all time calculations (sessions are in Skopje time)
+    const now = getSkopjeTime();
     const dateKey = bookedSession.dateKey;
 
     // Parse date from both formats: "YYYY-MM-DD" or "M-D"
@@ -732,7 +746,8 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
   const isWithin24Hours = (bookedSession: BookedSession): boolean => {
     if (!bookedSession) return false;
 
-    const now = new Date();
+    // Use Skopje timezone for all time calculations (sessions are in Skopje time)
+    const now = getSkopjeTime();
     const dateKey = bookedSession.dateKey;
 
     let year: number, month: number, day: number;
