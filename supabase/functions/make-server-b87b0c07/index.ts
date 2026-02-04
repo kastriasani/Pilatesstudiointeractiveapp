@@ -270,20 +270,31 @@ async function verifyPassword(password: string, hash: string): Promise<boolean> 
 }
 
 async function calculateSlotCapacity(dateKey: string, timeSlot: string): Promise<{available: number, isBlocked: boolean, isPrivate: boolean}> {
-  const allReservations = await kv.getByPrefix('reservation:');
-  const slotReservations = allReservations.filter((r: any) => 
-    r.dateKey === dateKey && 
-    r.timeSlot === timeSlot && 
-    (r.reservationStatus === 'confirmed' || r.reservationStatus === 'attended')
-  );
+  const supabase = getSupabase();
 
-  const hasPrivateSession = slotReservations.some((r: any) => r.isPrivateSession);
+  // Query Supabase for reservations at this slot
+  const { data: slotReservations, error } = await supabase
+    .from('reservations')
+    .select('*')
+    .eq('date_key', dateKey)
+    .eq('time_slot', timeSlot)
+    .in('reservation_status', ['confirmed', 'attended']);
+
+  if (error) {
+    console.error('Error fetching slot capacity:', error);
+    // Return full capacity on error to be safe
+    return { available: 0, isBlocked: true, isPrivate: false };
+  }
+
+  const reservations = slotReservations || [];
+
+  const hasPrivateSession = reservations.some((r: any) => r.is_private_session);
   if (hasPrivateSession) {
     return { available: 0, isBlocked: true, isPrivate: true };
   }
 
-  const seatsOccupied = slotReservations.reduce((total: number, r: any) => {
-    return total + (r.seatsOccupied || 1);
+  const seatsOccupied = reservations.reduce((total: number, r: any) => {
+    return total + (r.seats_occupied || 1);
   }, 0);
 
   return {
