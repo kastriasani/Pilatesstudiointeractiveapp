@@ -807,7 +807,7 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
                         >
                           {isBooked ? (
                             <>
-                              <span className="text-[10px] font-bold">{isAttended ? '✓✓' : '✓'}</span>
+                              <span className="text-[10px] font-bold">✓</span>
                               <span className="text-[9px] opacity-90 leading-tight">
                                 {formatShortDate(bookedSession.dateKey)}
                               </span>

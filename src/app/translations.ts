@@ -308,6 +308,7 @@ export const translations = {
     booked: 'E rezervuar',
     sessionBookedSuccess: 'Klasa u rezervua me sukses!',
     bookYourClass: 'Rezervo klasën',
+    attended: 'E kryer',
   },
   
   MK: {
@@ -617,6 +618,7 @@ export const translations = {
     booked: 'Резервирано',
     sessionBookedSuccess: 'Класата е успешно резервирана!',
     bookYourClass: 'Резервирај класа',
+    attended: 'Посетена',
   },
 
   EN: {
@@ -926,5 +928,6 @@ export const translations = {
     booked: 'Booked',
     sessionBookedSuccess: 'Session booked successfully!',
     bookYourClass: 'Book your class',
+    attended: 'Attended',
   },
 };
