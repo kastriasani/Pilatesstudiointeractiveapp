@@ -4028,6 +4028,9 @@ app.post("/make-server-b87b0c07/user/packages/:id/book-session", async (c) => {
         time_slot: timeSlot,
         reservation_status: 'confirmed',
         payment_status: pkg.payment_status || 'paid',
+        name: pkg.name,
+        surname: pkg.surname,
+        mobile: pkg.mobile,
         created_at: now,
         updated_at: now
       })
