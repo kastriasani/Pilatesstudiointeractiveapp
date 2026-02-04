@@ -100,7 +100,7 @@ const EMAIL_TRANSLATIONS = {
     bonusNote: 'Paguani 8, merrni 9 seanca',
     exclusions: 'Nuk vlen për seancë teke, 1 on 1, ose duo.',
     personalCode: 'KODI JUAJ PERSONAL',
-    validPackages: 'Vlen per paketat 8, 10, ose 12. Vlen vetëm 50 ditë. Nuk përdoret.',
+    validPackages: 'Vlen për paketat 8, 10, ose 12. Vlen vetëm 50 ditë. Nuk transferohet.',
     redeem: 'Zgjedh paketën',
     howToRedeem: 'Si ta përdorni kodin',
     step1: 'Hapni faqen e paketave',
@@ -111,7 +111,7 @@ const EMAIL_TRANSLATIONS = {
     yourSession: 'Seanca Juaj',
     date: 'Data',
     time: 'Ora',
-    important: 'I rëndësishëm',
+    important: 'E rëndësishme',
     paymentMessage: 'Llogaria juaj do të aktivizohet pas përfundimit të pagesës në studio.',
     lookForward: 'Presim me padurim t\'ju shohim!',
     questionsContact: 'Pyetje? Na kontaktoni:',
@@ -498,25 +498,25 @@ function getEmailTranslations(language: string) {
       bookingConfirmed: 'Rezervimi juaj është konfirmuar.',
       package: 'PAKETA',
       price: 'ÇMIMI',
-      singleSession: 'Klasë TEKE',
+      singleSession: 'KLASË E VETME',
       firstClass: 'KLASA E PARË',
       date: 'Data',
       time: 'Ora',
       important: 'E rëndësishme: Llogaria juaj do të aktivizohet pas përfundimit të pagesës në studio.',
       lookForward: 'Me padurim presim t\'ju shohim!',
-      accountReady: 'Llogaria juaj eshte gati!',
-      setPassword: 'Vendos Fjalekalimin',
-      linkExpires: 'Ky link skadon pas 24 oreve.',
-      welcomeWaitlist: 'Mire se vini ne Wellnest Pilates!',
-      exclusiveOffer: 'Blini nje pakete me 8 klase dhe merrni klasen e pare FALAS!',
-      exclusiveOfferLabel: 'OFERTE EKSKLUZIVE',
-      redemptionCode: 'KODI I SHPERBLIMIT',
+      accountReady: 'Llogaria juaj është gati!',
+      setPassword: 'Vendos Fjalëkalimin',
+      linkExpires: 'Ky link skadon pas 24 orëve.',
+      welcomeWaitlist: 'Mirë se vini në Wellnest Pilates!',
+      exclusiveOffer: 'Blini një paketë me 8 klasa dhe merrni klasën e parë FALAS!',
+      exclusiveOfferLabel: 'OFERTË EKSKLUZIVE',
+      redemptionCode: 'KODI I SHPËRBLIMIT',
       presentCode: 'Prekni për të zgjedhur • Tregoni në studio',
       bookNow: 'Rezervo Tani',
-      whatBring: 'Sillni nje shishe uji.',
-      classes: 'Klase',
+      whatBring: 'Merrni një shishe ujë me vete.',
+      classes: 'Klasë',
       bonus: 'BONUS',
-      freeClasses: 'Klase Falas',
+      freeClasses: 'Klasë Falas',
     },
     mk: {
       greeting: 'Здраво',
@@ -616,7 +616,7 @@ async function sendBookingEmail(
 
   const html = generateEmailTemplate(content, (language?.toLowerCase() || 'en') as 'sq' | 'mk' | 'en');
   const subject = language?.toLowerCase() === 'sq' ? 'Konfirmim Rezervimi - Wellnest Pilates'
-    : language?.toLowerCase() === 'mk' ? 'Potvrda za Rezervacija - Wellnest Pilates'
+    : language?.toLowerCase() === 'mk' ? 'Потврда за резервација - Wellnest Pilates'
     : 'Booking Confirmation - Wellnest Pilates';
 
   return sendEmail(email, subject, html);
@@ -652,7 +652,7 @@ async function sendActivationEmail(
 
   const html = generateEmailTemplate(content, (language?.toLowerCase() || 'en') as 'sq' | 'mk' | 'en');
   const subject = language?.toLowerCase() === 'sq' ? 'Llogaria Juaj - Wellnest Pilates'
-    : language?.toLowerCase() === 'mk' ? 'Vashata Smetka - Wellnest Pilates'
+    : language?.toLowerCase() === 'mk' ? 'Вашата сметка - Wellnest Pilates'
     : 'Your Account - Wellnest Pilates';
 
   return sendEmail(email, subject, html);
@@ -689,8 +689,8 @@ async function sendWaitlistInviteEmail(
   };
 
   const html = generateEmailTemplate(content, (language?.toLowerCase() || 'en') as 'sq' | 'mk' | 'en');
-  const subject = language?.toLowerCase() === 'sq' ? 'Mire se vini ne Wellnest Pilates!'
-    : language?.toLowerCase() === 'mk' ? 'Dobrodojdovte vo Wellnest Pilates!'
+  const subject = language?.toLowerCase() === 'sq' ? 'Mirë se vini në Wellnest Pilates!'
+    : language?.toLowerCase() === 'mk' ? 'Добредојдовте во Wellnest Pilates!'
     : 'Welcome to Wellnest Pilates!';
 
   return sendEmail(email, subject, html);
