@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Calendar, Users, LogOut, Mail, X, CheckCircle, Trash2, Ban, ShieldAlert, Settings, UserPlus, Send, AlertCircle, Loader2, Pencil, Plus } from 'lucide-react';
+import { Calendar, Users, LogOut, Mail, X, CheckCircle, Trash2, Ban, ShieldAlert, Settings, UserPlus, UserMinus, Send, AlertCircle, Loader2, Pencil, Plus } from 'lucide-react';
 import { logo } from '../../assets/images';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { DevTools } from './DevTools';
@@ -1009,6 +1009,45 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
     }
   };
 
+  // Handle removing user from class (admin action - refunds session)
+  const handleRemoveFromClass = async (bookingId: string, userName: string) => {
+    showConfirm(
+      'Remove from Class',
+      `Are you sure you want to remove ${userName} from this class? Their session credit will be restored.`,
+      async () => {
+        console.log('🗑️ Removing user from class:', bookingId);
+        setProcessingBookingId(bookingId);
+        try {
+          const response = await fetch(
+            `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/reservations/${bookingId}`,
+            {
+              method: 'DELETE',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${publicAnonKey}`,
+                'X-Session-Token': getSessionToken(),
+              },
+            }
+          );
+          if (response.ok) {
+            console.log('✅ User removed from class, session restored');
+            toast.success(`${userName} removed from class. Session credit restored.`);
+            await fetchBookings();
+          } else {
+            const errorData = await response.text();
+            console.error('❌ Failed to remove from class:', response.status, errorData);
+            toast.error('Failed to remove user from class. Check console for details.');
+          }
+        } catch (error) {
+          console.error('❌ Error removing from class:', error);
+          toast.error('Network error. Please check your connection.');
+        } finally {
+          setProcessingBookingId(null);
+        }
+      }
+    );
+  };
+
   // Handle activation from calendar booking card (reuses same API as Users tab)
   const handleActivateFromCalendar = async (email: string, name: string) => {
     console.log('💰 Activating user from calendar:', email);
@@ -1401,6 +1440,15 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                       title="Cancel"
                                     >
                                       <Ban className="w-5 h-5" />
+                                    </button>
+                                    {/* Remove from class button - deletes booking and refunds session */}
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); handleRemoveFromClass(booking.id, `${booking.name} ${booking.surname}`); }}
+                                      disabled={isProcessing}
+                                      className="w-10 h-10 rounded-lg flex items-center justify-center transition-colors disabled:opacity-50 hover:bg-red-50 text-red-500"
+                                      title="Remove from class (refund session)"
+                                    >
+                                      <UserMinus className="w-5 h-5" />
                                     </button>
                                   </div>
                                 </div>
