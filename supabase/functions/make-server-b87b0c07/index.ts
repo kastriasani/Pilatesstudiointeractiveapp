@@ -550,7 +550,7 @@ function getEmailTranslations(language: string) {
       exclusiveOfferLabel: 'OFERTË EKSKLUZIVE',
       redemptionCode: 'KODI I SHPËRBLIMIT',
       presentCode: 'Prekni për të zgjedhur • Tregoni në studio',
-      bookNow: 'Rezervo Tani',
+      bookNow: 'Rezervo tani',
       whatBring: 'Merrni një shishe ujë me vete.',
       classes: 'Klasë',
       bonus: 'BONUS',
