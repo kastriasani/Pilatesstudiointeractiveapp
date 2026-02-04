@@ -3753,9 +3753,29 @@ app.get("/make-server-b87b0c07/user/packages", async (c) => {
         }
       }
 
-      // Build bookedSessions array from sessionsBooked IDs
+      // Build bookedSessions array from BOTH sessionsBooked AND sessionsAttended
       const sessionsBookedIds = pkg.sessions_booked || [];
-      const bookedSessions = sessionsBookedIds.map((resId: string, index: number) => {
+      const sessionsAttendedIds = pkg.sessions_attended || [];
+
+      // Attended sessions come first (slots 0, 1, 2, ...)
+      const attendedSessions = sessionsAttendedIds.map((resId: string, index: number) => {
+        const res = reservationMap.get(resId);
+        if (res) {
+          return {
+            id: res.id,
+            date: formatDateString(res.date_key),
+            dateKey: res.date_key,
+            time: res.time_slot,
+            endTime: calculateEndTime(res.time_slot),
+            slotIndex: index,
+            attended: true
+          };
+        }
+        return null;
+      }).filter(Boolean);
+
+      // Booked sessions come after attended (slots continue from attendedCount)
+      const bookedSessionsFromBooked = sessionsBookedIds.map((resId: string, index: number) => {
         const res = reservationMap.get(resId);
         if (res && res.reservation_status !== 'cancelled') {
           return {
@@ -3764,11 +3784,14 @@ app.get("/make-server-b87b0c07/user/packages", async (c) => {
             dateKey: res.date_key,
             time: res.time_slot,
             endTime: calculateEndTime(res.time_slot),
-            slotIndex: index
+            slotIndex: sessionsAttendedIds.length + index,
+            attended: false
           };
         }
         return null;
       }).filter(Boolean);
+
+      const bookedSessions = [...attendedSessions, ...bookedSessionsFromBooked];
 
       return {
         id: pkg.id,

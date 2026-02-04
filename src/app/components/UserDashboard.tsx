@@ -18,6 +18,7 @@ type BookedSession = {
   time: string;
   endTime: string;
   slotIndex: number;
+  attended?: boolean;
 };
 
 type PackageDetails = {
@@ -779,31 +780,34 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
                     {Array.from({ length: pkg.totalSessions }).map((_, slotIndex) => {
                       const bookedSession = getBookedSessionForSlot(pkg, slotIndex);
                       const isBooked = !!bookedSession;
+                      const isAttended = bookedSession?.attended === true;
                       const isSelected = selectedSlotIndex === slotIndex && inlineBookingPackageId === pkg.id;
                       const isBonus = slotIndex >= baseSessionCount;
 
                       return (
                         <button
                           key={slotIndex}
-                          onClick={() => handleSlotClick(pkg, slotIndex)}
-                          disabled={pkg.remainingSessions <= 0 && !isBooked}
+                          onClick={() => !isAttended && handleSlotClick(pkg, slotIndex)}
+                          disabled={(pkg.remainingSessions <= 0 && !isBooked) || isAttended}
                           className={`relative flex flex-col items-center justify-center min-w-[48px] h-[52px] rounded-lg text-xs font-medium transition-all ${
-                            isBooked
-                              ? isSelected
-                                ? 'bg-[#7A8F3A] text-white ring-2 ring-offset-2 ring-[#7A8F3A]'
-                                : isBonus
-                                  ? 'bg-[#D8A93B] text-white'
-                                  : 'bg-[#7A8F3A] text-white'
-                              : isSelected
-                                ? 'bg-white border-2 border-[#7A8F3A] text-[#7A8F3A]'
-                                : pkg.remainingSessions > 0
-                                  ? 'bg-white border border-dashed border-[#9ca571] text-[#9ca571] hover:border-solid hover:bg-[#f5f3f0]'
-                                  : 'bg-[#f5f3f0] border border-[#e8e6e3] text-[#8b7764] cursor-not-allowed'
+                            isAttended
+                              ? 'bg-[#6b5949] text-white/90 cursor-default'
+                              : isBooked
+                                ? isSelected
+                                  ? 'bg-[#7A8F3A] text-white ring-2 ring-offset-2 ring-[#7A8F3A]'
+                                  : isBonus
+                                    ? 'bg-[#D8A93B] text-white'
+                                    : 'bg-[#7A8F3A] text-white'
+                                : isSelected
+                                  ? 'bg-white border-2 border-[#7A8F3A] text-[#7A8F3A]'
+                                  : pkg.remainingSessions > 0
+                                    ? 'bg-white border border-dashed border-[#9ca571] text-[#9ca571] hover:border-solid hover:bg-[#f5f3f0]'
+                                    : 'bg-[#f5f3f0] border border-[#e8e6e3] text-[#8b7764] cursor-not-allowed'
                           }`}
                         >
                           {isBooked ? (
                             <>
-                              <span className="text-[10px] font-bold">✓</span>
+                              <span className="text-[10px] font-bold">{isAttended ? '✓✓' : '✓'}</span>
                               <span className="text-[9px] opacity-90 leading-tight">
                                 {formatShortDate(bookedSession.dateKey)}
                               </span>
@@ -818,7 +822,7 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
                             </>
                           )}
                           {/* Bonus indicator */}
-                          {isBonus && (
+                          {isBonus && !isAttended && (
                             <span className="absolute -top-1 -right-1 w-3 h-3 bg-[#D8A93B] rounded-full flex items-center justify-center text-[8px] text-white font-bold">
                               B
                             </span>
@@ -896,7 +900,11 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
                 )}
 
                 {/* Legend */}
-                <div className="flex items-center gap-3 text-xs text-[#8b7764] mb-3">
+                <div className="flex flex-wrap items-center gap-3 text-xs text-[#8b7764] mb-3">
+                  <span className="flex items-center gap-1">
+                    <span style={{ width: '8px', height: '8px', borderRadius: '2px', backgroundColor: '#6b5949', display: 'inline-block' }} />
+                    {t.attended || 'Attended'}
+                  </span>
                   <span className="flex items-center gap-1">
                     <span style={{ width: '8px', height: '8px', borderRadius: '2px', backgroundColor: '#7A8F3A', display: 'inline-block' }} />
                     {t.booked || 'Booked'}
