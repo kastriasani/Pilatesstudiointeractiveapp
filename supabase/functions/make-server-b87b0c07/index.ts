@@ -4067,6 +4067,18 @@ app.post("/make-server-b87b0c07/user/packages/:id/book-session", async (c) => {
       // Don't fail - reservation was created
     }
 
+    // Sync to users table for backwards compatibility with GET /admin/users
+    const newRemainingForUser = pkg.remaining_sessions - 1;
+    const usedSessions = (pkg.total_sessions || 0) - newRemainingForUser;
+    await supabase
+      .from('users')
+      .update({
+        remaining_sessions: newRemainingForUser,
+        used_sessions: usedSessions,
+        updated_at: now
+      })
+      .eq('email', pkg.user_email);
+
     console.log(`📅 Booked session for package ${packageId}: ${reservationId} (slot ${newSessionsBooked.length})`);
 
     // Build response in camelCase for frontend
