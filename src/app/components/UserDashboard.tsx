@@ -82,6 +82,7 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
   const [liveDays, setLiveDays] = useState<string[]>([]);
   const [expandedPackageId, setExpandedPackageId] = useState<string | null>(null);
   const [inlineBookingPackageId, setInlineBookingPackageId] = useState<string | null>(null);
+  const [gracePeriodTick, setGracePeriodTick] = useState(0); // Forces re-render for countdown
 
   // Get session token from prop or localStorage as fallback
   const activeSessionToken = sessionToken || localStorage.getItem('wellnest_session') || '';
@@ -292,6 +293,35 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
       setLoading(false);
     }
   }, [activeSessionToken]);
+
+  // Timer for grace period countdown - updates every second when inline calendar is open
+  useEffect(() => {
+    if (!inlineBookingPackageId || selectedSlotIndex === null) return;
+
+    const interval = setInterval(() => {
+      setGracePeriodTick(prev => {
+        // Check if any session in grace period just expired
+        const pkg = packages.find(p => p.id === inlineBookingPackageId);
+        if (pkg) {
+          const session = pkg.bookedSessions?.find(s => s.slotIndex === selectedSlotIndex);
+          if (session && session.createdAt) {
+            const createdAt = new Date(session.createdAt);
+            const now = new Date();
+            const gracePeriodMs = 2 * 60 * 1000; // 2 minutes
+            const elapsedMs = now.getTime() - createdAt.getTime();
+            if (elapsedMs >= gracePeriodMs) {
+              // Grace period expired - close the inline calendar
+              setInlineBookingPackageId(null);
+              setSelectedSlotIndex(null);
+            }
+          }
+        }
+        return prev + 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [inlineBookingPackageId, selectedSlotIndex, packages]);
 
   // Load available slots for rescheduling - fetches ONLY live days from API
   const loadAvailableSlots = async () => {
