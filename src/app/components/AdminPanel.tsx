@@ -650,13 +650,23 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
   const maxDailyCapacity = timeSlots.length * 4; // 7 slots × 4 capacity = 28 max bookings per day
 
   const getBookingsForDate = (dateKey: string) => {
-    return bookings.filter(booking => booking.dateKey === dateKey);
+    // Convert legacy "M-D" format to ISO "YYYY-MM-DD" for comparison
+    const isoDateKey = convertToISODate(dateKey);
+    return bookings.filter(booking => {
+      // Handle both formats: legacy "M-D" and ISO "YYYY-MM-DD"
+      return booking.dateKey === dateKey || booking.dateKey === isoDateKey;
+    });
   };
 
   const getBookingsForTimeSlot = (dateKey: string, timeSlot: string) => {
     // Extract start time from "09:00 - 10:00" format to match API's "09:00" format
     const startTime = timeSlot.split(' - ')[0];
-    return bookings.filter(booking => booking.dateKey === dateKey && booking.timeSlot === startTime);
+    // Convert legacy "M-D" format to ISO "YYYY-MM-DD" for comparison
+    const isoDateKey = convertToISODate(dateKey);
+    return bookings.filter(booking =>
+      (booking.dateKey === dateKey || booking.dateKey === isoDateKey) &&
+      booking.timeSlot === startTime
+    );
   };
 
   const getTimeSlotCapacity = (dateKey: string, timeSlot: string) => {
