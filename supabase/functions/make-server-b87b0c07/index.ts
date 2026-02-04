@@ -272,6 +272,36 @@ async function verifyAdminSession(c: any): Promise<{ valid: boolean; error?: str
   return { valid: true };
 }
 
+// Helper to verify user session from request (with sliding expiration)
+async function verifyUserSession(c: any): Promise<{ valid: boolean; error?: string; session?: any }> {
+  const sessionToken = c.req.header('X-Session-Token');
+
+  if (!sessionToken) {
+    return { valid: false, error: 'No session token provided' };
+  }
+
+  const sessionKey = `session:${sessionToken}`;
+  const session = await kv.get(sessionKey);
+
+  if (!session) {
+    return { valid: false, error: 'Invalid session' };
+  }
+
+  if (new Date(session.expiresAt) < new Date()) {
+    return { valid: false, error: 'Session expired' };
+  }
+
+  // Extend session expiry on each successful request (sliding expiration)
+  // This keeps active users logged in - 30 day rolling window
+  const newExpiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+  await kv.set(sessionKey, {
+    ...session,
+    expiresAt: newExpiry
+  });
+
+  return { valid: true, session };
+}
+
 async function verifyPassword(password: string, hash: string): Promise<boolean> {
   const passwordHash = await hashPassword(password);
   return passwordHash === hash;
@@ -3621,22 +3651,12 @@ app.post("/make-server-b87b0c07/auth/login", async (c) => {
 
 app.get("/make-server-b87b0c07/auth/verify", async (c) => {
   try {
-    const sessionToken = c.req.header('X-Session-Token');
-
-    if (!sessionToken) {
-      return c.json({ error: "No session token provided" }, 401);
+    // Verify session with sliding expiration
+    const sessionAuth = await verifyUserSession(c);
+    if (!sessionAuth.valid) {
+      return c.json({ error: sessionAuth.error }, 401);
     }
-
-    const sessionKey = `session:${sessionToken}`;
-    const session = await kv.get(sessionKey);
-
-    if (!session) {
-      return c.json({ error: "Invalid session" }, 401);
-    }
-
-    if (new Date(session.expiresAt) < new Date()) {
-      return c.json({ error: "Session expired" }, 401);
-    }
+    const session = sessionAuth.session;
 
     const userKey = `user:${session.email}`;
     const user = await kv.get(userKey);
@@ -3730,22 +3750,12 @@ app.post("/make-server-b87b0c07/auth/admin/login", async (c) => {
 // PATCH /user/language - Update user's language preference
 app.patch("/make-server-b87b0c07/user/language", async (c) => {
   try {
-    const sessionToken = c.req.header('X-Session-Token');
-
-    if (!sessionToken) {
-      return c.json({ error: "No session token provided" }, 401);
+    // Verify session with sliding expiration
+    const sessionAuth = await verifyUserSession(c);
+    if (!sessionAuth.valid) {
+      return c.json({ error: sessionAuth.error }, 401);
     }
-
-    const sessionKey = `session:${sessionToken}`;
-    const session = await kv.get(sessionKey);
-
-    if (!session) {
-      return c.json({ error: "Invalid session" }, 401);
-    }
-
-    if (new Date(session.expiresAt) < new Date()) {
-      return c.json({ error: "Session expired" }, 401);
-    }
+    const session = sessionAuth.session;
 
     const body = await c.req.json();
     const { language } = body;
@@ -3780,19 +3790,12 @@ app.patch("/make-server-b87b0c07/user/language", async (c) => {
 
 app.get("/make-server-b87b0c07/user/packages", async (c) => {
   try {
-    const sessionToken = c.req.header('X-Session-Token');
-
-    if (!sessionToken) {
-      return c.json({ error: "No session token provided" }, 401);
+    // Verify session with sliding expiration
+    const sessionAuth = await verifyUserSession(c);
+    if (!sessionAuth.valid) {
+      return c.json({ error: sessionAuth.error }, 401);
     }
-
-    // Session validation still uses KV
-    const sessionKey = `session:${sessionToken}`;
-    const session = await kv.get(sessionKey);
-
-    if (!session || new Date(session.expiresAt) < new Date()) {
-      return c.json({ error: "Invalid or expired session" }, 401);
-    }
+    const session = sessionAuth.session;
 
     const supabase = getSupabase();
 
@@ -4191,19 +4194,13 @@ app.delete("/make-server-b87b0c07/user/packages/:id/reservations/:reservationId"
   try {
     const packageId = c.req.param('id');
     const reservationId = c.req.param('reservationId');
-    const sessionToken = c.req.header('X-Session-Token');
 
-    if (!sessionToken) {
-      return c.json({ error: "No session token provided" }, 401);
+    // Verify session with sliding expiration
+    const sessionAuth = await verifyUserSession(c);
+    if (!sessionAuth.valid) {
+      return c.json({ error: sessionAuth.error }, 401);
     }
-
-    // Verify user session
-    const sessionKey = `session:${sessionToken}`;
-    const session = await kv.get(sessionKey);
-
-    if (!session || new Date(session.expiresAt) < new Date()) {
-      return c.json({ error: "Invalid or expired session" }, 401);
-    }
+    const session = sessionAuth.session;
 
     const supabase = getSupabase();
     const now = new Date();
