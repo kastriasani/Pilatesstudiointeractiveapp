@@ -4014,16 +4014,15 @@ app.post("/make-server-b87b0c07/user/packages/:id/book-session", async (c) => {
 
     const dateString = formatDateString(dateKey);
     const endTime = calculateEndTime(timeSlot);
-    const reservationId = `res_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-    // Create reservation in Supabase
+    // Create reservation in Supabase (let DB auto-generate UUID)
     const { data: newReservation, error: insertError } = await supabase
       .from('reservations')
       .insert({
-        id: reservationId,
         user_email: pkg.user_email,
         package_id: packageId,
         service_type: serviceType,
+        package_type: pkg.package_type,
         date_key: dateKey,
         time_slot: timeSlot,
         reservation_status: 'confirmed',
@@ -4039,8 +4038,10 @@ app.post("/make-server-b87b0c07/user/packages/:id/book-session", async (c) => {
 
     if (insertError) {
       console.error('Error creating reservation:', insertError);
-      return c.json({ error: 'Failed to book session', details: insertError.message }, 500);
+      return c.json({ error: `Failed to book session: ${insertError.message}` }, 500);
     }
+
+    const reservationId = newReservation.id;
 
     // Update package: add to sessions_booked array, set first_reservation_id if not set, decrement remaining_sessions
     const currentSessionsBooked = pkg.sessions_booked || [];
