@@ -575,7 +575,7 @@ function getEmailTranslations(language: string) {
       exclusiveOfferLabel: 'ЕКСКЛУЗИВНА ПОНУДА',
       redemptionCode: 'КОД ЗА ИСКОРИСТУВАЊЕ',
       presentCode: 'Допрете за избор • Покажете во студио',
-      bookNow: 'Резервирајте Сега',
+      bookNow: 'Резервирај сега',
       whatBring: 'Понесете шише со вода.',
       classes: 'Класи',
       bonus: 'БОНУС',
