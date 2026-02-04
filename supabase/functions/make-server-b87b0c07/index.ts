@@ -2591,9 +2591,15 @@ app.delete("/make-server-b87b0c07/users/:email", async (c) => {
 
 // ============ LEGACY ENDPOINTS ============
 
-// GET /bookings - MIGRATED TO SUPABASE
+// GET /bookings - MIGRATED TO SUPABASE (Admin only - returns user PII)
 app.get("/make-server-b87b0c07/bookings", async (c) => {
   try {
+    // Verify admin session - this endpoint exposes user PII
+    const adminAuth = await verifyAdminSession(c);
+    if (!adminAuth.valid) {
+      return c.json({ error: adminAuth.error }, 401);
+    }
+
     const userId = c.req.query('userId');
     const dateKey = c.req.query('dateKey');
 
@@ -2649,6 +2655,12 @@ app.get("/make-server-b87b0c07/bookings", async (c) => {
 // ============ MIGRATION ENDPOINT ============
 
 app.post("/make-server-b87b0c07/migrate-bookings", async (c) => {
+  // Verify admin session - migration is admin-only
+  const adminAuth = await verifyAdminSession(c);
+  if (!adminAuth.valid) {
+    return c.json({ error: adminAuth.error }, 401);
+  }
+
   const stats = {
     reservations: 0,
     orphanedPackages: 0,
