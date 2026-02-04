@@ -571,7 +571,7 @@ function getEmailTranslations(language: string) {
       setPassword: 'Постави Лозинка',
       linkExpires: 'Овој линк истекува за 24 часа.',
       welcomeWaitlist: 'Добредојдовте во Велнест Пилатес!',
-      exclusiveOffer: 'Купете пакет од 8 класи и добијте ја првата класа БЕСПЛАТНО!',
+      exclusiveOffer: 'Понудата важи само ако земете месечен пакет.',
       exclusiveOfferLabel: 'ЕКСКЛУЗИВНА ПОНУДА',
       redemptionCode: 'КОД ЗА ИСКОРИСТУВАЊЕ',
       presentCode: 'Допрете за избор • Покажете во студио',
