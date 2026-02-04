@@ -1261,7 +1261,17 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                           ) : (
                             <>
                               <button
-                                onClick={() => setSelectedTimeSlot(isSelected ? null : timeSlotKey)}
+                                onClick={() => {
+                                  if (isEditMode) {
+                                    // In edit mode, clicking slot opens editing directly
+                                    setEditingSlotId(slot.id);
+                                    setEditingTime(slotTime);
+                                    setEditingCapacity(slot.max_capacity || 4);
+                                  } else {
+                                    // Normal mode: toggle expanded bookings view
+                                    setSelectedTimeSlot(isSelected ? null : timeSlotKey);
+                                  }
+                                }}
                                 className="flex items-center gap-3 flex-1"
                               >
                                 <span className="text-sm font-medium text-stone-800 w-12">{slotTime}</span>
@@ -1273,33 +1283,15 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                 <span className="text-sm text-stone-400">{bookingsCount}/{slot.max_capacity || 4}</span>
                               </button>
 
-                              {/* Edit/Delete buttons - only in edit mode */}
-                              {isEditMode && (
-                                <>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setEditingSlotId(slot.id);
-                                      setEditingTime(slotTime);
-                                      setEditingCapacity(slot.max_capacity || 4);
-                                    }}
-                                    className="p-1.5 text-stone-400 hover:text-stone-700 transition-colors"
-                                    title="Edit slot"
-                                  >
-                                    <Pencil className="w-4 h-4" />
-                                  </button>
-
-                                  {/* Delete button - only if no bookings */}
-                                  {!hasBookings && (
-                                    <button
-                                      onClick={(e) => { e.stopPropagation(); handleDeleteSlot(slot.id, slotTime); }}
-                                      className="p-1.5 text-stone-400 hover:text-red-500 transition-colors"
-                                      title="Remove slot"
-                                    >
-                                      <Trash2 className="w-4 h-4" />
-                                    </button>
-                                  )}
-                                </>
+                              {/* Delete button - only in edit mode and if no bookings */}
+                              {isEditMode && !hasBookings && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleDeleteSlot(slot.id, slotTime); }}
+                                  className="p-1.5 text-stone-400 hover:text-red-500 transition-colors"
+                                  title="Remove slot"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
                               )}
                             </>
                           )}
