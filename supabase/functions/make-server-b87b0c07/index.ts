@@ -4106,6 +4106,126 @@ app.post("/make-server-b87b0c07/user/packages/:id/book-session", async (c) => {
   }
 });
 
+// DELETE /user/packages/:id/reservations/:reservationId - Cancel a booked session (24h+ before)
+app.delete("/make-server-b87b0c07/user/packages/:id/reservations/:reservationId", async (c) => {
+  try {
+    const packageId = c.req.param('id');
+    const reservationId = c.req.param('reservationId');
+    const sessionToken = c.req.header('X-Session-Token');
+
+    if (!sessionToken) {
+      return c.json({ error: "No session token provided" }, 401);
+    }
+
+    // Verify user session
+    const sessionKey = `session:${sessionToken}`;
+    const session = await kv.get(sessionKey);
+
+    if (!session || new Date(session.expiresAt) < new Date()) {
+      return c.json({ error: "Invalid or expired session" }, 401);
+    }
+
+    const supabase = getSupabase();
+    const now = new Date();
+    const nowISO = now.toISOString();
+
+    // Get the reservation
+    const { data: reservation, error: resError } = await supabase
+      .from('reservations')
+      .select('*')
+      .eq('id', reservationId)
+      .single();
+
+    if (resError || !reservation) {
+      return c.json({ error: "Reservation not found" }, 404);
+    }
+
+    // Verify user owns this reservation
+    if (reservation.user_email !== session.email) {
+      return c.json({ error: "Not authorized to cancel this reservation" }, 403);
+    }
+
+    // Check 24-hour rule
+    const [month, day] = reservation.date_key.includes('-') && reservation.date_key.length > 5
+      ? [parseInt(reservation.date_key.split('-')[1]), parseInt(reservation.date_key.split('-')[2])]
+      : reservation.date_key.split('-').map(Number);
+    const year = reservation.date_key.length > 5
+      ? parseInt(reservation.date_key.split('-')[0])
+      : now.getFullYear();
+    const [hours, minutes] = reservation.time_slot.split(':').map(Number);
+
+    const sessionDateTime = new Date(year, month - 1, day, hours, minutes);
+    const hoursUntilSession = (sessionDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
+
+    if (hoursUntilSession < 24) {
+      return c.json({
+        error: "Cannot cancel within 24 hours of session",
+        hoursUntilSession: Math.round(hoursUntilSession * 10) / 10
+      }, 400);
+    }
+
+    // Cancel the reservation
+    const { error: cancelError } = await supabase
+      .from('reservations')
+      .update({
+        reservation_status: 'cancelled',
+        updated_at: nowISO
+      })
+      .eq('id', reservationId);
+
+    if (cancelError) {
+      console.error('Error cancelling reservation:', cancelError);
+      return c.json({ error: 'Failed to cancel reservation' }, 500);
+    }
+
+    // Get the package to update sessions
+    const { data: pkg, error: pkgError } = await supabase
+      .from('user_packages')
+      .select('*')
+      .eq('id', packageId)
+      .single();
+
+    if (pkg) {
+      // Remove reservation from sessions_booked and increment remaining
+      const currentSessionsBooked = pkg.sessions_booked || [];
+      const newSessionsBooked = currentSessionsBooked.filter((id: string) => id !== reservationId);
+      const newRemaining = pkg.remaining_sessions + 1;
+
+      await supabase
+        .from('user_packages')
+        .update({
+          sessions_booked: newSessionsBooked,
+          remaining_sessions: newRemaining,
+          updated_at: nowISO
+        })
+        .eq('id', packageId);
+
+      // Sync to users table
+      const usedSessions = (pkg.total_sessions || 0) - newRemaining;
+      await supabase
+        .from('users')
+        .update({
+          remaining_sessions: newRemaining,
+          used_sessions: usedSessions,
+          updated_at: nowISO
+        })
+        .eq('email', pkg.user_email);
+    }
+
+    console.log(`🗑️ Cancelled reservation ${reservationId} for package ${packageId}`);
+
+    return c.json({
+      success: true,
+      message: "Session cancelled successfully",
+      reservationId
+    });
+
+  } catch (error: any) {
+    console.error('Error cancelling session:', error);
+    return c.json({ error: 'Failed to cancel session', details: error.message }, 500);
+  }
+});
+
 // ============ DEBUG ENDPOINT ============
 
 app.get("/make-server-b87b0c07/debug/check-users", async (c) => {

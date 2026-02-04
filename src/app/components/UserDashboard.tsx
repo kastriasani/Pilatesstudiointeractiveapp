@@ -649,6 +649,78 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
     return pkg.bookedSessions?.find(s => s.slotIndex === slotIndex);
   };
 
+  // Check if a session can be cancelled (24+ hours before)
+  const canCancelSession = (bookedSession: BookedSession): boolean => {
+    if (!bookedSession || bookedSession.attended) return false;
+
+    const now = new Date();
+    const dateKey = bookedSession.dateKey;
+
+    // Parse date from both formats: "YYYY-MM-DD" or "M-D"
+    let year: number, month: number, day: number;
+    if (dateKey.length > 5 && dateKey.includes('-')) {
+      [year, month, day] = dateKey.split('-').map(Number);
+    } else {
+      [month, day] = dateKey.split('-').map(Number);
+      year = now.getFullYear();
+    }
+
+    const [hours, minutes] = bookedSession.time.split(':').map(Number);
+    const sessionDateTime = new Date(year, month - 1, day, hours, minutes);
+    const hoursUntilSession = (sessionDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
+
+    return hoursUntilSession >= 24;
+  };
+
+  // Cancel a booked session
+  const handleCancelSession = async (pkg: PackageDetails, bookedSession: BookedSession) => {
+    if (!canCancelSession(bookedSession)) {
+      toast.error(t.cannotCancelWithin24h || 'Cannot cancel within 24 hours of session');
+      return;
+    }
+
+    // Confirm cancellation
+    if (!window.confirm(t.confirmCancelSession || 'Are you sure you want to cancel this session?')) {
+      return;
+    }
+
+    setIsRescheduling(true);
+
+    try {
+      const response = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/user/packages/${pkg.id}/reservations/${bookedSession.id}`,
+        {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${publicAnonKey}`,
+            'X-Session-Token': activeSessionToken,
+          },
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        toast.error(data.error || 'Failed to cancel session');
+        setIsRescheduling(false);
+        return;
+      }
+
+      console.log('✅ Session cancelled:', data);
+      toast.success(t.sessionCancelledSuccess || 'Session cancelled successfully!');
+
+      // Reload packages
+      await loadPackages();
+      setIsRescheduling(false);
+
+    } catch (error) {
+      console.error('Error cancelling session:', error);
+      toast.error('An error occurred. Please try again.');
+      setIsRescheduling(false);
+    }
+  };
+
   const getPackageDisplayName = (packageType: string): string => {
     const typeMap: Record<string, string> = {
       'package8': t.package8Classes || '8 Classes Package',
@@ -853,6 +925,31 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
                         ✕
                       </button>
                     </div>
+
+                    {/* Cancel button for booked sessions */}
+                    {(() => {
+                      const selectedSession = getBookedSessionForSlot(pkg, selectedSlotIndex);
+                      if (selectedSession && canCancelSession(selectedSession)) {
+                        return (
+                          <div className="mb-3 p-3 bg-white rounded-lg border border-red-200">
+                            <div className="flex items-center justify-between">
+                              <div className="text-xs text-[#6b5949]">
+                                <span className="font-medium">{t.currentBooking || 'Current booking'}:</span>{' '}
+                                {formatShortDate(selectedSession.dateKey)} {t.at || 'at'} {selectedSession.time}
+                              </div>
+                              <button
+                                onClick={() => handleCancelSession(pkg, selectedSession)}
+                                disabled={isRescheduling}
+                                className="px-3 py-1.5 bg-red-500 text-white text-xs font-medium rounded-lg hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                              >
+                                {isRescheduling ? '...' : (t.cancelSession || 'Cancel')}
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
 
                     {availableSlots.length === 0 ? (
                       <p className="text-xs text-[#6b5949] text-center py-4">

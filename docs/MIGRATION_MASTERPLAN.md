@@ -137,4 +137,4 @@ Only session/token data remains in KV:
 ## Migration Complete!
 
 All 27 production endpoints now use Supabase for domain data.
-KV store is only used for ephemeral session tokens.
+KV store is only used for ephemeral session toke
