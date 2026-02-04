@@ -55,7 +55,7 @@ const PACKAGE_PRICING = {
 };
 
 const STUDIO_INFO = {
-  name: 'WellNest Pilates',
+  name: 'Wellnest Pilates',
   address: 'Gjuro Gjakovikj 59, Kumanovo 1300',
   email: 'info@wellnestpilates.com',
 };
@@ -88,7 +88,7 @@ const EMAIL_TRANSLATIONS = {
     paymentMessage: 'Your account will be activated after payment is completed at the studio.',
     lookForward: 'We look forward to seeing you!',
     questionsContact: 'Questions? Contact us:',
-    subject: 'Booking Confirmation - WellNest Pilates',
+    subject: 'Booking Confirmation - Wellnest Pilates',
   },
   SQ: {
     greeting: 'Përshëndetje',
@@ -115,7 +115,7 @@ const EMAIL_TRANSLATIONS = {
     paymentMessage: 'Llogaria juaj do të aktivizohet pas përfundimit të pagesës në studio.',
     lookForward: 'Presim me padurim t\'ju shohim!',
     questionsContact: 'Pyetje? Na kontaktoni:',
-    subject: 'Konfirmim Rezervimi - WellNest Pilates',
+    subject: 'Konfirmim Rezervimi - Wellnest Pilates',
   },
   MK: {
     greeting: 'Здраво',
@@ -142,7 +142,7 @@ const EMAIL_TRANSLATIONS = {
     paymentMessage: 'Вашата сметка ќе биде активирана по завршувањето на уплатата во студиото.',
     lookForward: 'Се радуваме да ве видиме!',
     questionsContact: 'Прашања? Контактирајте нѐ:',
-    subject: 'Потврда за резервација - WellNest Pilates',
+    subject: 'Потврда за резервација - Wellnest Pilates',
   }
 };
 
@@ -408,7 +408,7 @@ function generateEmailTemplate(content: EmailContent, language: 'sq' | 'mk' | 'e
                 <!-- Header -->
                 <tr>
                   <td style="background-color: #452F21; padding: 40px; text-align: center;">
-                    <img src="https://i.ibb.co/tT95h4s2/unnamed.png" alt="WellNest Pilates" width="200" style="display: block; margin: 0 auto;" />
+                    <img src="https://i.ibb.co/tT95h4s2/unnamed.png" alt="Wellnest Pilates" width="200" style="display: block; margin: 0 auto;" />
                   </td>
                 </tr>
                 <!-- Content -->
@@ -496,7 +496,7 @@ function getEmailTranslations(language: string) {
       accountReady: 'Llogaria juaj eshte gati!',
       setPassword: 'Vendos Fjalekalimin',
       linkExpires: 'Ky link skadon pas 24 oreve.',
-      welcomeWaitlist: 'Mire se vini ne WellNest Pilates!',
+      welcomeWaitlist: 'Mire se vini ne Wellnest Pilates!',
       exclusiveOffer: 'Blini nje pakete me 8 klase dhe merrni klasen e pare FALAS!',
       exclusiveOfferLabel: 'OFERTE EKSKLUZIVE',
       redemptionCode: 'KODI I SHPERBLIMIT',
@@ -521,7 +521,7 @@ function getEmailTranslations(language: string) {
       accountReady: 'Вашата сметка е готова!',
       setPassword: 'Постави Лозинка',
       linkExpires: 'Овој линк истекува за 24 часа.',
-      welcomeWaitlist: 'Добредојдовте во WellNest Pilates!',
+      welcomeWaitlist: 'Добредојдовте во Wellnest Pilates!',
       exclusiveOffer: 'Купете пакет од 8 класи и добијте ја првата класа БЕСПЛАТНО!',
       exclusiveOfferLabel: 'ЕКСКЛУЗИВНА ПОНУДА',
       redemptionCode: 'КОД ЗА ИСКОРИСТУВАЊЕ',
@@ -546,7 +546,7 @@ function getEmailTranslations(language: string) {
       accountReady: 'Your account is ready!',
       setPassword: 'Set Password',
       linkExpires: 'This link expires in 24 hours.',
-      welcomeWaitlist: 'Welcome to WellNest Pilates!',
+      welcomeWaitlist: 'Welcome to Wellnest Pilates!',
       exclusiveOffer: 'Purchase an 8-class package and get your first session FREE!',
       exclusiveOfferLabel: 'EXCLUSIVE OFFER',
       redemptionCode: 'REDEMPTION CODE',
@@ -604,9 +604,9 @@ async function sendBookingEmail(
   };
 
   const html = generateEmailTemplate(content, (language?.toLowerCase() || 'en') as 'sq' | 'mk' | 'en');
-  const subject = language?.toLowerCase() === 'sq' ? 'Konfirmim Rezervimi - WellNest Pilates'
-    : language?.toLowerCase() === 'mk' ? 'Potvrda za Rezervacija - WellNest Pilates'
-    : 'Booking Confirmation - WellNest Pilates';
+  const subject = language?.toLowerCase() === 'sq' ? 'Konfirmim Rezervimi - Wellnest Pilates'
+    : language?.toLowerCase() === 'mk' ? 'Potvrda za Rezervacija - Wellnest Pilates'
+    : 'Booking Confirmation - Wellnest Pilates';
 
   return sendEmail(email, subject, html);
 }
@@ -640,9 +640,9 @@ async function sendActivationEmail(
   };
 
   const html = generateEmailTemplate(content, (language?.toLowerCase() || 'en') as 'sq' | 'mk' | 'en');
-  const subject = language?.toLowerCase() === 'sq' ? 'Llogaria Juaj - WellNest Pilates'
-    : language?.toLowerCase() === 'mk' ? 'Vashata Smetka - WellNest Pilates'
-    : 'Your Account - WellNest Pilates';
+  const subject = language?.toLowerCase() === 'sq' ? 'Llogaria Juaj - Wellnest Pilates'
+    : language?.toLowerCase() === 'mk' ? 'Vashata Smetka - Wellnest Pilates'
+    : 'Your Account - Wellnest Pilates';
 
   return sendEmail(email, subject, html);
 }
@@ -678,9 +678,9 @@ async function sendWaitlistInviteEmail(
   };
 
   const html = generateEmailTemplate(content, (language?.toLowerCase() || 'en') as 'sq' | 'mk' | 'en');
-  const subject = language?.toLowerCase() === 'sq' ? 'Mire se vini ne WellNest Pilates!'
-    : language?.toLowerCase() === 'mk' ? 'Dobrodojdovte vo WellNest Pilates!'
-    : 'Welcome to WellNest Pilates!';
+  const subject = language?.toLowerCase() === 'sq' ? 'Mire se vini ne Wellnest Pilates!'
+    : language?.toLowerCase() === 'mk' ? 'Dobrodojdovte vo Wellnest Pilates!'
+    : 'Welcome to Wellnest Pilates!';
 
   return sendEmail(email, subject, html);
 }
@@ -4723,7 +4723,7 @@ app.post('/make-server-b87b0c07/upload-logo', async (c) => {
 
 // ============ SERVER STARTUP ============
 
-console.log('🚀 WellNest Pilates Server Starting...');
+console.log('🚀 Wellnest Pilates Server Starting...');
 console.log('📧 Email Configuration:');
 const hasResendKey = !!Deno.env.get('RESEND_API_KEY');
 console.log(`   - RESEND_API_KEY: ${hasResendKey ? '✅ Configured' : '❌ Missing'}`);
