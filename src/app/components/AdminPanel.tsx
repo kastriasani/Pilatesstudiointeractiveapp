@@ -2003,8 +2003,8 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
 
       {/* Confirmation actions now use styled AlertDialog */}
 
-      {/* Dev Tools Modal */}
-      {showDevTools && (
+      {/* Dev Tools Modal - only in development */}
+      {import.meta.env.DEV && showDevTools && (
         <DevTools onClose={() => setShowDevTools(false)} />
       )}
 

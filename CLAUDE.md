@@ -35,12 +35,12 @@ Last commit: Migration complete
 
 ## Open Bugs
 
-| Bug | Location | Priority |
-|-----|----------|----------|
-| DevTools visible in Production | AdminPanel.tsx | MEDIUM |
-| "Payed" typo (should be "Paid") | AdminPanel.tsx:409,865,875 | LOW |
+None currently tracked.
 
 ## Recently Fixed
+
+- ✅ DevTools modal now fully hidden in production (AdminPanel.tsx)
+- ✅ "Payed" typo fixed (now "Paid")
 
 - ✅ Duplicate /validate-coupon route removed
 - ✅ Waitlist codes now work in POST /packages
