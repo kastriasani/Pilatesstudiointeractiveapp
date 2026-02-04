@@ -351,7 +351,7 @@ export function BookingScreen({ trainingType, onBack, onSubmit, onInstructorClic
                   ? t.noSpots
                   : (
                     <div className="flex flex-col items-center leading-tight">
-                      <span className="text-sm font-semibold">{slot.availableSpots} / {slot.maxCapacity}</span>
+                      <span className="text-sm font-semibold">{slot.availableSpots} / 4</span>
                       <span className="text-[10px]">{t.bookYourClass || 'Book'}</span>
                     </div>
                   )}
