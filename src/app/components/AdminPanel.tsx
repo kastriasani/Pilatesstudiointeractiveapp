@@ -17,6 +17,7 @@ import {
 import {
   getCalendarDateRange,
   getCalendarDates,
+  getAllCalendarDates,
   formatDateShort,
   formatDateKeyLegacy
 } from '../../utils/dateUtils';
@@ -620,15 +621,17 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
   };
 
   // Generate dynamic dates using centralized utility (5 weeks from today)
+  // Using getAllCalendarDates to include weekends for admin view
   const generateAdminDates = () => {
     const { start, end } = getCalendarDateRange(5);
-    const calendarDates = getCalendarDates(start, end);
+    const calendarDates = getAllCalendarDates(start, end);
     const dayAbbr = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
     return calendarDates.map(date => ({
       displayDate: `${date.getDate()}. ${formatDateShort(date).split(' ')[1]}`,
       dateKey: formatDateKeyLegacy(date),
       dayOfWeek: dayAbbr[date.getDay()],
+      isWeekend: date.getDay() === 0 || date.getDay() === 6,
     }));
   };
 
@@ -1117,6 +1120,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                   const isSelected = selectedDate === date.dateKey;
                   const todayKey = formatDateKeyLegacy(new Date());
                   const isToday = date.dateKey === todayKey;
+                  const isWeekend = date.isWeekend;
 
                   // Check if this date is live
                   const isoDateKey = convertToISODate(date.dateKey);
@@ -1131,7 +1135,9 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                           transition-all
                           ${isSelected
                             ? 'bg-stone-600 text-white'
-                            : 'bg-[#F5F0EE] hover:bg-stone-100'
+                            : isWeekend
+                              ? 'bg-stone-200 hover:bg-stone-300'
+                              : 'bg-[#F5F0EE] hover:bg-stone-100'
                           }
                           ${isToday && !isSelected ? 'ring-1 ring-stone-400' : ''}
                         `}

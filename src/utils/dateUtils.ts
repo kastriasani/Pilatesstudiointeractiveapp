@@ -206,6 +206,22 @@ export const getCalendarDates = (startDate: Date, endDate: Date): Date[] => {
   return dates;
 };
 
+/**
+ * Generate ALL dates in a range (including weekends) - for admin panel
+ */
+export const getAllCalendarDates = (startDate: Date, endDate: Date): Date[] => {
+  const dates: Date[] = [];
+  const current = new Date(startDate);
+  current.setHours(0, 0, 0, 0);
+
+  while (current <= endDate) {
+    dates.push(new Date(current));
+    current.setDate(current.getDate() + 1);
+  }
+
+  return dates;
+};
+
 // ============ TIME SLOTS ============
 
 /**
