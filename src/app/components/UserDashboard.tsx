@@ -71,6 +71,25 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
   const t = translations[language];
   const [packages, setPackages] = useState<PackageDetails[]>([]);
   const [reservations, setReservations] = useState<Reservation[]>([]);
+
+  // Refresh session expiry in localStorage (keeps frontend in sync with backend sliding expiration)
+  const refreshSessionExpiry = () => {
+    const newExpiry = Date.now() + (30 * 24 * 60 * 60 * 1000); // 30 days
+    localStorage.setItem('wellnest_session_expiry', newExpiry.toString());
+  };
+
+  // Handle session expired errors - redirect to login
+  const handleSessionError = (error: string): boolean => {
+    if (error === 'Session expired' || error === 'Invalid session' || error === 'No session token provided') {
+      toast.error('Your session has expired. Please log in again.');
+      localStorage.removeItem('wellnest_session');
+      localStorage.removeItem('wellnest_user');
+      localStorage.removeItem('wellnest_session_expiry');
+      onBack(); // Navigate to home/login
+      return true;
+    }
+    return false;
+  };
   const [loading, setLoading] = useState(true);
   const [showRescheduleModal, setShowRescheduleModal] = useState(false);
   const [selectedPackage, setSelectedPackage] = useState<PackageDetails | null>(null);
@@ -266,12 +285,14 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         console.error('❌ Failed to load packages:', response.status, errorData);
+        if (handleSessionError(errorData.error)) return;
         toast.error(`Failed to load packages: ${errorData.error || 'Unknown error'}`);
         return;
       }
 
       const data = await response.json();
       if (data.success) {
+        refreshSessionExpiry(); // Keep frontend expiry in sync with backend
         setPackages(data.packages || []);
         setReservations(data.reservations || []);
         setLastUpdated(new Date());
@@ -511,11 +532,13 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
       const data = await response.json();
 
       if (!response.ok) {
+        if (handleSessionError(data.error)) return;
         toast.error(data.error || 'Failed to reschedule');
         setIsRescheduling(false);
         return;
       }
 
+      refreshSessionExpiry();
       console.log('✅ Rescheduled successfully:', data);
       toast.success('Session rescheduled successfully!');
       
@@ -559,11 +582,13 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
       const data = await response.json();
 
       if (!response.ok) {
+        if (handleSessionError(data.error)) return;
         toast.error(data.error || 'Failed to book session');
         setIsRescheduling(false);
         return;
       }
 
+      refreshSessionExpiry();
       console.log('✅ Session booked successfully:', data);
       toast.success(t.sessionBookedSuccess || 'Session booked successfully!');
 
@@ -641,11 +666,13 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
       const data = await response.json();
 
       if (!response.ok) {
+        if (handleSessionError(data.error)) return;
         toast.error(data.error || 'Failed to book session');
         setIsRescheduling(false);
         return;
       }
 
+      refreshSessionExpiry();
       console.log('✅ Session booked via inline calendar:', data);
       toast.success(t.sessionBookedSuccess || 'Session booked successfully!');
 
@@ -790,11 +817,13 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
       const data = await response.json();
 
       if (!response.ok) {
+        if (handleSessionError(data.error)) return;
         toast.error(data.error || 'Failed to cancel session');
         setIsRescheduling(false);
         return;
       }
 
+      refreshSessionExpiry();
       console.log('✅ Session cancelled:', data);
       toast.success(t.sessionCancelledSuccess || 'Session cancelled successfully!');
 
