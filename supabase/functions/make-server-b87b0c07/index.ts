@@ -4320,6 +4320,10 @@ app.delete("/make-server-b87b0c07/user/packages/:id/reservations/:reservationId"
 // ============ DEBUG ENDPOINT ============
 
 app.get("/make-server-b87b0c07/debug/check-users", async (c) => {
+  // Protected - only available when ENABLE_DEV_ENDPOINTS=true
+  if (!isDevEndpointsEnabled()) {
+    return c.json({ error: "Not found" }, 404);
+  }
   try {
     const allUsers = await kv.getByPrefix('user:');
     return c.json({
