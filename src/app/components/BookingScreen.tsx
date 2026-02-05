@@ -344,7 +344,7 @@ export function BookingScreen({ trainingType, onBack, onSubmit, onInstructorClic
                   }
                 }}
                 disabled={isDisabled}
-                className={`min-w-[110px] px-4 py-2.5 rounded-md text-xs transition-colors text-center ${
+                className={`min-w-[120px] px-4 py-2.5 rounded-md text-xs transition-colors text-center ${
                   isPastTime
                     ? 'bg-gray-400 text-gray-600 cursor-not-allowed'
                     : slot.status === 'full'
@@ -352,18 +352,19 @@ export function BookingScreen({ trainingType, onBack, onSubmit, onInstructorClic
                     : 'bg-[#9ca571] text-white hover:bg-[#8a9463]'
                 }`}
               >
-                {isPastTime
-                  ? <span className="text-sm font-semibold">{t.timePassed || 'Passed'}</span>
-                  : slot.status === 'full'
-                  ? <span className="text-sm font-semibold">{t.noSpots}</span>
-                  : (
-                    <div className="flex flex-col items-center leading-tight">
-                      <span className="text-sm font-semibold">
-                        {slot.availableSpots} {slot.availableSpots === 1 ? (t.spotFree || 'spot') : (t.spotsFree || 'spots')}
-                      </span>
-                      <span className="text-[10px]">{t.bookYourClass || 'Book'}</span>
-                    </div>
+                <div className="flex flex-col items-center leading-tight min-h-[32px] justify-center">
+                  <span className="text-sm font-semibold">
+                    {isPastTime
+                      ? (t.timePassed || 'Passed')
+                      : slot.status === 'full'
+                      ? (t.noSpots)
+                      : `${slot.availableSpots} ${slot.availableSpots === 1 ? (t.spotFree || 'spot') : (t.spotsFree || 'spots')}`
+                    }
+                  </span>
+                  {!isPastTime && slot.status !== 'full' && (
+                    <span className="text-[10px]">{t.bookYourClass || 'Book'}</span>
                   )}
+                </div>
               </button>
             </div>
           );
