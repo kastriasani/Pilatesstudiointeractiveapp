@@ -417,10 +417,15 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
 
         const availableTimeSlots = timeSlotList.map((time: string) => {
           const slotBookings = dayBookings.filter((b: any) => b.timeSlot === time);
+          // Calculate seats based on serviceType: duo=2, individual=4 (private), others=1
           const seatsOccupied = slotBookings.reduce((total: number, booking: any) => {
-            return total + (booking.seatsOccupied || 1);
+            if (booking.serviceType === 'duo') return total + 2;
+            if (booking.serviceType === 'individual') return total + 4;
+            return total + 1;
           }, 0);
-          const hasPrivateSession = slotBookings.some((b: any) => b.isPrivateSession);
+          const hasPrivateSession = slotBookings.some((b: any) =>
+            b.serviceType === 'individual' || b.serviceType === 'duo'
+          );
           const maxCapacity = daySlots.find((s: any) => s.start_time === time)?.max_capacity || 4;
           const available = hasPrivateSession ? 0 : Math.max(0, maxCapacity - seatsOccupied);
 

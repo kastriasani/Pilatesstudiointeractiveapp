@@ -278,13 +278,17 @@ export function PackageOverview({ onBack, language }: PackageOverviewProps) {
           // Calculate actual seats occupied for this time slot
           const slotBookings = dayBookings.filter((b: any) => b.timeSlot === time);
 
-          // Sum up seats occupied (regular = 1, duo = 2, individual = 4)
+          // Sum up seats occupied based on serviceType: duo=2, individual=4, others=1
           const seatsOccupied = slotBookings.reduce((total: number, booking: any) => {
-            return total + (booking.seatsOccupied || 1);
+            if (booking.serviceType === 'duo') return total + 2;
+            if (booking.serviceType === 'individual') return total + 4;
+            return total + 1;
           }, 0);
 
-          // Check for private sessions (individual training blocks entire slot)
-          const hasPrivateSession = slotBookings.some((b: any) => b.isPrivateSession);
+          // Check for private sessions (individual/duo blocks entire slot)
+          const hasPrivateSession = slotBookings.some((b: any) =>
+            b.serviceType === 'individual' || b.serviceType === 'duo'
+          );
 
           const available = hasPrivateSession ? 0 : Math.max(0, maxCapacity - seatsOccupied);
 

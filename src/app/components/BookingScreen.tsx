@@ -134,24 +134,31 @@ export function BookingScreen({ trainingType, onBack, onSubmit, onInstructorClic
   // Calculate bookings count per date and time slot from real data
   const calculateBookingsPerSlot = (): Record<string, Record<string, number>> => {
     const bookingsMap: Record<string, Record<string, number>> = {};
-    
+
     allBookings.forEach(booking => {
       if (booking.status === 'confirmed' || booking.status === 'pending' || booking.status === 'attended') {
         const dateKey = booking.dateKey;
         const timeSlot = booking.timeSlot;
-        
+
         if (!bookingsMap[dateKey]) {
           bookingsMap[dateKey] = {};
         }
-        
+
         if (!bookingsMap[dateKey][timeSlot]) {
           bookingsMap[dateKey][timeSlot] = 0;
         }
-        
-        bookingsMap[dateKey][timeSlot]++;
+
+        // Count seats based on serviceType: duo=2, individual=4 (blocks slot), others=1
+        if (booking.serviceType === 'duo') {
+          bookingsMap[dateKey][timeSlot] += 2;
+        } else if (booking.serviceType === 'individual') {
+          bookingsMap[dateKey][timeSlot] += 4; // Blocks entire slot
+        } else {
+          bookingsMap[dateKey][timeSlot] += 1;
+        }
       }
     });
-    
+
     return bookingsMap;
   };
   
