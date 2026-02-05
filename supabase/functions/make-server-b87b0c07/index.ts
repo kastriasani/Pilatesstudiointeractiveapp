@@ -570,7 +570,7 @@ function getEmailTranslations(language: string) {
       accountReady: 'Вашата сметка е готова!',
       setPassword: 'Постави Лозинка',
       linkExpires: 'Овој линк истекува за 24 часа.',
-      welcomeWaitlist: 'Добредојдовте во Велнест Пилатес!',
+      welcomeWaitlist: 'Добредојдовте во велнест пилатес!',
       exclusiveOffer: 'Понудата важи само ако земете месечен пакет.',
       exclusiveOfferLabel: 'ЕКСКЛУЗИВНА ПОНУДА',
       redemptionCode: 'КОД ЗА ИСКОРИСТУВАЊЕ',
@@ -728,7 +728,7 @@ async function sendWaitlistInviteEmail(
 
   const html = generateEmailTemplate(content, (language?.toLowerCase() || 'en') as 'sq' | 'mk' | 'en');
   const subject = language?.toLowerCase() === 'sq' ? 'Mirë se vini në Wellnest Pilates!'
-    : language?.toLowerCase() === 'mk' ? 'Добредојдовте во Велнест Пилатес!'
+    : language?.toLowerCase() === 'mk' ? 'Добредојдовте во велнест пилатес!'
     : 'Welcome to Wellnest Pilates!';
 
   return sendEmail(email, subject, html);
@@ -901,6 +901,7 @@ app.post("/make-server-b87b0c07/packages", async (c) => {
           name,
           surname,
           mobile,
+          language: language?.toLowerCase() || 'sq',
           created_at: now,
           updated_at: now,
           blocked: false
@@ -1514,6 +1515,7 @@ app.post("/make-server-b87b0c07/reservations", async (c) => {
           name,
           surname,
           mobile,
+          language: language?.toLowerCase() || 'sq',
           payment_status: 'unpaid',
           created_at: now,
           updated_at: now,
@@ -3496,7 +3498,7 @@ app.post("/make-server-b87b0c07/auth/setup-password", async (c) => {
 app.post("/make-server-b87b0c07/auth/register", async (c) => {
   try {
     const body = await c.req.json();
-    const { email, password, name, surname, mobile } = body;
+    const { email, password, name, surname, mobile, language } = body;
 
     if (!email || !password) {
       return c.json({ error: 'Email and password are required' }, 400);
@@ -3559,6 +3561,7 @@ app.post("/make-server-b87b0c07/auth/register", async (c) => {
           name: name || '',
           surname: surname || '',
           mobile: mobile || '',
+          language: language?.toLowerCase() || 'sq',
           password_hash: passwordHash,
           verified: true,
           blocked: false,
@@ -4720,7 +4723,7 @@ app.post("/make-server-b87b0c07/waitlist/redeem", async (c) => {
       return c.json({ error: 'Code already redeemed' }, 400);
     }
 
-    const { name, surname, email, phone: mobile } = waitlistUser;
+    const { name, surname, email, phone: mobile, language: waitlistLanguage } = waitlistUser;
     const normalizedEmail = email.toLowerCase().trim();
 
     // Create or update user in Supabase (not KV)
@@ -4738,6 +4741,7 @@ app.post("/make-server-b87b0c07/waitlist/redeem", async (c) => {
           name,
           surname,
           mobile,
+          language: waitlistLanguage?.toLowerCase() || 'sq',
           activation_status: 'activated',
           payment_status: 'paid',
           created_at: now,
