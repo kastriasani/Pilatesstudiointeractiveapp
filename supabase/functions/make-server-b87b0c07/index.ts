@@ -28,8 +28,14 @@ allowHeaders: ["Content-Type", "Authorization", "X-Session-Token"],
 
 // ============ CONSTANTS ============
 
-const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 
-                     'July', 'August', 'September', 'October', 'November', 'December'];
+const MONTH_NAMES = {
+  en: ['January', 'February', 'March', 'April', 'May', 'June',
+       'July', 'August', 'September', 'October', 'November', 'December'],
+  sq: ['janar', 'shkurt', 'mars', 'prill', 'maj', 'qershor',
+       'korrik', 'gusht', 'shtator', 'tetor', 'nëntor', 'dhjetor'],
+  mk: ['јануари', 'февруари', 'март', 'април', 'мај', 'јуни',
+       'јули', 'август', 'септември', 'октомври', 'ноември', 'декември']
+};
 
 // Single source of truth for default time slots
 const DEFAULT_TIME_SLOTS = ['09:00', '10:00', '11:00', '17:00', '18:00', '19:00', '20:00'];
@@ -216,9 +222,11 @@ function getPackagePriceInfo(packageType: PackageType) {
   return PACKAGE_PRICING[packageType] || PACKAGE_PRICING.single;
 }
 
-function formatDateString(dateKey: string): string {
+function formatDateString(dateKey: string, language: string = 'en'): string {
   const [month, day] = dateKey.split('-').map(Number);
-  return `${day} ${MONTH_NAMES[month - 1]}`;
+  const lang = (language?.toLowerCase() || 'en') as 'sq' | 'mk' | 'en';
+  const months = MONTH_NAMES[lang] || MONTH_NAMES.en;
+  return `${day} ${months[month - 1]}`;
 }
 
 async function hashPassword(password: string): Promise<string> {
@@ -537,7 +545,7 @@ function getEmailTranslations(language: string) {
       package: 'PAKETA',
       price: 'ÇMIMI',
       singleSession: 'KLASË E VETME',
-      firstClass: 'KLASA E PARË',
+      firstClass: 'Klasë e parë',
       date: 'Data',
       time: 'Ora',
       important: 'E rëndësishme: Llogaria juaj do të aktivizohet pas përfundimit të pagesës në studio.',
@@ -562,7 +570,7 @@ function getEmailTranslations(language: string) {
       package: 'ПАКЕТ',
       price: 'ЦЕНА',
       singleSession: 'ЕДНА КЛАСА',
-      firstClass: 'ПРВА КЛАСА',
+      firstClass: 'Прва класа',
       date: 'Датум',
       time: 'Време',
       important: 'Важно: Вашата сметка ќе биде активирана по завршувањето на уплатата во студиото.',
@@ -1181,7 +1189,7 @@ app.post("/make-server-b87b0c07/packages/:id/first-session", async (c) => {
       }
     }
 
-    const dateString = formatDateString(dateKey);
+    const dateString = formatDateString(dateKey, pkg.language || 'en');
     const endTime = calculateEndTime(timeSlot);
 
     // Insert reservation into Supabase (not KV)
@@ -1588,7 +1596,7 @@ app.post("/make-server-b87b0c07/reservations", async (c) => {
 
     const reservationId = rpcResult.reservation_id;
     const reservationStatus = rpcResult.status;
-    const dateString = formatDateString(dateKey);
+    const dateString = formatDateString(dateKey, language || 'en');
     const endTime = calculateEndTime(timeSlot);
 
     console.log(`✅ Reservation created via RPC: ${reservationId} (status: ${reservationStatus})`);
@@ -3913,6 +3921,7 @@ app.get("/make-server-b87b0c07/user/packages", async (c) => {
     // Map packages to camelCase and populate firstSession + bookedSessions
     const mappedPackages = (packages || []).map((pkg: any) => {
       // Find the first session reservation
+      const userLang = pkg.language || 'en';
       let firstSession = null;
       if (pkg.first_reservation_id) {
         const res = reservationMap.get(pkg.first_reservation_id);
@@ -3920,7 +3929,7 @@ app.get("/make-server-b87b0c07/user/packages", async (c) => {
           const endTime = calculateEndTime(res.time_slot);
           firstSession = {
             id: res.id,
-            date: formatDateString(res.date_key),
+            date: formatDateString(res.date_key, userLang),
             dateKey: res.date_key,
             time: res.time_slot,
             endTime,
@@ -3939,7 +3948,7 @@ app.get("/make-server-b87b0c07/user/packages", async (c) => {
         if (res) {
           return {
             id: res.id,
-            date: formatDateString(res.date_key),
+            date: formatDateString(res.date_key, userLang),
             dateKey: res.date_key,
             time: res.time_slot,
             endTime: calculateEndTime(res.time_slot),
@@ -3957,7 +3966,7 @@ app.get("/make-server-b87b0c07/user/packages", async (c) => {
         if (res && res.reservation_status !== 'cancelled') {
           return {
             id: res.id,
-            date: formatDateString(res.date_key),
+            date: formatDateString(res.date_key, userLang),
             dateKey: res.date_key,
             time: res.time_slot,
             endTime: calculateEndTime(res.time_slot),
@@ -4090,7 +4099,7 @@ app.post("/make-server-b87b0c07/user/packages/:id/reschedule", async (c) => {
       return c.json({ error: "Slot is full" }, 400);
     }
 
-    const dateString = formatDateString(dateKey);
+    const dateString = formatDateString(dateKey, pkg.language || 'en');
     const endTime = calculateEndTime(timeSlot);
 
     // Update reservation in Supabase
@@ -4179,7 +4188,7 @@ app.post("/make-server-b87b0c07/user/packages/:id/book-session", async (c) => {
       return c.json({ error: "Slot is full" }, 400);
     }
 
-    const dateString = formatDateString(dateKey);
+    const dateString = formatDateString(dateKey, pkg.language || 'en');
     const endTime = calculateEndTime(timeSlot);
 
     // Create reservation in Supabase (let DB auto-generate UUID)
@@ -4863,7 +4872,7 @@ app.post("/make-server-b87b0c07/waitlist/redeem", async (c) => {
     const packageId = insertedPackage.id;
 
     // Create reservation in Supabase (not KV)
-    const dateString = formatDateString(dateKey);
+    const dateString = formatDateString(dateKey, waitlistLanguage || 'sq');
     const endTime = calculateEndTime(timeSlot);
 
     const { data: insertedReservation, error: resError } = await supabase
