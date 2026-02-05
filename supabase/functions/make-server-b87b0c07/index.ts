@@ -19,7 +19,7 @@ app.use(
   "/*",
   cors({
     origin: "https://app.wellnestpilates.com",
-    allowHeaders: ["Content-Type", "Authorization", "X-Session-Token"],
+allowHeaders: ["Content-Type", "Authorization", "X-Session-Token"],
     allowMethods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     exposeHeaders: ["Content-Length"],
     maxAge: 600,
@@ -310,13 +310,13 @@ async function verifyPassword(password: string, hash: string): Promise<boolean> 
 async function calculateSlotCapacity(dateKey: string, timeSlot: string): Promise<{available: number, isBlocked: boolean, isPrivate: boolean}> {
   const supabase = getSupabase();
 
-  // Query Supabase for reservations at this slot
+  // Query Supabase for reservations at this slot (including pending - they still occupy seats)
   const { data: slotReservations, error } = await supabase
     .from('reservations')
     .select('*')
     .eq('date_key', dateKey)
     .eq('time_slot', timeSlot)
-    .in('reservation_status', ['confirmed', 'attended']);
+    .in('reservation_status', ['pending', 'confirmed', 'attended']);
 
   if (error) {
     console.error('Error fetching slot capacity:', error);
@@ -2820,10 +2820,10 @@ app.get("/make-server-b87b0c07/admin/calendar", async (c) => {
     const dateReservations = reservations || [];
 
     const calendarData = DEFAULT_TIME_SLOTS.map((timeSlot) => {
-      // Filter confirmed/attended reservations for this slot
+      // Filter pending/confirmed/attended reservations for this slot (all active bookings)
       const slotReservations = dateReservations.filter((r: any) =>
         r.time_slot === timeSlot &&
-        (r.reservation_status === 'confirmed' || r.reservation_status === 'attended')
+        (r.reservation_status === 'pending' || r.reservation_status === 'confirmed' || r.reservation_status === 'attended')
       );
 
       // Calculate capacity inline
@@ -2948,6 +2948,56 @@ app.get("/make-server-b87b0c07/slots/live-days", async (c) => {
   } catch (error) {
     console.error('Error fetching live days:', error);
     return c.json({ error: 'Failed to fetch live days', details: error.message }, 500);
+  }
+});
+
+// GET /slots/availability - Public endpoint for booking counts (no PII)
+app.get("/make-server-b87b0c07/slots/availability", async (c) => {
+  try {
+    const supabase = getSupabase();
+
+    // Get all live days
+    const { data: liveDays, error: liveDaysError } = await supabase
+      .from('day_schedules')
+      .select('date')
+      .eq('status', 'live')
+      .gte('date', new Date().toISOString().split('T')[0]);
+
+    if (liveDaysError) {
+      console.error('Error fetching live days:', liveDaysError);
+      return c.json({ error: 'Failed to fetch availability' }, 500);
+    }
+
+    const liveDates = (liveDays || []).map(d => d.date);
+
+    if (liveDates.length === 0) {
+      return c.json({ success: true, bookings: [] });
+    }
+
+    // Fetch all reservations for live days (only pending, confirmed, attended - not cancelled/no_show)
+    const { data: reservations, error: resError } = await supabase
+      .from('reservations')
+      .select('date_key, time_slot, reservation_status, service_type')
+      .in('date_key', liveDates)
+      .in('reservation_status', ['pending', 'confirmed', 'attended']);
+
+    if (resError) {
+      console.error('Error fetching reservations:', resError);
+      return c.json({ error: 'Failed to fetch availability' }, 500);
+    }
+
+    // Map to simple booking counts (no PII)
+    const bookings = (reservations || []).map(r => ({
+      dateKey: r.date_key,
+      timeSlot: r.time_slot,
+      status: r.reservation_status,
+      serviceType: r.service_type
+    }));
+
+    return c.json({ success: true, bookings });
+  } catch (error) {
+    console.error('Error fetching slot availability:', error);
+    return c.json({ error: 'Failed to fetch availability', details: (error as Error).message }, 500);
   }
 });
 
