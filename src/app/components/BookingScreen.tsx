@@ -344,7 +344,7 @@ export function BookingScreen({ trainingType, onBack, onSubmit, onInstructorClic
                   }
                 }}
                 disabled={isDisabled}
-                className={`px-5 py-2.5 rounded-md text-xs transition-colors ${
+                className={`min-w-[110px] px-4 py-2.5 rounded-md text-xs transition-colors text-center ${
                   isPastTime
                     ? 'bg-gray-400 text-gray-600 cursor-not-allowed'
                     : slot.status === 'full'
@@ -353,9 +353,9 @@ export function BookingScreen({ trainingType, onBack, onSubmit, onInstructorClic
                 }`}
               >
                 {isPastTime
-                  ? t.timePassed || 'Kaluar'
+                  ? <span className="text-sm font-semibold">{t.timePassed || 'Passed'}</span>
                   : slot.status === 'full'
-                  ? t.noSpots
+                  ? <span className="text-sm font-semibold">{t.noSpots}</span>
                   : (
                     <div className="flex flex-col items-center leading-tight">
                       <span className="text-sm font-semibold">
