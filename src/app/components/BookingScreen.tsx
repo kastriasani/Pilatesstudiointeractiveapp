@@ -136,7 +136,7 @@ export function BookingScreen({ trainingType, onBack, onSubmit, onInstructorClic
     const bookingsMap: Record<string, Record<string, number>> = {};
     
     allBookings.forEach(booking => {
-      if (booking.status === 'confirmed' || booking.status === 'pending') {
+      if (booking.status === 'confirmed' || booking.status === 'pending' || booking.status === 'attended') {
         const dateKey = booking.dateKey;
         const timeSlot = booking.timeSlot;
         
@@ -351,7 +351,7 @@ export function BookingScreen({ trainingType, onBack, onSubmit, onInstructorClic
                   ? t.noSpots
                   : (
                     <div className="flex flex-col items-center leading-tight">
-                      <span className="text-sm font-semibold">{slot.availableSpots} / 4</span>
+                      <span className="text-sm font-semibold">{slot.availableSpots} / {slot.maxCapacity}</span>
                       <span className="text-[10px]">{t.bookYourClass || 'Book'}</span>
                     </div>
                   )}

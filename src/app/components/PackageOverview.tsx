@@ -268,7 +268,7 @@ export function PackageOverview({ onBack, language }: PackageOverviewProps) {
         // Get all confirmed/attended bookings for this date
         const dayBookings = existingBookings.filter((b: any) =>
           b.dateKey === dateKey &&
-          (b.reservationStatus === 'confirmed' || b.reservationStatus === 'attended' || b.reservationStatus === 'pending')
+          (b.status === 'confirmed' || b.status === 'attended' || b.status === 'pending')
         );
 
         const availableTimeSlots = apiSlots.map((slot: any) => {

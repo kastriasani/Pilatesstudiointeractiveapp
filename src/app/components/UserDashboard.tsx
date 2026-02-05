@@ -408,10 +408,11 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
           ? daySlots.map((s: any) => s.start_time)
           : ['09:00', '10:00', '17:00', '18:00', '19:00', '20:00'];
 
-        // Get bookings for this date
+        // Get bookings for this date (convert ISO to short format for comparison)
+        const shortDateKey = `${month}-${day}`; // e.g., "2-5" from "2026-02-05"
         const dayBookings = existingBookings.filter((b: any) =>
-          b.dateKey === dateKey &&
-          (b.reservationStatus === 'confirmed' || b.reservationStatus === 'attended' || b.reservationStatus === 'pending')
+          (b.dateKey === dateKey || b.dateKey === shortDateKey) &&
+          (b.status === 'confirmed' || b.status === 'attended' || b.status === 'pending')
         );
 
         const availableTimeSlots = timeSlotList.map((time: string) => {
