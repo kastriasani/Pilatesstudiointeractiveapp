@@ -2974,11 +2974,21 @@ app.get("/make-server-b87b0c07/slots/availability", async (c) => {
       return c.json({ success: true, bookings: [] });
     }
 
+    // Build both ISO format (2026-02-05) and short format (2-5) date keys
+    // to handle legacy reservations with short format
+    const allDateKeys: string[] = [];
+    liveDates.forEach(isoDate => {
+      allDateKeys.push(isoDate); // ISO format: 2026-02-05
+      const [, month, day] = isoDate.split('-');
+      const shortKey = `${parseInt(month)}-${parseInt(day)}`; // Short format: 2-5
+      allDateKeys.push(shortKey);
+    });
+
     // Fetch all reservations for live days (only pending, confirmed, attended - not cancelled/no_show)
     const { data: reservations, error: resError } = await supabase
       .from('reservations')
       .select('date_key, time_slot, reservation_status, service_type')
-      .in('date_key', liveDates)
+      .in('date_key', allDateKeys)
       .in('reservation_status', ['pending', 'confirmed', 'attended']);
 
     if (resError) {
@@ -2987,12 +2997,21 @@ app.get("/make-server-b87b0c07/slots/availability", async (c) => {
     }
 
     // Map to simple booking counts (no PII)
-    const bookings = (reservations || []).map(r => ({
-      dateKey: r.date_key,
-      timeSlot: r.time_slot,
-      status: r.reservation_status,
-      serviceType: r.service_type
-    }));
+    // Normalize date_key to short format for frontend compatibility
+    const bookings = (reservations || []).map(r => {
+      let dateKey = r.date_key;
+      // Convert ISO format to short format if needed
+      if (dateKey.includes('-') && dateKey.length === 10) {
+        const [, month, day] = dateKey.split('-');
+        dateKey = `${parseInt(month)}-${parseInt(day)}`;
+      }
+      return {
+        dateKey,
+        timeSlot: r.time_slot,
+        status: r.reservation_status,
+        serviceType: r.service_type
+      };
+    });
 
     return c.json({ success: true, bookings });
   } catch (error) {
