@@ -222,10 +222,10 @@ export function PackageOverview({ onBack, language }: PackageOverviewProps) {
   const loadAvailableSlots = async () => {
     setIsLoadingSlots(true);
     try {
-      // Fetch bookings and live days in parallel
+      // Fetch bookings availability and live days in parallel
       const [bookingsResponse, liveDaysResponse] = await Promise.all([
         fetch(
-          `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/bookings`,
+          `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/slots/availability`,
           { headers: { 'Authorization': `Bearer ${publicAnonKey}` } }
         ),
         fetch(

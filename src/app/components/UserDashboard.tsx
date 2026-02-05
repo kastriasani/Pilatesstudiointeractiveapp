@@ -359,7 +359,7 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
           }
         ),
         fetch(
-          `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/bookings`,
+          `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/slots/availability`,
           {
             headers: { 'Authorization': `Bearer ${publicAnonKey}` },
           }
