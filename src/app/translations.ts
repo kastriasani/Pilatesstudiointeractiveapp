@@ -158,6 +158,7 @@ export const translations = {
     activationCodeSentByAdmin: 'Kodi i aktivizimit do të dërgohet nga admini ynë',
     loginBeforeActivation: 'Mund të kyçeni para se të merrni kodin e aktivizimit',
     settingUp: 'Duke konfiguruar...',
+    friendInvited: 'Mik i ftuar',
 
     // Date formatting
     mondayDate: 'E hënë, 13 Janar',
@@ -492,6 +493,7 @@ export const translations = {
     activationCodeSentByAdmin: 'Активациониот код ќе биде испратен од нашиот админ',
     loginBeforeActivation: 'Можете да се најавите пред да го добиете активациониот код',
     settingUp: 'Се поставува...',
+    friendInvited: 'Поканет пријател',
 
     // Date formatting
     mondayDate: 'Понеделник, 13 Јануари',
@@ -826,6 +828,7 @@ export const translations = {
     activationCodeSentByAdmin: 'Your package activation code will be sent by our admin',
     loginBeforeActivation: 'You can log in before receiving the activation code',
     settingUp: 'Setting up...',
+    friendInvited: 'Friend Invited',
 
     // Date formatting
     mondayDate: 'Monday, January 13',

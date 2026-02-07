@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Package, Calendar, Clock, CreditCard, CheckCircle, AlertCircle, Edit2, Plus, ChevronDown, ChevronUp, Globe } from 'lucide-react';
+import { ArrowLeft, Package, Calendar, Clock, CreditCard, CheckCircle, AlertCircle, Edit2, Plus, ChevronDown, ChevronUp, Globe, Users } from 'lucide-react';
 import { Language, translations } from '../translations';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -21,6 +21,7 @@ type BookedSession = {
   endTime: string;
   slotIndex: number;
   attended?: boolean;
+  isFriendBooking?: boolean;
   createdAt?: string;
 };
 
@@ -65,6 +66,7 @@ type Reservation = {
   reservationStatus: 'pending' | 'confirmed' | 'attended' | 'cancelled' | 'no_show';
   paymentStatus: 'paid' | 'unpaid';
   packageId: string | null;
+  isFriendBooking?: boolean;
   createdAt: string;
 };
 
@@ -1050,6 +1052,12 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
                               B
                             </span>
                           )}
+                          {/* Friend booking indicator */}
+                          {bookedSession?.isFriendBooking && (
+                            <span className="absolute -top-1 -left-1 w-3 h-3 bg-blue-500 rounded-full flex items-center justify-center text-[8px] text-white font-bold">
+                              F
+                            </span>
+                          )}
                         </button>
                       );
                     })}
@@ -1220,21 +1228,29 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
                         </p>
                       </div>
                     </div>
-                    <div className={`px-3 py-1.5 rounded-full text-xs font-medium inline-flex items-center gap-1.5 ${
-                      res.paymentStatus === 'paid' || res.reservationStatus === 'confirmed'
-                        ? 'bg-green-100 text-green-700'
-                        : 'bg-amber-100 text-amber-700'
-                    }`}>
-                      {res.paymentStatus === 'paid' || res.reservationStatus === 'confirmed' ? (
-                        <>
-                          <CheckCircle className="w-3.5 h-3.5" />
-                          {t.confirmed || 'Confirmed'}
-                        </>
-                      ) : (
-                        <>
-                          <AlertCircle className="w-3.5 h-3.5" />
-                          {t.pendingPayment || 'Pending Payment'}
-                        </>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <div className={`px-3 py-1.5 rounded-full text-xs font-medium inline-flex items-center gap-1.5 ${
+                        res.paymentStatus === 'paid' || res.reservationStatus === 'confirmed'
+                          ? 'bg-green-100 text-green-700'
+                          : 'bg-amber-100 text-amber-700'
+                      }`}>
+                        {res.paymentStatus === 'paid' || res.reservationStatus === 'confirmed' ? (
+                          <>
+                            <CheckCircle className="w-3.5 h-3.5" />
+                            {t.confirmed || 'Confirmed'}
+                          </>
+                        ) : (
+                          <>
+                            <AlertCircle className="w-3.5 h-3.5" />
+                            {t.pendingPayment || 'Pending Payment'}
+                          </>
+                        )}
+                      </div>
+                      {res.isFriendBooking && (
+                        <div className="px-3 py-1.5 rounded-full text-xs font-medium inline-flex items-center gap-1.5 bg-blue-100 text-blue-700">
+                          <Users className="w-3.5 h-3.5" />
+                          {t.friendInvited || 'Friend Invited'}
+                        </div>
                       )}
                     </div>
                   </div>

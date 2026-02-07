@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useLanguage } from '@/contexts/LanguageContext';
+import { useLanguage, Language } from '@/contexts/LanguageContext';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 
 interface LoginPageProps {
@@ -10,11 +10,31 @@ interface LoginPageProps {
 
 export function LoginPage({ onLogin, onBack }: LoginPageProps) {
   const navigate = useNavigate();
-  const { language } = useLanguage();
+  const { language, setLanguage } = useLanguage();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Check for existing valid session on mount
+  useEffect(() => {
+    const session = localStorage.getItem('wellnest_session');
+    const userData = localStorage.getItem('wellnest_user');
+    const expiry = localStorage.getItem('wellnest_session_expiry');
+
+    if (session && userData) {
+      // Check if session is still valid
+      if (!expiry || Date.now() < parseInt(expiry)) {
+        // Valid session exists, redirect to dashboard
+        navigate('/dashboard', { replace: true });
+      } else {
+        // Session expired, clear it
+        localStorage.removeItem('wellnest_session');
+        localStorage.removeItem('wellnest_user');
+        localStorage.removeItem('wellnest_session_expiry');
+      }
+    }
+  }, [navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,6 +74,14 @@ export function LoginPage({ onLogin, onBack }: LoginPageProps) {
       localStorage.setItem('wellnest_user', JSON.stringify(data.user));
       const expiryTime = Date.now() + (30 * 24 * 60 * 60 * 1000); // 30 days
       localStorage.setItem('wellnest_session_expiry', expiryTime.toString());
+
+      // Set language from user preference
+      if (data.user?.language) {
+        const userLang = data.user.language.toUpperCase() as Language;
+        if (['SQ', 'MK', 'EN'].includes(userLang)) {
+          setLanguage(userLang);
+        }
+      }
 
       // Use callback if provided, otherwise navigate
       if (onLogin) {

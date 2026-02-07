@@ -526,7 +526,7 @@ function generateEmailTemplate(content: EmailContent, language: 'sq' | 'mk' | 'e
                 <!-- Header -->
                 <tr>
                   <td style="background-color: #452F21; padding: 40px; text-align: center;">
-                    <img src="https://i.ibb.co/tT95h4s2/unnamed.png" alt="Wellnest Pilates" width="200" style="display: block; margin: 0 auto;" />
+                    <img src="https://app.wellnestpilates.com/wellnest-logo.png" alt="Wellnest Pilates" width="200" style="display: block; margin: 0 auto;" />
                   </td>
                 </tr>
                 <!-- Content -->
@@ -1258,7 +1258,6 @@ app.post("/make-server-b87b0c07/packages/:id/first-session", async (c) => {
       const errorMap: Record<string, string> = {
         'Slot blocked by private session': 'Slot not available for booking',
         'Insufficient capacity': 'Slot is full',
-        'Duplicate booking': 'You already have a booking at this time',
         'Package not found': 'Package not found',
         'No remaining sessions': 'No remaining sessions in package',
         'Package is not in pending state': 'Package is not in pending state',
@@ -1269,6 +1268,7 @@ app.post("/make-server-b87b0c07/packages/:id/first-session", async (c) => {
     }
 
     const reservationId = rpcResult.reservation_id;
+    const isFriendBooking = rpcResult.is_friend_booking || false;
     const newRemainingSessions = pkg.remaining_sessions - 1;
 
     // Update sessions_booked array (RPC already set first_reservation_id and decremented remaining_sessions)
@@ -1632,7 +1632,6 @@ app.post("/make-server-b87b0c07/reservations", async (c) => {
       const errorMap: Record<string, string> = {
         'Slot blocked by private session': 'Slot not available for booking',
         'Insufficient capacity': 'Slot is full',
-        'Duplicate booking': 'You already have a booking at this time',
         'Package not found': 'Package not found',
         'No remaining sessions': 'No remaining sessions in package',
         'Package not active': 'Package is not active'
@@ -1643,6 +1642,7 @@ app.post("/make-server-b87b0c07/reservations", async (c) => {
 
     const reservationId = rpcResult.reservation_id;
     const reservationStatus = rpcResult.status;
+    const isFriendBooking = rpcResult.is_friend_booking || false;
     const dateString = formatDateString(dateKey, language || 'en');
     const endTime = calculateEndTime(timeSlot);
 
@@ -2720,6 +2720,7 @@ app.get("/make-server-b87b0c07/bookings", async (c) => {
       userId: r.user_email,
       reservationStatus: r.reservation_status,
       paymentStatus: r.payment_status,
+      isFriendBooking: r.is_friend_booking || false,
     }));
 
     console.log(`📅 Retrieved ${bookings.length} bookings from Supabase`);
@@ -4041,6 +4042,7 @@ app.get("/make-server-b87b0c07/user/packages", async (c) => {
             endTime: calculateEndTime(res.time_slot),
             slotIndex: sessionsAttendedIds.length + index,
             attended: false,
+            isFriendBooking: res.is_friend_booking || false,
             createdAt: res.created_at
           };
         }
@@ -4090,6 +4092,7 @@ app.get("/make-server-b87b0c07/user/packages", async (c) => {
       instructor: res.instructor,
       reservationStatus: res.reservation_status,
       paymentStatus: res.payment_status,
+      isFriendBooking: res.is_friend_booking || false,
       createdAt: res.created_at,
       updatedAt: res.updated_at
     }));
@@ -4294,7 +4297,6 @@ app.post("/make-server-b87b0c07/user/packages/:id/book-session", async (c) => {
       const errorMap: Record<string, string> = {
         'Slot blocked by private session': 'Slot not available for booking',
         'Insufficient capacity': 'Slot is full',
-        'Duplicate booking': 'You already have a booking at this time',
         'Package not found': 'Package not found',
         'No remaining sessions': 'No sessions remaining in this package',
         'Package not active': 'Package is not active'
@@ -4304,6 +4306,7 @@ app.post("/make-server-b87b0c07/user/packages/:id/book-session", async (c) => {
     }
 
     const reservationId = rpcResult.reservation_id;
+    const isFriendBooking = rpcResult.is_friend_booking || false;
 
     // Update sessions_booked array + first_reservation_id if not set
     // (RPC already decremented remaining_sessions)

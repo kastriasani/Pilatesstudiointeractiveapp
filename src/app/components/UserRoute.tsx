@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { UserDashboard } from './UserDashboard';
-import { useLanguage } from '@/contexts/LanguageContext';
+import { useLanguage, Language } from '@/contexts/LanguageContext';
 
 type UserData = {
   email: string;
@@ -9,11 +9,12 @@ type UserData = {
   surname: string;
   packageType?: string;
   remainingSessions?: number;
+  language?: string;
 };
 
 export function UserRoute() {
   const navigate = useNavigate();
-  const { language } = useLanguage();
+  const { language, setLanguage } = useLanguage();
   const [user, setUser] = useState<UserData | null>(null);
   const [sessionToken, setSessionToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -38,12 +39,20 @@ export function UserRoute() {
         const parsedUser = JSON.parse(userData);
         setUser(parsedUser);
         setSessionToken(session);
+
+        // Set the language from user's preference
+        if (parsedUser.language) {
+          const userLang = parsedUser.language.toUpperCase() as Language;
+          if (['SQ', 'MK', 'EN'].includes(userLang)) {
+            setLanguage(userLang);
+          }
+        }
       } catch (e) {
         console.error('Failed to parse user data:', e);
       }
     }
     setIsLoading(false);
-  }, []);
+  }, [setLanguage]);
 
   const handleLogout = () => {
     localStorage.removeItem('wellnest_session');

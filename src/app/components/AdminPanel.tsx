@@ -65,6 +65,7 @@ export type Booking = {
   payInStudio: boolean;
   language: string;
   status: UserStatus;
+  isFriendBooking?: boolean;
   createdAt: string;
 };
 
@@ -1393,6 +1394,9 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                     <div className={`w-2 h-2 rounded-full flex-shrink-0 ${bookingDotColor}`} />
                                     <span className="text-sm font-medium text-stone-800 truncate flex-1">
                                       {booking.name} {booking.surname}
+                                      {booking.isFriendBooking && (
+                                        <span className="ml-1 text-[10px] font-semibold text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded-full">+F</span>
+                                      )}
                                     </span>
                                     {/* Payment Badge */}
                                     {isPaid ? (

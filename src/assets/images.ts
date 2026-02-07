@@ -1,11 +1,11 @@
 // Central image assets for the Pilates studio app
-// Original images from Figma import
+// Self-hosted in /public/ directory (served by Vercel)
 
-const logo = 'https://i.ibb.co/FkgmjP56/9dd7d05b-6230-4db6-9048-87f79c35444a.png';
-const multiPackageImage = 'https://i.ibb.co/s92CLYgV/6P1B1209.webp';
-const singleSessionImage = 'https://i.ibb.co/9fNBbs9/pilates-reformer.avif';
-const individualTrainingImage = 'https://i.ibb.co/sJDcVcfG/6-P3-A0401-1.webp';
-const duoTrainingImage = 'https://i.ibb.co/1GvQsf0F/duo.png';
+const logo = '/logo.png';
+const multiPackageImage = '/multi-package.webp';
+const singleSessionImage = '/single-session.avif';
+const individualTrainingImage = '/individual-training.webp';
+const duoTrainingImage = '/duo-training.png';
 
 export {
   logo,
