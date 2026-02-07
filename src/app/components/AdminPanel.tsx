@@ -45,6 +45,8 @@ export type User = {
     sessions: number;
     purchasedDate: string;
     activatedDate?: string;
+    activationDate?: string;
+    expiryDate?: string;
   }>;
   // Note: activation is now admin-triggered, no activation codes needed
 };
@@ -1618,6 +1620,23 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                         {remainingSessions}
                                       </span>
                                       /{totalSessions}
+                                      {(() => {
+                                        const expiryDate = user.packages?.[0]?.expiryDate;
+                                        if (!expiryDate) return null;
+                                        const daysLeft = Math.ceil((new Date(expiryDate).getTime() - new Date().getTime()) / (24 * 60 * 60 * 1000));
+                                        if (daysLeft <= 0) return (
+                                          <span style={{ marginLeft: '6px' }}>
+                                            · <span style={{ color: '#dc2626' }}>expired</span>
+                                          </span>
+                                        );
+                                        return (
+                                          <span style={{ marginLeft: '6px' }}>
+                                            · <span style={{ color: daysLeft <= 5 ? '#dc2626' : daysLeft <= 10 ? '#e97a1f' : '#8b7764' }}>
+                                              {daysLeft}d left
+                                            </span>
+                                          </span>
+                                        );
+                                      })()}
                                     </>
                                   )}
                                 </>
@@ -1664,6 +1683,16 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                 {user.packageType === 'single' && 'Single (600 DEN)'}
                               </div>
                             </div>
+
+                            {/* Payment Date */}
+                            {user.status === 'confirmed' && user.packages?.[0]?.activationDate && (
+                              <div className="mb-3 p-3 bg-[#F5F0EE] rounded-md">
+                                <p className="text-xs text-[#8b7764] mb-1">Payment Date:</p>
+                                <p className="text-sm text-[#3d2f28]">
+                                  {new Date(user.packages[0].activationDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                </p>
+                              </div>
+                            )}
 
                             {/* Phone Number */}
                             {user.mobile && (

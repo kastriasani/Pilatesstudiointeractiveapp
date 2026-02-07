@@ -2267,11 +2267,27 @@ app.get("/make-server-b87b0c07/admin/users", async (c) => {
       return c.json({ error: 'Failed to fetch reservations', details: resError.message }, 500);
     }
 
+    // Fetch user_packages for activation/expiry dates
+    const { data: userPackages, error: pkgError } = await supabase
+      .from('user_packages')
+      .select('user_email, activation_date, expiry_date, package_status')
+      .order('created_at', { ascending: false });
+
+    if (pkgError) {
+      console.error('Error fetching user_packages:', pkgError);
+      // Non-fatal: continue without package dates
+    }
+
     // Build user summaries with package info from users table
     const userSummaries = (users || []).map((user: any) => {
       // Find reservations for this user
       const userReservations = (reservations || []).filter(
         (res: any) => res.user_email === user.email
+      );
+
+      // Find the most recent package from user_packages table
+      const userPkg = (userPackages || []).find(
+        (pkg: any) => pkg.user_email === user.email
       );
 
       // Package info is stored directly on user in Supabase schema
@@ -2283,8 +2299,8 @@ app.get("/make-server-b87b0c07/admin/users", async (c) => {
         activationStatus: user.activation_status || 'pending',
         sessionsUsed: user.used_sessions || 0,
         createdAt: user.created_at,
-        activationDate: user.activated_at,
-        expiryDate: user.package_expiry_date,
+        activationDate: userPkg?.activation_date || null,
+        expiryDate: userPkg?.expiry_date || null,
       }] : [];
 
       return {
