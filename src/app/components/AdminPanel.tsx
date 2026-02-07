@@ -1395,7 +1395,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                     <span className="text-sm font-medium text-stone-800 truncate flex-1">
                                       {booking.name} {booking.surname}
                                       {booking.isFriendBooking && (
-                                        <span className="ml-1 text-[10px] font-semibold text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded-full">+F</span>
+                                        <span className="ml-1 text-[10px] font-semibold text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded-full">+Friend</span>
                                       )}
                                     </span>
                                     {/* Payment Badge */}

@@ -1054,8 +1054,8 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
                           )}
                           {/* Friend booking indicator */}
                           {bookedSession?.isFriendBooking && (
-                            <span className="absolute -top-1 -left-1 w-3 h-3 bg-blue-500 rounded-full flex items-center justify-center text-[8px] text-white font-bold">
-                              F
+                            <span className="absolute -top-1.5 -left-1.5 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
+                              <Users className="w-2.5 h-2.5 text-white" />
                             </span>
                           )}
                         </button>
