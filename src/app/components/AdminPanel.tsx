@@ -45,6 +45,7 @@ export type User = {
     sessions: number;
     purchasedDate: string;
     activatedDate?: string;
+    activationDate?: string;
   }>;
   // Note: activation is now admin-triggered, no activation codes needed
 };
@@ -1619,7 +1620,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                       </span>
                                       /{totalSessions}
                                       {(() => {
-                                        const activatedDate = user.packages?.[0]?.activatedDate;
+                                        const activatedDate = user.packages?.[0]?.activationDate || user.packages?.[0]?.activatedDate;
                                         if (!activatedDate) return null;
                                         const now = new Date();
                                         const activated = new Date(activatedDate);
