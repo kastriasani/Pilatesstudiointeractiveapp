@@ -2046,6 +2046,7 @@ app.post("/make-server-b87b0c07/activate", async (c) => {
       .update({
         activation_status: 'activated',
         payment_status: 'paid',
+        activated_at: now,
         updated_at: now
       })
       .eq('email', normalizedEmail)
@@ -2283,7 +2284,7 @@ app.get("/make-server-b87b0c07/admin/users", async (c) => {
         activationStatus: user.activation_status || 'pending',
         sessionsUsed: user.used_sessions || 0,
         createdAt: user.created_at,
-        activationDate: user.activated_at,
+        activationDate: user.activated_at || (user.payment_status === 'paid' ? user.updated_at : null),
         expiryDate: user.package_expiry_date,
       }] : [];
 

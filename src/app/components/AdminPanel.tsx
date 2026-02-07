@@ -1696,6 +1696,16 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                               </div>
                             )}
 
+                            {/* Payment Date */}
+                            {user.status === 'confirmed' && user.packages?.[0]?.activationDate && (
+                              <div className="mb-3 p-3 bg-[#F5F0EE] rounded-md">
+                                <p className="text-xs text-[#8b7764] mb-1">Payment Date:</p>
+                                <p className="text-sm text-[#3d2f28]">
+                                  {new Date(user.packages[0].activationDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                </p>
+                              </div>
+                            )}
+
                             {/* Booking Details */}
                             {user.bookingDate && user.bookingTime && (
                               <div className="mb-3 p-3 bg-[#F5F0EE] rounded-md">
