@@ -1607,8 +1607,21 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                             <span className="text-sm text-[#3d2f28] font-medium">
                               {user.name} {user.surname}
                             </span>
-                            <span className="text-sm text-[#6b5949]">
-                              {formatPhone(user.mobile)}
+                            <span className="text-xs text-[#8b7764]">
+                              {user.packageType === 'single' ? 'Single' : (
+                                <>
+                                  {baseSessionCount}-pack
+                                  {user.status === 'confirmed' && (
+                                    <>
+                                      {' · '}
+                                      <span style={{ color: remainingSessions > 0 ? '#7A8F3A' : '#dc2626' }}>
+                                        {remainingSessions}
+                                      </span>
+                                      /{totalSessions}
+                                    </>
+                                  )}
+                                </>
+                              )}
                             </span>
                           </div>
                         </button>
@@ -1651,6 +1664,14 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                 {user.packageType === 'single' && 'Single (600 DEN)'}
                               </div>
                             </div>
+
+                            {/* Phone Number */}
+                            {user.mobile && (
+                              <div className="mb-3 p-3 bg-[#F5F0EE] rounded-md">
+                                <p className="text-xs text-[#8b7764] mb-1">Phone:</p>
+                                <p className="text-sm text-[#3d2f28]">{formatPhone(user.mobile)}</p>
+                              </div>
+                            )}
 
                             {/* Booking Details */}
                             {user.bookingDate && user.bookingTime && (
