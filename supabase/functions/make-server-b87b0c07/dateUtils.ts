@@ -1,7 +1,7 @@
 /**
  * SYNC: This file must stay in sync with:
  * src/utils/dateUtils.ts
- * Last synced: 2026-02-01
+ * Last synced: 2026-02-07
  *
  * Centralized Date/Time Utilities for WellNest Pilates
  * Timezone: Europe/Skopje (UTC+1/+2 with DST)
@@ -200,6 +200,22 @@ export const getCalendarDates = (startDate: Date, endDate: Date): Date[] => {
     if (isWeekday(current)) {
       dates.push(new Date(current));
     }
+    current.setDate(current.getDate() + 1);
+  }
+
+  return dates;
+};
+
+/**
+ * Generate ALL dates in a range (including weekends) - for admin panel
+ */
+export const getAllCalendarDates = (startDate: Date, endDate: Date): Date[] => {
+  const dates: Date[] = [];
+  const current = new Date(startDate);
+  current.setHours(0, 0, 0, 0);
+
+  while (current <= endDate) {
+    dates.push(new Date(current));
     current.setDate(current.getDate() + 1);
   }
 

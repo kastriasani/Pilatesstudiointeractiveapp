@@ -141,7 +141,24 @@ export const translations = {
     registerSuccess: 'Regjistrimi u krye me sukses! Tani mundeni të kyçeni.',
     userExistsLoginInstead: 'Një llogari me këtë email tashmë ekziston. Ju lutem kyçuni në vend të kësaj.',
     wrongPasswordForExistingUser: 'Ky email është tashmë i regjistruar me një fjalëkalim tjetër. Ju lutem vendosni fjalëkalimin tuaj të saktë për të vazhduar me rezervimin.',
-    
+
+    // Password Setup Page
+    completeRegistration: 'Plotëso Regjistrimin',
+    registrationComplete: 'Regjistrimi u plotësua!',
+    accountSetupSuccess: 'Llogaria juaj u konfigurua me sukses. Duke ju ridrejtuar te paneli juaj...',
+    noTokenError: 'Nuk u gjet asnjë token regjistrimi në URL. Ju lutem përdorni linkun nga emaili juaj.',
+    passwordMinLength: 'Fjalëkalimi duhet të ketë të paktën 6 karaktere',
+    passwordsDoNotMatch: 'Fjalëkalimet nuk përputhen',
+    useRegistrationLink: 'Ju lutem përdorni linkun e regjistrimit të dërguar në emailin tuaj.',
+    createPassword: 'Krijo Fjalëkalimin',
+    enterPasswordPlaceholder: 'Vendos fjalëkalimin (min 6 karaktere)',
+    confirmPasswordPlaceholder: 'Konfirmo fjalëkalimin',
+    importantNote: 'E rëndësishme:',
+    afterSettingPassword: 'Pasi të vendosni fjalëkalimin, mund të kyçeni në çdo kohë',
+    activationCodeSentByAdmin: 'Kodi i aktivizimit do të dërgohet nga admini ynë',
+    loginBeforeActivation: 'Mund të kyçeni para se të merrni kodin e aktivizimit',
+    settingUp: 'Duke konfiguruar...',
+
     // Date formatting
     mondayDate: 'E hënë, 13 Janar',
     tuesdayDate: 'E martë, 14 Janar',
@@ -458,7 +475,24 @@ export const translations = {
     registerSuccess: 'Регистрацијата е успешна! Сега можете да се најавите.',
     userExistsLoginInstead: 'Веќе постои сметка со оваа емаил адреса. Ве молиме најавете се наместо тоа.',
     wrongPasswordForExistingUser: 'Оваа емаил адреса е веќе регистрирана со друга лозинка. Ве молиме внесете ја вашата точна лозинка за да продолжите со резервацијата.',
-    
+
+    // Password Setup Page
+    completeRegistration: 'Заврши ја Регистрацијата',
+    registrationComplete: 'Регистрацијата е завршена!',
+    accountSetupSuccess: 'Вашата сметка е успешно поставена. Ве пренасочуваме кон вашата контролна табла...',
+    noTokenError: 'Не е пронајден токен за регистрација во URL. Ве молиме користете го линкот од вашиот емаил.',
+    passwordMinLength: 'Лозинката мора да има најмалку 6 карактери',
+    passwordsDoNotMatch: 'Лозинките не се совпаѓаат',
+    useRegistrationLink: 'Ве молиме користете го линкот за регистрација испратен на вашиот емаил.',
+    createPassword: 'Креирај Лозинка',
+    enterPasswordPlaceholder: 'Внесете лозинка (мин 6 карактери)',
+    confirmPasswordPlaceholder: 'Потврдете лозинка',
+    importantNote: 'Важно:',
+    afterSettingPassword: 'Откако ќе ја поставите лозинката, можете да се најавите во секое време',
+    activationCodeSentByAdmin: 'Активациониот код ќе биде испратен од нашиот админ',
+    loginBeforeActivation: 'Можете да се најавите пред да го добиете активациониот код',
+    settingUp: 'Се поставува...',
+
     // Date formatting
     mondayDate: 'Понеделник, 13 Јануари',
     tuesdayDate: 'Вторник, 14 Јануари',
@@ -775,7 +809,24 @@ export const translations = {
     registerSuccess: 'Registration successful! You can now login.',
     userExistsLoginInstead: 'An account with this email already exists. Please login instead.',
     wrongPasswordForExistingUser: 'This email is already registered with a different password. Please enter your correct password to continue with your booking.',
-    
+
+    // Password Setup Page
+    completeRegistration: 'Complete Your Registration',
+    registrationComplete: 'Registration Complete!',
+    accountSetupSuccess: 'Your account has been set up successfully. Redirecting to your dashboard...',
+    noTokenError: 'No registration token found in URL. Please use the link from your email.',
+    passwordMinLength: 'Password must be at least 6 characters long',
+    passwordsDoNotMatch: 'Passwords do not match',
+    useRegistrationLink: 'Please use the registration link sent to your email.',
+    createPassword: 'Create Password',
+    enterPasswordPlaceholder: 'Enter password (min 6 characters)',
+    confirmPasswordPlaceholder: 'Confirm password',
+    importantNote: 'Important:',
+    afterSettingPassword: 'After setting your password, you can log in anytime',
+    activationCodeSentByAdmin: 'Your package activation code will be sent by our admin',
+    loginBeforeActivation: 'You can log in before receiving the activation code',
+    settingUp: 'Setting up...',
+
     // Date formatting
     mondayDate: 'Monday, January 13',
     tuesdayDate: 'Tuesday, January 14',

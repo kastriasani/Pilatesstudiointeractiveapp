@@ -10,6 +10,7 @@ import { Hono } from "npm:hono";
 import { cors } from "npm:hono/cors";
 import { logger } from "npm:hono/logger";
 import * as kv from "./kv_store.ts";
+import { getSkopjeTime } from "./dateUtils.ts";
 
 const app = new Hono();
 
@@ -173,11 +174,20 @@ function normalizeEmail(email: string): string {
   return email.toLowerCase().trim();
 }
 
+function generateSecureToken(prefix: string): string {
+  const bytes = new Uint8Array(24);
+  crypto.getRandomValues(bytes);
+  const hex = Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+  return `${prefix}_${hex}`;
+}
+
 function generateActivationCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const randomBytes = new Uint8Array(8);
+  crypto.getRandomValues(randomBytes);
   let code = 'WN-';
   for (let i = 0; i < 8; i++) {
-    code += chars.charAt(Math.floor(Math.random() * chars.length));
+    code += chars.charAt(randomBytes[i] % chars.length);
     if (i === 3) code += '-';
   }
   return code;
@@ -230,12 +240,16 @@ function formatDateString(dateKey: string, language: string = 'en'): string {
 }
 
 async function hashPassword(password: string): Promise<string> {
+  // Salted SHA-256: generates random salt and stores as "s256:salt:hash"
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const saltHex = Array.from(salt).map(b => b.toString(16).padStart(2, '0')).join('');
   const encoder = new TextEncoder();
-  const data = encoder.encode(password);
+  const data = encoder.encode(saltHex + password);
   const hash = await crypto.subtle.digest('SHA-256', data);
-  return Array.from(new Uint8Array(hash))
+  const hashHex = Array.from(new Uint8Array(hash))
     .map(b => b.toString(16).padStart(2, '0'))
     .join('');
+  return `s256:${saltHex}:${hashHex}`;
 }
 
 function isDevEndpointsEnabled(): boolean {
@@ -310,9 +324,29 @@ async function verifyUserSession(c: any): Promise<{ valid: boolean; error?: stri
   return { valid: true, session };
 }
 
-async function verifyPassword(password: string, hash: string): Promise<boolean> {
-  const passwordHash = await hashPassword(password);
-  return passwordHash === hash;
+async function verifyPassword(password: string, storedHash: string): Promise<boolean> {
+  const encoder = new TextEncoder();
+
+  if (storedHash.startsWith('s256:')) {
+    // New salted format: "s256:salt:hash"
+    const parts = storedHash.split(':');
+    const salt = parts[1];
+    const expectedHash = parts[2];
+    const data = encoder.encode(salt + password);
+    const computed = await crypto.subtle.digest('SHA-256', data);
+    const computedHex = Array.from(new Uint8Array(computed))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+    return computedHex === expectedHash;
+  }
+
+  // Legacy unsalted SHA-256 (backwards compatibility for existing users)
+  const data = encoder.encode(password);
+  const hash = await crypto.subtle.digest('SHA-256', data);
+  const hashHex = Array.from(new Uint8Array(hash))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+  return hashHex === storedHash;
 }
 
 async function calculateSlotCapacity(dateKey: string, timeSlot: string): Promise<{available: number, isBlocked: boolean, isPrivate: boolean}> {
@@ -378,6 +412,15 @@ function capitalizeName(name: string): string {
     .join(' ');
 }
 
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 // ============ UNIFIED EMAIL TEMPLATE ============
 
 type EmailContent = {
@@ -400,8 +443,8 @@ function generateEmailTemplate(content: EmailContent, language: 'sq' | 'mk' | 'e
         <td style="padding: 24px;">
           ${content.details.map(d => `
             <p style="margin: 0 0 12px 0;">
-              <span style="color: #888888; font-size: 11px; text-transform: uppercase; letter-spacing: 2px; display: block; margin-bottom: 4px;">${d.label}</span>
-              <span style="color: #333333; font-size: 16px; font-weight: 600;">${d.value}</span>
+              <span style="color: #888888; font-size: 11px; text-transform: uppercase; letter-spacing: 2px; display: block; margin-bottom: 4px;">${escapeHtml(d.label)}</span>
+              <span style="color: #333333; font-size: 16px; font-weight: 600;">${escapeHtml(d.value)}</span>
             </p>
           `).join('')}
         </td>
@@ -414,8 +457,8 @@ function generateEmailTemplate(content: EmailContent, language: 'sq' | 'mk' | 'e
     <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 4px; margin: 24px 0;">
       <tr>
         <td style="padding: 24px;">
-          <p style="margin: 0 0 12px 0; color: #888888; font-size: 11px; text-transform: uppercase; letter-spacing: 2px;">${content.highlight.title}</p>
-          ${content.highlight.lines.map(line => `<p style="margin: 0 0 8px 0; color: #333333; font-size: 15px;">${line}</p>`).join('')}
+          <p style="margin: 0 0 12px 0; color: #888888; font-size: 11px; text-transform: uppercase; letter-spacing: 2px;">${escapeHtml(content.highlight.title)}</p>
+          ${content.highlight.lines.map(line => `<p style="margin: 0 0 8px 0; color: #333333; font-size: 15px;">${escapeHtml(line)}</p>`).join('')}
         </td>
       </tr>
     </table>
@@ -426,9 +469,9 @@ function generateEmailTemplate(content: EmailContent, language: 'sq' | 'mk' | 'e
     <table width="100%" cellpadding="0" cellspacing="0" style="background: #f5f0eb; border: 2px dashed #c4b5a4; border-radius: 12px; margin: 24px 0;">
       <tr>
         <td style="padding: 20px; text-align: center;">
-          <p style="font-size: 12px; color: #6b5949; margin: 0 0 8px 0; text-transform: uppercase; letter-spacing: 1px;">${content.code.label}</p>
-          <p style="font-size: 28px; font-weight: bold; font-family: monospace; color: #3d2f28; margin: 0; letter-spacing: 3px; -webkit-user-select: all; -moz-user-select: all; -ms-user-select: all; user-select: all;">${content.code.value}</p>
-          ${content.code.note ? `<p style="font-size: 11px; color: #9a8575; margin: 8px 0 0 0;">${content.code.note}</p>` : ''}
+          <p style="font-size: 12px; color: #6b5949; margin: 0 0 8px 0; text-transform: uppercase; letter-spacing: 1px;">${escapeHtml(content.code.label)}</p>
+          <p style="font-size: 28px; font-weight: bold; font-family: monospace; color: #3d2f28; margin: 0; letter-spacing: 3px; -webkit-user-select: all; -moz-user-select: all; -ms-user-select: all; user-select: all;">${escapeHtml(content.code.value)}</p>
+          ${content.code.note ? `<p style="font-size: 11px; color: #9a8575; margin: 8px 0 0 0;">${escapeHtml(content.code.note)}</p>` : ''}
         </td>
       </tr>
     </table>
@@ -451,7 +494,7 @@ function generateEmailTemplate(content: EmailContent, language: 'sq' | 'mk' | 'e
     <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f9f9f9; border-left: 3px solid #452F21; margin: 24px 0;">
       <tr>
         <td style="padding: 16px 20px;">
-          <p style="margin: 0; color: #333333; font-size: 14px; line-height: 1.6;">${content.note}</p>
+          <p style="margin: 0; color: #333333; font-size: 14px; line-height: 1.6;">${escapeHtml(content.note)}</p>
         </td>
       </tr>
     </table>
@@ -459,11 +502,11 @@ function generateEmailTemplate(content: EmailContent, language: 'sq' | 'mk' | 'e
 
   // Build instructions section (plain text for single step, numbered for multiple)
   const instructionsHtml = content.instructions ? `
-    ${content.instructions.title ? `<p style="margin: 24px 0 12px 0; color: #888888; font-size: 11px; text-transform: uppercase; letter-spacing: 2px;">${content.instructions.title}</p>` : ''}
+    ${content.instructions.title ? `<p style="margin: 24px 0 12px 0; color: #888888; font-size: 11px; text-transform: uppercase; letter-spacing: 2px;">${escapeHtml(content.instructions.title)}</p>` : ''}
     ${content.instructions.steps.length === 1
-      ? `<p style="margin: 12px 0 0 0; color: #666666; font-size: 13px; font-style: italic;">${content.instructions.steps[0]}</p>`
+      ? `<p style="margin: 12px 0 0 0; color: #666666; font-size: 13px; font-style: italic;">${escapeHtml(content.instructions.steps[0])}</p>`
       : `<ol style="margin: 0; padding-left: 20px; color: #333333; font-size: 14px; line-height: 1.8;">
-          ${content.instructions.steps.map(step => `<li style="margin-bottom: 8px;">${step}</li>`).join('')}
+          ${content.instructions.steps.map(step => `<li style="margin-bottom: 8px;">${escapeHtml(step)}</li>`).join('')}
         </ol>`
     }
   ` : '';
@@ -489,15 +532,15 @@ function generateEmailTemplate(content: EmailContent, language: 'sq' | 'mk' | 'e
                 <!-- Content -->
                 <tr>
                   <td style="padding: 40px;">
-                    <p style="margin: 0 0 20px 0; color: #452F21; font-size: 18px; font-weight: 600;">${content.greeting}</p>
-                    <p style="margin: 0 0 24px 0; color: #333333; font-size: 15px; line-height: 1.6;">${content.message}</p>
+                    <p style="margin: 0 0 20px 0; color: #452F21; font-size: 18px; font-weight: 600;">${escapeHtml(content.greeting)}</p>
+                    <p style="margin: 0 0 24px 0; color: #333333; font-size: 15px; line-height: 1.6;">${escapeHtml(content.message)}</p>
                     ${detailsHtml}
                     ${highlightHtml}
                     ${codeHtml}
                     ${buttonHtml}
                     ${noteHtml}
                     ${instructionsHtml}
-                    ${content.closing ? `<p style="margin: 24px 0 0 0; color: #333333; font-size: 14px; line-height: 1.6;">${content.closing}</p>` : ''}
+                    ${content.closing ? `<p style="margin: 24px 0 0 0; color: #333333; font-size: 14px; line-height: 1.6;">${escapeHtml(content.closing)}</p>` : ''}
                   </td>
                 </tr>
                 <!-- Footer -->
@@ -1264,7 +1307,7 @@ app.post("/make-server-b87b0c07/packages/:id/first-session", async (c) => {
         .single();
 
       if (!user || !user.password_hash) {
-        const verificationToken = `verify_${Date.now()}_${Math.random().toString(36).substr(2, 16)}`;
+        const verificationToken = generateSecureToken('verify');
         const tokenKey = `verification_token:${verificationToken}`;
         const tokenExpiry = new Date();
         tokenExpiry.setHours(tokenExpiry.getHours() + 24);
@@ -1786,6 +1829,12 @@ app.get("/make-server-b87b0c07/reservations/:id", async (c) => {
 // PATCH /reservations/:id/status - MIGRATED TO SUPABASE
 app.patch("/make-server-b87b0c07/reservations/:id/status", async (c) => {
   try {
+    // Verify admin session
+    const adminAuth = await verifyAdminSession(c);
+    if (!adminAuth.valid) {
+      return c.json({ error: adminAuth.error }, 401);
+    }
+
     const reservationId = c.req.param('id');
     const body = await c.req.json();
     const { reservationStatus, paymentStatus, cancelReason } = body;
@@ -2103,7 +2152,7 @@ app.post("/make-server-b87b0c07/activate", async (c) => {
     }
 
     // 4. Generate verification token for password setup
-    const verificationToken = `verify_${Date.now()}_${Math.random().toString(36).substr(2, 16)}`;
+    const verificationToken = generateSecureToken('verify');
     const tokenKey = `verification_token:${verificationToken}`;
     const tokenExpiry = new Date();
     tokenExpiry.setHours(tokenExpiry.getHours() + 24);
@@ -2183,7 +2232,7 @@ app.post("/make-server-b87b0c07/admin/users/:email/resend-login-email", async (c
     }
 
     // Generate new verification token
-    const verificationToken = `verify_${Date.now()}_${Math.random().toString(36).substr(2, 16)}`;
+    const verificationToken = generateSecureToken('verify');
     const tokenKey = `verification_token:${verificationToken}`;
     const tokenExpiry = new Date();
     tokenExpiry.setHours(tokenExpiry.getHours() + 24);
@@ -3560,7 +3609,7 @@ app.post("/make-server-b87b0c07/auth/setup-password", async (c) => {
     await kv.set(tokenKey, tokenData);
 
     // Session stays in KV (acceptable for ephemeral session data)
-    const sessionToken = `session_${Date.now()}_${Math.random().toString(36).substr(2, 16)}`;
+    const sessionToken = generateSecureToken('session');
     const sessionKey = `session:${sessionToken}`;
     const sessionData = {
       id: sessionKey,
@@ -3729,7 +3778,7 @@ app.post("/make-server-b87b0c07/auth/login", async (c) => {
     }
 
     // Session stays in KV (ephemeral data)
-    const sessionToken = `session_${Date.now()}_${Math.random().toString(36).substr(2, 16)}`;
+    const sessionToken = generateSecureToken('session');
     const sessionKey = `session:${sessionToken}`;
     const sessionData = {
       id: sessionKey,
@@ -3829,7 +3878,7 @@ app.post("/make-server-b87b0c07/auth/admin/login", async (c) => {
     }
 
     // Create admin session in KV
-    const sessionToken = `admin_session_${Date.now()}_${Math.random().toString(36).substr(2, 16)}`;
+    const sessionToken = generateSecureToken('admin_session');
     const sessionKey = `session:${sessionToken}`;
     const now = new Date().toISOString();
     const sessionData = {
@@ -4061,6 +4110,12 @@ app.get("/make-server-b87b0c07/user/packages", async (c) => {
 // POST /user/packages/:id/reschedule - MIGRATED TO SUPABASE
 app.post("/make-server-b87b0c07/user/packages/:id/reschedule", async (c) => {
   try {
+    // Verify session with sliding expiration
+    const sessionAuth = await verifyUserSession(c);
+    if (!sessionAuth.valid) {
+      return c.json({ error: sessionAuth.error }, 401);
+    }
+
     const packageId = c.req.param('id');
     const body = await c.req.json();
     const { dateKey, timeSlot, instructor } = body;
@@ -4083,6 +4138,11 @@ app.post("/make-server-b87b0c07/user/packages/:id/reschedule", async (c) => {
       return c.json({ error: "Package not found" }, 404);
     }
 
+    // Verify user owns this package
+    if (pkg.user_email !== sessionAuth.session.email) {
+      return c.json({ error: "Not authorized to reschedule this package" }, 403);
+    }
+
     if (!pkg.first_reservation_id) {
       return c.json({ error: "No first session to reschedule" }, 400);
     }
@@ -4098,11 +4158,15 @@ app.post("/make-server-b87b0c07/user/packages/:id/reschedule", async (c) => {
       return c.json({ error: "First session not found" }, 404);
     }
 
-    // Check 24-hour rule using date_key and time_slot
-    const [year, month, day] = firstReservation.date_key.split('-').map(Number);
+    // Check 24-hour rule using date_key and time_slot (handle both date formats)
+    const dk = firstReservation.date_key;
+    const isIsoFormat = dk.includes('-') && dk.length > 5;
+    const [yrVal, moVal, dyVal] = isIsoFormat
+      ? [parseInt(dk.split('-')[0]), parseInt(dk.split('-')[1]), parseInt(dk.split('-')[2])]
+      : [getSkopjeTime().getFullYear(), ...dk.split('-').map(Number)];
     const [hours, minutes] = firstReservation.time_slot.split(':').map(Number);
-    const sessionTime = new Date(year, month - 1, day, hours, minutes);
-    const hoursUntilSession = (sessionTime.getTime() - Date.now()) / (1000 * 60 * 60);
+    const sessionTime = new Date(yrVal, moVal - 1, dyVal, hours, minutes);
+    const hoursUntilSession = (sessionTime.getTime() - getSkopjeTime().getTime()) / (1000 * 60 * 60);
 
     if (hoursUntilSession < 24) {
       return c.json({ error: "Cannot reschedule less than 24 hours before the session" }, 400);
@@ -4171,6 +4235,12 @@ app.post("/make-server-b87b0c07/user/packages/:id/reschedule", async (c) => {
 // POST /user/packages/:id/book-session - Book a session for a package (when no first session exists)
 app.post("/make-server-b87b0c07/user/packages/:id/book-session", async (c) => {
   try {
+    // Verify session with sliding expiration
+    const sessionAuth = await verifyUserSession(c);
+    if (!sessionAuth.valid) {
+      return c.json({ error: sessionAuth.error }, 401);
+    }
+
     const packageId = c.req.param('id');
     const body = await c.req.json();
     const { dateKey, timeSlot } = body;
@@ -4274,15 +4344,15 @@ app.post("/make-server-b87b0c07/user/packages/:id/book-session", async (c) => {
 
     // Build response in camelCase for frontend
     const reservation = {
-      id: newReservation.id,
-      userId: newReservation.user_email,
-      packageId: newReservation.package_id,
-      dateKey: newReservation.date_key,
+      id: reservationId,
+      userId: pkg.user_email,
+      packageId,
+      dateKey,
       date: dateString,
-      timeSlot: newReservation.time_slot,
+      timeSlot,
       endTime,
-      reservationStatus: newReservation.reservation_status,
-      createdAt: newReservation.created_at
+      reservationStatus: rpcResult.status,
+      createdAt: now
     };
 
     return c.json({
@@ -4311,8 +4381,8 @@ app.delete("/make-server-b87b0c07/user/packages/:id/reservations/:reservationId"
     const session = sessionAuth.session;
 
     const supabase = getSupabase();
-    const now = new Date();
-    const nowISO = now.toISOString();
+    const now = getSkopjeTime();
+    const nowISO = new Date().toISOString();
 
     // Get the reservation
     const { data: reservation, error: resError } = await supabase
@@ -4330,7 +4400,7 @@ app.delete("/make-server-b87b0c07/user/packages/:id/reservations/:reservationId"
       return c.json({ error: "Not authorized to cancel this reservation" }, 403);
     }
 
-    // Check 24-hour rule
+    // Check 24-hour rule (use Skopje timezone since sessions are in Skopje time)
     const [month, day] = reservation.date_key.includes('-') && reservation.date_key.length > 5
       ? [parseInt(reservation.date_key.split('-')[1]), parseInt(reservation.date_key.split('-')[2])]
       : reservation.date_key.split('-').map(Number);
@@ -4886,40 +4956,45 @@ app.post("/make-server-b87b0c07/waitlist/redeem", async (c) => {
 
     const packageId = insertedPackage.id;
 
-    // Create reservation in Supabase (not KV)
+    // Create reservation using atomic RPC (prevents overbooking)
     const dateString = formatDateString(dateKey, waitlistLanguage || 'sq');
     const endTime = calculateEndTime(timeSlot);
 
-    const { data: insertedReservation, error: resError } = await supabase
-      .from('reservations')
-      .insert({
-        user_email: normalizedEmail,
-        package_id: packageId,
-        date_key: dateKey,
-        time_slot: timeSlot,
-        reservation_status: 'confirmed',
-        payment_status: 'paid',
-        name,
-        surname,
-        mobile,
-        instructor,
-        package_type: 'package8',
-        service_type: 'group',
-        created_at: now,
-        updated_at: now
-      })
-      .select()
-      .single();
+    const { data: rpcResult, error: rpcError } = await supabase.rpc('create_reservation', {
+      p_user_email: normalizedEmail,
+      p_package_id: packageId,
+      p_service_type: 'group',
+      p_date_key: dateKey,
+      p_time_slot: timeSlot,
+      p_instructor: instructor || '',
+      p_name: name,
+      p_surname: surname,
+      p_mobile: mobile,
+      p_package_type: 'package8',
+      p_partner_name: null,
+      p_partner_surname: null,
+      p_is_first_session: false  // Package is already active (waitlist = pre-paid)
+    });
 
-    if (resError || !insertedReservation) {
-      console.error('Error creating reservation:', resError);
-      return c.json({ error: 'Failed to create reservation', details: resError?.message }, 500);
+    if (rpcError) {
+      console.error('RPC error in waitlist redeem:', rpcError);
+      return c.json({ error: 'Failed to create reservation', details: rpcError.message }, 500);
     }
 
-    // Update package with first_reservation_id
+    if (rpcResult?.error) {
+      return c.json({ error: rpcResult.error }, 400);
+    }
+
+    const reservationId = rpcResult.reservation_id;
+
+    // Update package with first_reservation_id + sessions_booked
     await supabase
       .from('user_packages')
-      .update({ first_reservation_id: insertedReservation.id })
+      .update({
+        first_reservation_id: reservationId,
+        sessions_booked: [reservationId],
+        updated_at: now
+      })
       .eq('id', packageId);
 
     // Mark waitlist user as redeemed in Supabase (not KV)
@@ -4953,7 +5028,7 @@ app.post("/make-server-b87b0c07/waitlist/redeem", async (c) => {
     };
 
     const reservationResponse = {
-      id: insertedReservation.id,
+      id: reservationId,
       userId: normalizedEmail,
       packageId,
       dateKey,

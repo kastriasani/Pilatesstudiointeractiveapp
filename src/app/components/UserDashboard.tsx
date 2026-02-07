@@ -165,7 +165,7 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
 
   // Get next session from packages or reservations
   const getNextSession = (): { dateKey: string; time: string; date: string } | null => {
-    const now = new Date();
+    const now = getSkopjeTime();
     let nextSession: { dateKey: string; time: string; date: string; dateTime: Date } | null = null;
 
     // Check package first sessions
@@ -187,7 +187,7 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
     reservations.filter(r => !r.packageId && r.reservationStatus !== 'cancelled').forEach(res => {
       // Convert M-D format to full date
       const [month, day] = res.dateKey.split('-').map(Number);
-      const year = new Date().getFullYear();
+      const year = getSkopjeTime().getFullYear();
       const sessionDateTime = new Date(year, month - 1, day, ...res.timeSlot.split(':').map(Number));
       if (sessionDateTime > now && (!nextSession || sessionDateTime < nextSession.dateTime)) {
         nextSession = {
@@ -206,14 +206,14 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
   const calculateCountdown = (dateKey: string, time: string): string => {
     const [year, month, day] = dateKey.includes('-') && dateKey.length === 10
       ? dateKey.split('-').map(Number)
-      : [new Date().getFullYear(), ...dateKey.split('-').map(Number)];
+      : [getSkopjeTime().getFullYear(), ...dateKey.split('-').map(Number)];
     const [hours, minutes] = time.split(':').map(Number);
 
     const sessionDate = dateKey.length === 10
       ? new Date(year, month - 1, day, hours, minutes)
       : new Date(year, month - 1, day, hours, minutes);
 
-    const now = new Date();
+    const now = getSkopjeTime();
     const diff = sessionDate.getTime() - now.getTime();
 
     if (diff <= 0) return language === 'SQ' ? 'Tani' : language === 'MK' ? 'Сега' : 'Now';
@@ -270,8 +270,7 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
     try {
       setLoading(true);
       
-      console.log('🔐 Loading packages with session token:', activeSessionToken);
-      console.log('📧 User email:', userEmail);
+      console.log('🔐 Loading packages...');
       
       const response = await fetch(
         `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/user/packages`,
@@ -394,7 +393,7 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
       const slotsResults = await Promise.all(slotsPromises);
 
       const slots: DateSlot[] = [];
-      const today = new Date();
+      const today = getSkopjeTime();
       today.setHours(0, 0, 0, 0);
 
       liveDays.forEach((dateKey, index) => {
@@ -406,7 +405,7 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
         const daySlots = slotsResults[index]?.slots || [];
         const timeSlotList = daySlots.length > 0
           ? daySlots.map((s: any) => s.start_time)
-          : ['09:00', '10:00', '17:00', '18:00', '19:00', '20:00'];
+          : ['09:00', '10:00', '11:00', '17:00', '18:00', '19:00', '20:00'];
 
         // Get bookings for this date (convert ISO to short format for comparison)
         const shortDateKey = `${month}-${day}`; // e.g., "2-5" from "2026-02-05"
@@ -435,7 +434,7 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
           ).length;
 
           // Filter out past time slots for today
-          const now = new Date();
+          const now = getSkopjeTime();
           const [hours] = time.split(':').map(Number);
           const isPastTime = isToday && hours <= now.getHours();
 

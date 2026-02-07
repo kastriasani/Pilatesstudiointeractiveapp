@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { User, ArrowLeft, Loader } from 'lucide-react';
 import { Language, translations } from '../translations';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { logo } from '../../assets/images';
 
@@ -12,6 +13,7 @@ type LoginRegisterModalProps = {
 
 export function LoginRegisterModal({ onClose, onLoginSuccess, language }: LoginRegisterModalProps) {
   const t = translations[language];
+  const { setLanguage } = useLanguage();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -68,7 +70,15 @@ export function LoginRegisterModal({ onClose, onLoginSuccess, language }: LoginR
       if (data.session) {
         localStorage.setItem('wellnest_session', data.session);
         localStorage.setItem('wellnest_user', JSON.stringify(data.user));
-        console.log('✅ Session token stored:', data.session);
+        console.log('✅ Session token stored');
+      }
+
+      // Set language from user preference
+      if (data.user?.language) {
+        const userLang = data.user.language.toUpperCase() as Language;
+        if (['SQ', 'MK', 'EN'].includes(userLang)) {
+          setLanguage(userLang);
+        }
       }
 
       // Pass the full user data to parent

@@ -25,8 +25,8 @@ export function AdminRoute() {
   }, []);
 
   const handleLogin = (token: string) => {
-    // Store session with 7-day expiry
-    const expiryTime = Date.now() + (7 * 24 * 60 * 60 * 1000);
+    // Store session with 24-hour expiry (matches backend sliding window)
+    const expiryTime = Date.now() + (24 * 60 * 60 * 1000);
     localStorage.setItem('adminSessionToken', token);
     localStorage.setItem('adminSessionExpiry', expiryTime.toString());
     setSessionToken(token);

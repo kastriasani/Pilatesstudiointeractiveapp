@@ -1,7 +1,7 @@
 /**
  * SYNC: This file must stay in sync with:
  * supabase/functions/make-server-b87b0c07/dateUtils.ts
- * Last synced: 2026-02-01
+ * Last synced: 2026-02-07
  *
  * Centralized Date/Time Utilities for WellNest Pilates
  * Timezone: Europe/Skopje (UTC+1/+2 with DST)
