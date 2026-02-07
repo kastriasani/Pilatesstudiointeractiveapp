@@ -318,11 +318,24 @@ async function verifyPassword(password: string, hash: string): Promise<boolean> 
 async function calculateSlotCapacity(dateKey: string, timeSlot: string): Promise<{available: number, isBlocked: boolean, isPrivate: boolean}> {
   const supabase = getSupabase();
 
+  // Derive alternate date key format for backwards compatibility
+  // ISO "2026-02-05" → legacy "2-5", legacy "2-5" → ISO "2026-02-05"
+  let altDateKey = dateKey;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) {
+    const [, m, d] = dateKey.split('-');
+    altDateKey = `${parseInt(m)}-${parseInt(d)}`;
+  } else if (/^\d{1,2}-\d{1,2}$/.test(dateKey)) {
+    const [m, d] = dateKey.split('-');
+    const year = new Date().getFullYear();
+    altDateKey = `${year}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+  }
+
   // Query Supabase for reservations at this slot (including pending - they still occupy seats)
+  // Match both date key formats to catch all bookings for this date
   const { data: slotReservations, error } = await supabase
     .from('reservations')
-    .select('*')
-    .eq('date_key', dateKey)
+    .select('service_type, reservation_status')
+    .in('date_key', [dateKey, altDateKey])
     .eq('time_slot', timeSlot)
     .in('reservation_status', ['pending', 'confirmed', 'attended']);
 
@@ -4180,58 +4193,54 @@ app.post("/make-server-b87b0c07/user/packages/:id/book-session", async (c) => {
       return c.json({ error: "Package not found" }, 404);
     }
 
-    if (pkg.remaining_sessions <= 0) {
-      return c.json({ error: "No sessions remaining in this package" }, 400);
-    }
-
     const serviceType = extractServiceType(pkg.package_type);
-    const capacity = await calculateSlotCapacity(dateKey, timeSlot);
-
-    if (serviceType === 'individual' && capacity.available < 4) {
-      return c.json({ error: "Slot not available for 1-on-1 session" }, 400);
-    } else if (serviceType === 'duo' && capacity.available < 2) {
-      return c.json({ error: "Slot not available for DUO session" }, 400);
-    } else if (capacity.available < 1) {
-      return c.json({ error: "Slot is full" }, 400);
-    }
 
     const dateString = formatDateString(dateKey, pkg.language || 'en');
     const endTime = calculateEndTime(timeSlot);
 
-    // Create reservation in Supabase (let DB auto-generate UUID)
-    const { data: newReservation, error: insertError } = await supabase
-      .from('reservations')
-      .insert({
-        user_email: pkg.user_email,
-        package_id: packageId,
-        service_type: serviceType,
-        package_type: pkg.package_type,
-        date_key: dateKey,
-        time_slot: timeSlot,
-        reservation_status: 'confirmed',
-        payment_status: pkg.payment_status || 'paid',
-        name: pkg.name,
-        surname: pkg.surname,
-        mobile: pkg.mobile,
-        created_at: now,
-        updated_at: now
-      })
-      .select()
-      .single();
+    // Atomic RPC: locks slot rows, checks capacity, validates package, creates reservation
+    const { data: rpcResult, error: rpcError } = await supabase.rpc('create_reservation', {
+      p_user_email: pkg.user_email,
+      p_package_id: packageId,
+      p_service_type: serviceType,
+      p_date_key: dateKey,
+      p_time_slot: timeSlot,
+      p_instructor: '',
+      p_name: pkg.name,
+      p_surname: pkg.surname,
+      p_mobile: pkg.mobile,
+      p_package_type: pkg.package_type,
+      p_partner_name: null,
+      p_partner_surname: null,
+      p_is_first_session: false
+    });
 
-    if (insertError) {
-      console.error('Error creating reservation:', insertError);
-      return c.json({ error: `Failed to book session: ${insertError.message}` }, 500);
+    if (rpcError) {
+      console.error('RPC error booking session:', rpcError);
+      return c.json({ error: 'Failed to book session', details: rpcError.message }, 500);
     }
 
-    const reservationId = newReservation.id;
+    if (rpcResult?.error) {
+      const errorMap: Record<string, string> = {
+        'Slot blocked by private session': 'Slot not available for booking',
+        'Insufficient capacity': 'Slot is full',
+        'Duplicate booking': 'You already have a booking at this time',
+        'Package not found': 'Package not found',
+        'No remaining sessions': 'No sessions remaining in this package',
+        'Package not active': 'Package is not active'
+      };
+      const userError = errorMap[rpcResult.error] || rpcResult.error;
+      return c.json({ error: userError }, 400);
+    }
 
-    // Update package: add to sessions_booked array, set first_reservation_id if not set, decrement remaining_sessions
+    const reservationId = rpcResult.reservation_id;
+
+    // Update sessions_booked array + first_reservation_id if not set
+    // (RPC already decremented remaining_sessions)
     const currentSessionsBooked = pkg.sessions_booked || [];
     const newSessionsBooked = [...currentSessionsBooked, reservationId];
     const updateData: any = {
       sessions_booked: newSessionsBooked,
-      remaining_sessions: pkg.remaining_sessions - 1,
       updated_at: now
     };
 
@@ -4247,7 +4256,6 @@ app.post("/make-server-b87b0c07/user/packages/:id/book-session", async (c) => {
 
     if (updatePkgError) {
       console.error('Error updating package:', updatePkgError);
-      // Don't fail - reservation was created
     }
 
     // Sync to users table for backwards compatibility with GET /admin/users

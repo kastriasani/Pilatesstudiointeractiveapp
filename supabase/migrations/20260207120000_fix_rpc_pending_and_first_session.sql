@@ -1,6 +1,7 @@
 -- Fix: Include pending reservations in capacity calculation (prevents overbooking)
 -- Fix: Use package_status instead of status for package validation
 -- Fix: Correct seat counting for individual (4) and duo (2) service types
+-- Fix: Handle dual date key formats (ISO "2026-02-05" and legacy "2-5")
 -- Add: p_is_first_session parameter for atomic first-session booking
 
 CREATE OR REPLACE FUNCTION create_reservation(
@@ -25,6 +26,7 @@ DECLARE
   v_package RECORD;
   v_reservation_id UUID;
   v_status TEXT;
+  v_alt_date_key TEXT;
 BEGIN
   -- Calculate seats needed based on service_type
   v_seats_needed := CASE p_service_type
@@ -33,11 +35,28 @@ BEGIN
     ELSE 1
   END;
 
+  -- Derive alternate date key format for backwards compatibility
+  -- ISO "2026-02-05" → legacy "2-5", legacy "2-5" → ISO "2026-02-05"
+  IF p_date_key ~ '^\d{4}-\d{2}-\d{2}$' THEN
+    -- ISO → legacy: strip leading zeros and year
+    v_alt_date_key := CAST(EXTRACT(MONTH FROM p_date_key::date) AS INTEGER)::TEXT
+                      || '-' ||
+                      CAST(EXTRACT(DAY FROM p_date_key::date) AS INTEGER)::TEXT;
+  ELSIF p_date_key ~ '^\d{1,2}-\d{1,2}$' THEN
+    -- Legacy → ISO: use current year
+    v_alt_date_key := EXTRACT(YEAR FROM CURRENT_DATE)::TEXT
+                      || '-' || lpad(split_part(p_date_key, '-', 1), 2, '0')
+                      || '-' || lpad(split_part(p_date_key, '-', 2), 2, '0');
+  ELSE
+    v_alt_date_key := p_date_key;
+  END IF;
+
   -- Lock rows first (FOR UPDATE requires non-aggregate query)
   -- Include pending to prevent overbooking from concurrent single-session bookings
+  -- Match both date key formats to catch all bookings for this date
   PERFORM 1
   FROM reservations
-  WHERE date_key = p_date_key
+  WHERE date_key IN (p_date_key, v_alt_date_key)
     AND time_slot = p_time_slot
     AND reservation_status IN ('pending', 'confirmed', 'attended')
   FOR UPDATE;
@@ -55,7 +74,7 @@ BEGIN
     COALESCE(BOOL_OR(service_type IN ('individual', 'duo')), false)
   INTO v_seats_occupied, v_has_private
   FROM reservations
-  WHERE date_key = p_date_key
+  WHERE date_key IN (p_date_key, v_alt_date_key)
     AND time_slot = p_time_slot
     AND reservation_status IN ('pending', 'confirmed', 'attended');
 
@@ -72,7 +91,7 @@ BEGIN
   IF EXISTS (
     SELECT 1 FROM reservations
     WHERE user_email = p_user_email
-      AND date_key = p_date_key
+      AND date_key IN (p_date_key, v_alt_date_key)
       AND time_slot = p_time_slot
       AND reservation_status IN ('pending', 'confirmed')
   ) THEN
@@ -114,7 +133,7 @@ BEGIN
     v_status := 'pending';
   END IF;
 
-  -- Insert reservation
+  -- Insert reservation (always store date_key as passed by caller)
   INSERT INTO reservations (
     user_email,
     date_key,
