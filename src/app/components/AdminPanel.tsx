@@ -1627,18 +1627,16 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                         const expiresAt = new Date(activated.getTime() + 35 * 24 * 60 * 60 * 1000);
                                         const daysLeft = Math.ceil((expiresAt.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
                                         if (daysLeft <= 0) return (
-                                          <>
-                                            {' · '}
-                                            <span style={{ color: '#dc2626' }}>expired</span>
-                                          </>
+                                          <span style={{ marginLeft: '6px' }}>
+                                            · <span style={{ color: '#dc2626' }}>expired</span>
+                                          </span>
                                         );
                                         return (
-                                          <>
-                                            {' · '}
-                                            <span style={{ color: daysLeft <= 7 ? '#dc2626' : '#8b7764' }}>
+                                          <span style={{ marginLeft: '6px' }}>
+                                            · <span style={{ color: daysLeft <= 5 ? '#dc2626' : daysLeft <= 10 ? '#e97a1f' : '#8b7764' }}>
                                               {daysLeft}d left
                                             </span>
-                                          </>
+                                          </span>
                                         );
                                       })()}
                                     </>
