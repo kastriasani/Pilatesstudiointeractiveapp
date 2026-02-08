@@ -175,7 +175,7 @@ export const translations = {
     multiPackageTitle: 'Shumë paketa',
     multiPackageSubtitle: '8, 10 ose 12 klasë në grup.\nE vlefshme 35 ditë.',
     individualTrainingTitle: 'Klasë individuale',
-    individualTrainingSubtitle: 'Klasë personale 1 me 1.\nKlasë private me vëmendje të plotë nga instruktori.',
+    individualTrainingSubtitle: 'Klasë private me vëmendje të plotë nga instruktori.',
     duoTrainingTitle: 'Klasë DUO',
     duoTrainingSubtitle: 'Klasë për 2 persona së bashku.\nNdani përvojën me një mik.',
     
@@ -510,7 +510,7 @@ export const translations = {
     multiPackageTitle: 'Мулти пакет',
     multiPackageSubtitle: '8, 10 или 12 класи во група.\nВажи 35 дена.',
     individualTrainingTitle: 'Индивидуална класа',
-    individualTrainingSubtitle: 'Персонална класа 1 на 1.\nПриватна класа со целосно внимание од инструкторот.',
+    individualTrainingSubtitle: 'Приватна класа со целосно внимание од инструкторот.',
     duoTrainingTitle: 'DUO класа',
     duoTrainingSubtitle: 'Класа за 2 лица заедно.\nСподелете го искуството со пријател.',
     
@@ -845,7 +845,7 @@ export const translations = {
     multiPackageTitle: 'Multi package',
     multiPackageSubtitle: '8, 10 or 12 classes in group.\nValid 35 days.',
     individualTrainingTitle: 'Individual class',
-    individualTrainingSubtitle: '1-on-1 personal class.\nPrivate class with full instructor attention.',
+    individualTrainingSubtitle: 'Private class with full instructor attention.',
     duoTrainingTitle: 'DUO class',
     duoTrainingSubtitle: 'Class for 2 people together.\nShare the experience with a friend.',
     
