@@ -313,6 +313,20 @@ async function verifyUserSession(c: any): Promise<{ valid: boolean; error?: stri
     return { valid: false, error: 'Session expired' };
   }
 
+  // Verify user still exists in database (handles deleted accounts)
+  const supabase = getSupabase();
+  const { data: user, error: userError } = await supabase
+    .from('users')
+    .select('id')
+    .eq('email', session.email)
+    .maybeSingle();
+
+  if (userError || !user) {
+    // User was deleted — clean up the orphaned session
+    await kv.delete(sessionKey);
+    return { valid: false, error: 'Session expired' };
+  }
+
   // Extend session expiry on each successful request (sliding expiration)
   // This keeps active users logged in - 30 day rolling window
   const newExpiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
