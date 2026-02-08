@@ -638,6 +638,11 @@ function getEmailTranslations(language: string) {
       classes: 'Klasë',
       bonus: 'BONUS',
       freeClasses: 'Klasë Falas',
+      reengageSubject: 'Ofertë speciale nga WellNest Pilates!',
+      reengageMessage: 'Na keni munguar! Rezervoni një paketë multi-klasë brenda 48 orëve dhe merrni një klasë FALAS.',
+      reengageOfferLabel: 'OFERTË SPECIALE',
+      reengageOffer: 'Rezervoni paketë 8, 10 ose 12 klasë brenda 48 orëve dhe merrni +1 klasë falas!',
+      reengageExpiry: 'Oferta skadon pas 48 orëve.',
     },
     mk: {
       greeting: 'Здраво',
@@ -663,6 +668,11 @@ function getEmailTranslations(language: string) {
       classes: 'Класи',
       bonus: 'БОНУС',
       freeClasses: 'Бесплатни Класи',
+      reengageSubject: 'Специјална понуда од WellNest Pilates!',
+      reengageMessage: 'Ни недостигавте! Резервирајте мулти-пакет во рок од 48 часа и добијте една класа БЕСПЛАТНО.',
+      reengageOfferLabel: 'СПЕЦИЈАЛНА ПОНУДА',
+      reengageOffer: 'Резервирајте пакет од 8, 10 или 12 класи во рок од 48 часа и добивате +1 класа бесплатно!',
+      reengageExpiry: 'Понудата истекува за 48 часа.',
     },
     en: {
       greeting: 'Hello',
@@ -688,6 +698,11 @@ function getEmailTranslations(language: string) {
       classes: 'Classes',
       bonus: 'BONUS',
       freeClasses: 'Free Classes',
+      reengageSubject: 'Special offer from WellNest Pilates!',
+      reengageMessage: 'We miss you! Book a multi-class package within 48 hours and get one class FREE.',
+      reengageOfferLabel: 'SPECIAL OFFER',
+      reengageOffer: 'Book an 8, 10, or 12 class package within 48 hours and get +1 class FREE!',
+      reengageExpiry: 'Offer expires in 48 hours.',
     }
   };
   return translations[lang] || translations.en;
@@ -815,6 +830,34 @@ async function sendWaitlistInviteEmail(
     : 'Welcome to Wellnest Pilates!';
 
   return sendEmail(email, subject, html);
+}
+
+// Send re-engagement email to archived users
+async function sendReengagementEmail(
+  email: string,
+  name: string,
+  language: string = 'en'
+) {
+  const t = getEmailTranslations(language);
+  const capitalizedName = capitalizeName(name);
+
+  const content: EmailContent = {
+    greeting: `${t.greeting}, ${capitalizedName}`,
+    message: t.reengageMessage,
+    details: [
+      { label: t.reengageOfferLabel, value: t.reengageOffer }
+    ],
+    button: {
+      text: t.bookNow,
+      url: 'https://app.wellnestpilates.com',
+      hideUrl: true
+    },
+    note: t.reengageExpiry,
+    closing: t.lookForward
+  };
+
+  const html = generateEmailTemplate(content, (language?.toLowerCase() || 'en') as 'sq' | 'mk' | 'en');
+  return sendEmail(email, t.reengageSubject, html);
 }
 
 // ============ HEALTH CHECK ============
@@ -4830,6 +4873,76 @@ app.post("/make-server-b87b0c07/admin/waitlist/send-invite", async (c) => {
   } catch (error) {
     console.error('Error sending invite emails:', error);
     return c.json({ error: 'Failed to send invite emails', details: error.message }, 500);
+  }
+});
+
+// Send re-engagement email to archived users (admin action)
+app.post("/make-server-b87b0c07/admin/archived-users/send-email", async (c) => {
+  try {
+    const adminAuth = await verifyAdminSession(c);
+    if (!adminAuth.valid) {
+      return c.json({ error: adminAuth.error }, 401);
+    }
+
+    const { emails } = await c.req.json();
+
+    if (!emails || (Array.isArray(emails) && emails.length === 0)) {
+      return c.json({ error: 'No emails provided' }, 400);
+    }
+
+    const emailList = Array.isArray(emails) ? emails : [emails];
+    const results: Array<{ email: string; success: boolean; error?: string }> = [];
+    const supabase = getSupabase();
+
+    for (const email of emailList) {
+      const normalizedEmail = normalizeEmail(email);
+
+      const { data: user, error: fetchError } = await supabase
+        .from('users')
+        .select('name, surname, language')
+        .eq('email', normalizedEmail)
+        .maybeSingle();
+
+      if (fetchError || !user) {
+        results.push({ email: normalizedEmail, success: false, error: 'User not found' });
+        continue;
+      }
+
+      const language = user.language || 'sq';
+
+      try {
+        const emailResult = await sendReengagementEmail(
+          normalizedEmail,
+          user.name || '',
+          language
+        );
+
+        if (emailResult.success) {
+          results.push({ email: normalizedEmail, success: true });
+          console.log(`✅ Sent re-engagement email to ${normalizedEmail}`);
+        } else {
+          results.push({ email: normalizedEmail, success: false, error: emailResult.error });
+        }
+      } catch (emailError: any) {
+        results.push({ email: normalizedEmail, success: false, error: emailError.message });
+      }
+    }
+
+    const successCount = results.filter(r => r.success).length;
+    const failureCount = results.filter(r => !r.success).length;
+
+    return c.json({
+      success: true,
+      results,
+      summary: {
+        total: results.length,
+        successful: successCount,
+        failed: failureCount
+      }
+    });
+  } catch (error: any) {
+    console.error('Error sending re-engagement emails:', error);
+    return c.json({ error: 'Failed to send emails', details: error.message }, 500);
   }
 });
 

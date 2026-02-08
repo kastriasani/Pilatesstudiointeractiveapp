@@ -164,6 +164,11 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
   const [isSendingInvites, setIsSendingInvites] = useState(false);
   const [inviteStatus, setInviteStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
 
+  // Archived users email state
+  const [selectedArchivedUsers, setSelectedArchivedUsers] = useState<string[]>([]);
+  const [isSendingReengagement, setIsSendingReengagement] = useState(false);
+  const [reengagementStatus, setReengagementStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
+
   // Timeslot management state
   const [customSlots, setCustomSlots] = useState<any[]>([]);
   const [editingSlotId, setEditingSlotId] = useState<string | null>(null);
@@ -572,6 +577,51 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
       setInviteStatus({ type: 'error', message: `An error occurred: ${error instanceof Error ? error.message : 'Unknown error'}` });
     } finally {
       setIsSendingInvites(false);
+    }
+  };
+
+  const handleSendReengagement = async (emails: string[]) => {
+    try {
+      setIsSendingReengagement(true);
+      setReengagementStatus(null);
+
+      const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/admin/archived-users/send-email`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${publicAnonKey}`,
+          'X-Session-Token': getSessionToken(),
+        },
+        body: JSON.stringify({ emails }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setReengagementStatus({ type: 'error', message: data.error || 'Failed to send emails' });
+        return;
+      }
+
+      const { summary } = data;
+
+      if (summary.failed > 0) {
+        setReengagementStatus({
+          type: 'error',
+          message: `Failed to send ${summary.failed} of ${summary.total} email(s).`
+        });
+      } else {
+        setReengagementStatus({
+          type: 'success',
+          message: `Sent ${summary.successful} email${summary.successful > 1 ? 's' : ''} successfully!`
+        });
+      }
+
+      setSelectedArchivedUsers([]);
+      setTimeout(() => setReengagementStatus(null), 7000);
+    } catch (error) {
+      setReengagementStatus({ type: 'error', message: `An error occurred: ${error instanceof Error ? error.message : 'Unknown error'}` });
+    } finally {
+      setIsSendingReengagement(false);
     }
   };
 
@@ -1599,6 +1649,48 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                 </button>
               </div>
 
+              {/* Archived Users Bulk Email Bar */}
+              {userSubTab === 'archived' && (
+                <div className="px-4 pt-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="flex items-center gap-2 text-sm text-[#6b5949]">
+                      <input
+                        type="checkbox"
+                        checked={selectedArchivedUsers.length === users.filter(u => isUserArchived(u)).length && users.filter(u => isUserArchived(u)).length > 0}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedArchivedUsers(users.filter(u => isUserArchived(u)).map(u => u.email));
+                          } else {
+                            setSelectedArchivedUsers([]);
+                          }
+                        }}
+                        className="w-4 h-4"
+                      />
+                      Select all
+                    </label>
+                    {selectedArchivedUsers.length > 0 && (
+                      <button
+                        onClick={() => handleSendReengagement(selectedArchivedUsers)}
+                        disabled={isSendingReengagement}
+                        className="flex items-center gap-2 bg-gradient-to-r from-[#9ca571] to-[#8a9463] text-white px-4 py-2 rounded-lg text-sm hover:shadow-lg transition-all disabled:opacity-50"
+                      >
+                        <Send className="w-4 h-4" />
+                        {isSendingReengagement ? 'Sending...' : `Send ${selectedArchivedUsers.length} Email${selectedArchivedUsers.length > 1 ? 's' : ''}`}
+                      </button>
+                    )}
+                  </div>
+                  {reengagementStatus && (
+                    <div className={`p-3 rounded-lg mb-2 ${
+                      reengagementStatus.type === 'success'
+                        ? 'bg-green-50 text-green-800 border border-green-200'
+                        : 'bg-red-50 text-red-800 border border-red-200'
+                    }`}>
+                      <p className="text-sm">{reengagementStatus.message}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* User List */}
               <div className="p-4 space-y-2">
                 {(() => {
@@ -1631,6 +1723,31 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                         className="border border-[#e8dfd8] rounded-lg overflow-hidden hover:border-[#6b5949] transition-colors"
                       >
                         {/* Compact View (Always Visible) */}
+                        <div className="flex items-center">
+                          {userSubTab === 'archived' && (
+                            <div className="pl-3 flex items-center gap-1">
+                              <input
+                                type="checkbox"
+                                checked={selectedArchivedUsers.includes(user.email)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedArchivedUsers([...selectedArchivedUsers, user.email]);
+                                  } else {
+                                    setSelectedArchivedUsers(selectedArchivedUsers.filter(email => email !== user.email));
+                                  }
+                                }}
+                                className="w-4 h-4"
+                              />
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleSendReengagement([user.email]); }}
+                                disabled={isSendingReengagement}
+                                className="p-1.5 hover:bg-[#9ca571] hover:text-white rounded transition-colors disabled:opacity-50"
+                                title="Send re-engagement email"
+                              >
+                                <Mail className="w-4 h-4" />
+                              </button>
+                            </div>
+                          )}
                         <button
                           onClick={() => setExpandedUserId(isExpanded ? null : user.id)}
                           className="w-full px-4 py-3 text-left hover:bg-[#f5f0ed] transition-colors"
@@ -1674,6 +1791,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                             </span>
                           </div>
                         </button>
+                        </div>
 
                         {/* Expanded View */}
                         {isExpanded && (
