@@ -508,7 +508,7 @@ export const translations = {
     singleSessionTitle: 'Еден тренинг',
     singleSessionSubtitle: 'Еден тренинг (50мин) во група.',
     multiPackageTitle: 'Мулти пакет',
-    multiPackageSubtitle: '8, 10 или 12 класи во група.\nВажи 35 дена.',
+    multiPackageSubtitle: '8, 10 или 12 тренинзи во група.\nВажи 35 дена.',
     individualTrainingTitle: 'Индивидуален тренинг',
     individualTrainingSubtitle: 'Приватен тренинг 1 на 1.\nЦелосно внимание од инструкторот.',
     duoTrainingTitle: 'DUO тренинг',
