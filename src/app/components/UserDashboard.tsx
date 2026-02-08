@@ -83,14 +83,11 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
     localStorage.setItem('wellnest_session_expiry', newExpiry.toString());
   };
 
-  // Handle session expired errors - redirect to login
+  // Handle session expired errors - use onLogout to clear storage and redirect
   const handleSessionError = (error: string): boolean => {
     if (error === 'Session expired' || error === 'Invalid session' || error === 'No session token provided') {
       toast.error('Your session has expired. Please log in again.');
-      localStorage.removeItem('wellnest_session');
-      localStorage.removeItem('wellnest_user');
-      localStorage.removeItem('wellnest_session_expiry');
-      onBack(); // Navigate to home/login
+      onLogout();
       return true;
     }
     return false;
