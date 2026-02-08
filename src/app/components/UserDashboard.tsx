@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Package, Calendar, Clock, CreditCard, CheckCircle, AlertCircle, Edit2, Plus, ChevronDown, ChevronUp, Globe, Users, LogOut } from 'lucide-react';
+import { Package, Calendar, Clock, CreditCard, CheckCircle, AlertCircle, Edit2, Plus, ChevronDown, ChevronUp, Globe, Users, LogOut } from 'lucide-react';
 import { Language, translations } from '../translations';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -876,51 +876,43 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
     <div className="h-full overflow-y-auto px-4 py-4 pb-20">
       {/* Header */}
       <div className="flex items-center justify-between mb-6 pt-8">
+        {/* Logout Button */}
         <button
-          onClick={onBack}
+          onClick={onLogout}
           className="hover:bg-[#e8dfd8] rounded-lg p-2 transition-colors"
+          title={t.logout}
         >
-          <ArrowLeft className="w-5 h-5 text-[#6b5949]" />
+          <LogOut className="w-6 h-6 text-[#6b5949]" />
         </button>
         <h1 className="text-lg font-semibold text-[#3d2f28]">
           {t.myPackages || 'My Packages'}
         </h1>
-        <div className="flex items-center gap-2">
-          {/* Language Selector */}
-          <div className="flex items-center gap-0.5 px-1.5 py-1 bg-[#f5f2ef] rounded-full">
-            <Globe className="w-3 h-3 text-[#6b5949] mr-0.5" />
-            <button
-              onClick={() => setLanguage('SQ')}
-              className={`text-[10px] font-medium px-1 py-0.5 rounded transition-colors ${
-                language === 'SQ' ? 'text-[#3d2f28] bg-white' : 'text-[#8b7764] hover:text-[#6b5949]'
-              }`}
-            >
-              SQ
-            </button>
-            <button
-              onClick={() => setLanguage('MK')}
-              className={`text-[10px] font-medium px-1 py-0.5 rounded transition-colors ${
-                language === 'MK' ? 'text-[#3d2f28] bg-white' : 'text-[#8b7764] hover:text-[#6b5949]'
-              }`}
-            >
-              МК
-            </button>
-            <button
-              onClick={() => setLanguage('EN')}
-              className={`text-[10px] font-medium px-1 py-0.5 rounded transition-colors ${
-                language === 'EN' ? 'text-[#3d2f28] bg-white' : 'text-[#8b7764] hover:text-[#6b5949]'
-              }`}
-            >
-              EN
-            </button>
-          </div>
-          {/* Logout Button */}
+        {/* Language Selector */}
+        <div className="flex items-center gap-0.5 px-1.5 py-1 bg-[#f5f2ef] rounded-full">
+          <Globe className="w-3 h-3 text-[#6b5949] mr-0.5" />
           <button
-            onClick={onLogout}
-            className="flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-[#8b7764] hover:text-[#3d2f28] hover:bg-[#e8dfd8] rounded-lg transition-colors"
-            title={t.logout}
+            onClick={() => setLanguage('SQ')}
+            className={`text-[10px] font-medium px-1 py-0.5 rounded transition-colors ${
+              language === 'SQ' ? 'text-[#3d2f28] bg-white' : 'text-[#8b7764] hover:text-[#6b5949]'
+            }`}
           >
-            <LogOut className="w-3.5 h-3.5" />
+            SQ
+          </button>
+          <button
+            onClick={() => setLanguage('MK')}
+            className={`text-[10px] font-medium px-1 py-0.5 rounded transition-colors ${
+              language === 'MK' ? 'text-[#3d2f28] bg-white' : 'text-[#8b7764] hover:text-[#6b5949]'
+            }`}
+          >
+            МК
+          </button>
+          <button
+            onClick={() => setLanguage('EN')}
+            className={`text-[10px] font-medium px-1 py-0.5 rounded transition-colors ${
+              language === 'EN' ? 'text-[#3d2f28] bg-white' : 'text-[#8b7764] hover:text-[#6b5949]'
+            }`}
+          >
+            EN
           </button>
         </div>
       </div>
