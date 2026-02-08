@@ -503,16 +503,16 @@ export const translations = {
     fridayDate: 'Петок, 17 Јануари',
     
     // Training Type Selection
-    trainingTypeTitle: 'Избери вид на класа',
+    trainingTypeTitle: 'Избери тип на тренинг',
     trainingTypeSubtitle: 'Можете да го промените подоцна',
-    singleSessionTitle: 'Една класа',
-    singleSessionSubtitle: 'Една класа (50мин) во група.',
+    singleSessionTitle: 'Еден тренинг',
+    singleSessionSubtitle: 'Еден тренинг (50мин) во група.',
     multiPackageTitle: 'Мулти пакет',
     multiPackageSubtitle: '8, 10 или 12 класи во група.\nВажи 35 дена.',
-    individualTrainingTitle: 'Индивидуална тренинг',
+    individualTrainingTitle: 'Индивидуален тренинг',
     individualTrainingSubtitle: 'Приватен тренинг 1 на 1.\nЦелосно внимание од инструкторот.',
-    duoTrainingTitle: 'DUO класа',
-    duoTrainingSubtitle: 'Класа за 2 лица заедно.\nСподелете го искуството со пријател.',
+    duoTrainingTitle: 'DUO тренинг',
+    duoTrainingSubtitle: 'Приватен тренинг за 2 лица.\nСподелете го искуството со пријател.',
     
     // Package Overview
     packageOverviewTitle: 'Избери пакет',
