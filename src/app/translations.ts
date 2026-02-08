@@ -510,7 +510,7 @@ export const translations = {
     multiPackageTitle: 'Мулти пакет',
     multiPackageSubtitle: '8, 10 или 12 класи во група.\nВажи 35 дена.',
     individualTrainingTitle: 'Индивидуална тренинг',
-    individualTrainingSubtitle: 'Приватна класа со целосно внимание од инструкторот.',
+    individualTrainingSubtitle: 'Приватен тренинг 1 на 1.\nЦелосно внимание од инструкторот.',
     duoTrainingTitle: 'DUO класа',
     duoTrainingSubtitle: 'Класа за 2 лица заедно.\nСподелете го искуството со пријател.',
     
