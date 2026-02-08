@@ -695,6 +695,8 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
     // Package expired (35-day validity passed)
     const expiryDate = user.packages?.[0]?.expiryDate;
     if (expiryDate && new Date(expiryDate).getTime() < Date.now()) return true;
+    // Paid users with no active package (completed their service)
+    if (user.status === 'confirmed' && (user.totalSessions ?? 0) === 0) return true;
     return false;
   };
 
