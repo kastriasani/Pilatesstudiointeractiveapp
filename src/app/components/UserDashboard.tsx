@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Package, Calendar, Clock, CreditCard, CheckCircle, AlertCircle, Edit2, Plus, ChevronDown, ChevronUp, Globe, Users } from 'lucide-react';
+import { ArrowLeft, Package, Calendar, Clock, CreditCard, CheckCircle, AlertCircle, Edit2, Plus, ChevronDown, ChevronUp, Globe, Users, LogOut } from 'lucide-react';
 import { Language, translations } from '../translations';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -8,6 +8,7 @@ import { getSkopjeTime } from '../../utils/dateUtils';
 
 type UserDashboardProps = {
   onBack: () => void;
+  onLogout: () => void;
   language: Language;
   sessionToken: string;
   userEmail: string;
@@ -70,7 +71,7 @@ type Reservation = {
   createdAt: string;
 };
 
-export function UserDashboard({ onBack, language, sessionToken, userEmail }: UserDashboardProps) {
+export function UserDashboard({ onBack, onLogout, language, sessionToken, userEmail }: UserDashboardProps) {
   const { setLanguage } = useLanguage();
   const t = translations[language];
   const [packages, setPackages] = useState<PackageDetails[]>([]);
@@ -887,32 +888,42 @@ export function UserDashboard({ onBack, language, sessionToken, userEmail }: Use
         <h1 className="text-lg font-semibold text-[#3d2f28]">
           {t.myPackages || 'My Packages'}
         </h1>
-        {/* Language Selector */}
-        <div className="flex items-center gap-0.5 px-1.5 py-1 bg-[#f5f2ef] rounded-full">
-          <Globe className="w-3 h-3 text-[#6b5949] mr-0.5" />
+        <div className="flex items-center gap-2">
+          {/* Language Selector */}
+          <div className="flex items-center gap-0.5 px-1.5 py-1 bg-[#f5f2ef] rounded-full">
+            <Globe className="w-3 h-3 text-[#6b5949] mr-0.5" />
+            <button
+              onClick={() => setLanguage('SQ')}
+              className={`text-[10px] font-medium px-1 py-0.5 rounded transition-colors ${
+                language === 'SQ' ? 'text-[#3d2f28] bg-white' : 'text-[#8b7764] hover:text-[#6b5949]'
+              }`}
+            >
+              SQ
+            </button>
+            <button
+              onClick={() => setLanguage('MK')}
+              className={`text-[10px] font-medium px-1 py-0.5 rounded transition-colors ${
+                language === 'MK' ? 'text-[#3d2f28] bg-white' : 'text-[#8b7764] hover:text-[#6b5949]'
+              }`}
+            >
+              МК
+            </button>
+            <button
+              onClick={() => setLanguage('EN')}
+              className={`text-[10px] font-medium px-1 py-0.5 rounded transition-colors ${
+                language === 'EN' ? 'text-[#3d2f28] bg-white' : 'text-[#8b7764] hover:text-[#6b5949]'
+              }`}
+            >
+              EN
+            </button>
+          </div>
+          {/* Logout Button */}
           <button
-            onClick={() => setLanguage('SQ')}
-            className={`text-[10px] font-medium px-1 py-0.5 rounded transition-colors ${
-              language === 'SQ' ? 'text-[#3d2f28] bg-white' : 'text-[#8b7764] hover:text-[#6b5949]'
-            }`}
+            onClick={onLogout}
+            className="flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-[#8b7764] hover:text-[#3d2f28] hover:bg-[#e8dfd8] rounded-lg transition-colors"
+            title={t.logout}
           >
-            SQ
-          </button>
-          <button
-            onClick={() => setLanguage('MK')}
-            className={`text-[10px] font-medium px-1 py-0.5 rounded transition-colors ${
-              language === 'MK' ? 'text-[#3d2f28] bg-white' : 'text-[#8b7764] hover:text-[#6b5949]'
-            }`}
-          >
-            МК
-          </button>
-          <button
-            onClick={() => setLanguage('EN')}
-            className={`text-[10px] font-medium px-1 py-0.5 rounded transition-colors ${
-              language === 'EN' ? 'text-[#3d2f28] bg-white' : 'text-[#8b7764] hover:text-[#6b5949]'
-            }`}
-          >
-            EN
+            <LogOut className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>

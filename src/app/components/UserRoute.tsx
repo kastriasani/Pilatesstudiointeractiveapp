@@ -85,6 +85,7 @@ export function UserRoute() {
       language={language}
       sessionToken={sessionToken}
       onBack={() => navigate('/')}
+      onLogout={handleLogout}
     />
   );
 }
