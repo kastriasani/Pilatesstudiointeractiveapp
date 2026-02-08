@@ -130,7 +130,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState<'calendar' | 'users' | 'waitlist'>('calendar');
-  const [userSubTab, setUserSubTab] = useState<'confirmed' | 'pending'>('confirmed');
+  const [userSubTab, setUserSubTab] = useState<'confirmed' | 'pending' | 'archived'>('confirmed');
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<string | null>(null);
   const [users, setUsers] = useState<User[]>(mockUsers);
@@ -687,6 +687,15 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
   const getTimeSlotCapacity = (dateKey: string, timeSlot: string) => {
     const bookings = getBookingsForTimeSlot(dateKey, timeSlot);
     return bookings.length;
+  };
+
+  const isUserArchived = (user: User): boolean => {
+    // All sessions used up (and user actually had sessions)
+    if ((user.remainingSessions ?? 0) <= 0 && (user.totalSessions ?? 0) > 0) return true;
+    // Package expired (35-day validity passed)
+    const expiryDate = user.packages?.[0]?.expiryDate;
+    if (expiryDate && new Date(expiryDate).getTime() < Date.now()) return true;
+    return false;
   };
 
   const getStatusColor = (status: UserStatus) => {
@@ -1545,7 +1554,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                 <p className="text-sm text-[#8b7764]">Total users: {users.length}</p>
               </div>
 
-              {/* Paid / Pending Tabs */}
+              {/* Paid / Pending / Archived Tabs */}
               <div className="flex border-b border-[#e8dfd8] px-4">
                 <button
                   onClick={() => setUserSubTab('confirmed')}
@@ -1555,7 +1564,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                       : 'text-[#8b7764] hover:text-[#6b5949]'
                   }`}
                 >
-                  Paid ({users.filter(u => u.status === 'confirmed').length})
+                  Paid ({users.filter(u => u.status === 'confirmed' && !isUserArchived(u)).length})
                   {userSubTab === 'confirmed' && (
                     <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-green-700" />
                   )}
@@ -1568,9 +1577,22 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                       : 'text-[#8b7764] hover:text-[#6b5949]'
                   }`}
                 >
-                  Not Paid ({users.filter(u => u.status === 'pending').length})
+                  Not Paid ({users.filter(u => u.status === 'pending' && !isUserArchived(u)).length})
                   {userSubTab === 'pending' && (
                     <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-700" />
+                  )}
+                </button>
+                <button
+                  onClick={() => setUserSubTab('archived')}
+                  className={`px-4 py-3 text-sm transition-colors relative ${
+                    userSubTab === 'archived'
+                      ? 'text-stone-600 font-medium'
+                      : 'text-[#8b7764] hover:text-[#6b5949]'
+                  }`}
+                >
+                  Archived ({users.filter(u => isUserArchived(u)).length})
+                  {userSubTab === 'archived' && (
+                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-stone-500" />
                   )}
                 </button>
               </div>
@@ -1578,7 +1600,9 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
               {/* User List */}
               <div className="p-4 space-y-2">
                 {(() => {
-                  const filtered = users.filter(user => user.status === userSubTab);
+                  const filtered = userSubTab === 'archived'
+                    ? users.filter(user => isUserArchived(user))
+                    : users.filter(user => user.status === userSubTab && !isUserArchived(user));
                   console.log(`Rendering ${userSubTab} tab. Total users: ${users.length}, Filtered: ${filtered.length}`);
                   return filtered;
                 })()
@@ -1861,11 +1885,14 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                   })}
 
                 {/* Empty State */}
-                {users.filter(user => user.status === userSubTab).length === 0 && (
+                {(userSubTab === 'archived'
+                  ? users.filter(user => isUserArchived(user)).length === 0
+                  : users.filter(user => user.status === userSubTab && !isUserArchived(user)).length === 0
+                ) && (
                   <div className="text-center py-12 text-[#8b7764]">
                     <Users className="w-16 h-16 mx-auto mb-3 opacity-30" />
                     <p className="text-sm">
-                      No {userSubTab} users yet
+                      No {userSubTab === 'archived' ? 'archived' : userSubTab} users yet
                     </p>
                   </div>
                 )}
