@@ -536,11 +536,11 @@ function generateEmailTemplate(content: EmailContent, language: 'sq' | 'mk' | 'e
         <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5;">
           <tr>
             <td align="center" style="padding: 40px 20px;">
-              <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border: 1px solid #e0e0e0; border-radius: 4px;">
+              <table width="600" cellpadding="0" cellspacing="0" style="max-width: 100%; background-color: #ffffff; border: 1px solid #e0e0e0; border-radius: 4px;">
                 <!-- Header -->
                 <tr>
-                  <td style="background-color: #452F21; padding: 40px; text-align: center;">
-                    <img src="https://app.wellnestpilates.com/wellnest-logo.png" alt="Wellnest Pilates" width="200" style="display: block; margin: 0 auto;" />
+                  <td style="background-color: #452F21; padding: 40px 20px; text-align: center;">
+                    <img src="https://app.wellnestpilates.com/wellnest-logo.png" alt="Wellnest Pilates" width="280" style="display: block; margin: 0 auto; max-width: 80%; height: auto;" />
                   </td>
                 </tr>
                 <!-- Content -->
