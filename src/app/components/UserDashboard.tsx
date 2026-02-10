@@ -557,6 +557,12 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
   const handleBookSubmit = async (dateKey: string, timeSlot: string) => {
     if (!selectedPackage) return;
 
+    // Check remaining sessions before submitting
+    if (selectedPackage.remainingSessions <= 0) {
+      toast.error(t.noSessionsRemaining || 'No sessions remaining');
+      return;
+    }
+
     setIsRescheduling(true);
 
     try {
@@ -640,7 +646,24 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
   const handleInlineBook = async (pkg: PackageDetails, dateKey: string, timeSlot: string) => {
     if (!pkg || selectedSlotIndex === null) return;
 
+    // Check remaining sessions before submitting
+    if (pkg.remainingSessions <= 0) {
+      toast.error(t.noSessionsRemaining || 'No sessions remaining');
+      return;
+    }
+
     setIsRescheduling(true);
+
+    // Refresh availability to prevent booking a full slot
+    await loadAvailableSlots();
+    const freshSlot = availableSlots
+      .find(d => d.dateKey === dateKey)
+      ?.timeSlots.find(s => s.time === timeSlot);
+    if (!freshSlot || freshSlot.available <= 0) {
+      toast.error(t.slotFull || 'This slot is no longer available');
+      setIsRescheduling(false);
+      return;
+    }
 
     try {
       const response = await fetch(
