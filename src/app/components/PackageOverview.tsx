@@ -442,7 +442,7 @@ export function PackageOverview({ onBack, language }: PackageOverviewProps) {
   };
 
   const handleTimeSlotClick = (dateSlot: DateSlot, timeSlot: TimeSlot) => {
-    if (timeSlot.available <= 0) return;
+    if (timeSlot.available <= 0 || isBookingFirstSession) return;
     handleBookFirstSession(dateSlot.dateKey, timeSlot.time);
   };
 

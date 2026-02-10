@@ -3,7 +3,9 @@ import { ChevronRight, ChevronLeft, User, ArrowLeft, Loader } from 'lucide-react
 import { Language, translations } from '../translations';
 import { logo } from '../../assets/images';
 import {
-  getSkopjeTime
+  getSkopjeTime,
+  isTimeSlotPast,
+  getEndTime
 } from '../../utils/dateUtils';
 
 const rinaPhoto = 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=400&h=600&fit=crop';
@@ -169,16 +171,6 @@ export function BookingScreen({ trainingType, onBack, onSubmit, onInstructorClic
   
   const mockBookings = calculateBookingsPerSlot();
 
-  // Function to calculate end time (50 minutes later)
-  const getEndTime = (startTime: string): string => {
-    const [hours, minutes] = startTime.split(':').map(Number);
-    const startMinutes = hours * 60 + minutes;
-    const endMinutes = startMinutes + 50;
-    const endHours = Math.floor(endMinutes / 60);
-    const endMins = endMinutes % 60;
-    return `${String(endHours).padStart(2, '0')}:${String(endMins).padStart(2, '0')}`;
-  };
-
   const getTimeSlotsForDay = (dayIndex: number): TimeSlot[] => {
     if (!tabs[dayIndex]) return [];
 
@@ -186,7 +178,7 @@ export function BookingScreen({ trainingType, onBack, onSubmit, onInstructorClic
     const legacyDateKey = tab.key; // Legacy format for bookings lookup
     const isoDateKey = tab.isoKey; // ISO format for slots lookup
     const selectedDate = tab.fullDate;
-    // Merge bookings from both key formats (API may return either)
+    // Merge bookings from both key formats (legacy fills gaps, ISO takes precedence)
     const dayBookings = { ...(mockBookings[legacyDateKey] || {}), ...(mockBookings[isoDateKey] || {}) };
 
     // Get slots for this date from API (fetched dynamically)
@@ -203,14 +195,8 @@ export function BookingScreen({ trainingType, onBack, onSubmit, onInstructorClic
       const bookedCount = dayBookings[time] || 0;
       const availableSpots = maxCapacity - bookedCount;
 
-      // Check if this time slot is in the past or within 5 minutes
-      const [hours, minutes] = time.split(':').map(Number);
-      const slotDateTime = new Date(selectedDate);
-      slotDateTime.setHours(hours, minutes, 0, 0);
-
-      // Calculate time difference in minutes
-      const timeDiffMinutes = (slotDateTime.getTime() - currentTime.getTime()) / (1000 * 60);
-      const isPastOrTooSoon = timeDiffMinutes < 5;
+      // Check if this time slot is in the past or within 5 minutes (using Skopje timezone)
+      const isPastOrTooSoon = isTimeSlotPast(selectedDate, time);
       
       return {
         time,

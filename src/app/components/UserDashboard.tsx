@@ -4,7 +4,7 @@ import { Language, translations } from '../translations';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { toast } from 'sonner';
-import { getSkopjeTime } from '../../utils/dateUtils';
+import { getSkopjeTime, isTimeSlotPast } from '../../utils/dateUtils';
 
 type UserDashboardProps = {
   onBack: () => void;
@@ -111,9 +111,9 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
 
   // Month names for date formatting
   const monthNames: Record<Language, string[]> = {
-    sq: ['Janar', 'Shkurt', 'Mars', 'Prill', 'Maj', 'Qershor', 'Korrik', 'Gusht', 'Shtator', 'Tetor', 'Nëntor', 'Dhjetor'],
-    mk: ['Јануари', 'Февруари', 'Март', 'Април', 'Мај', 'Јуни', 'Јули', 'Август', 'Септември', 'Октомври', 'Ноември', 'Декември'],
-    en: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
+    SQ: ['Janar', 'Shkurt', 'Mars', 'Prill', 'Maj', 'Qershor', 'Korrik', 'Gusht', 'Shtator', 'Tetor', 'Nëntor', 'Dhjetor'],
+    MK: ['Јануари', 'Февруари', 'Март', 'Април', 'Мај', 'Јуни', 'Јули', 'Август', 'Септември', 'Октомври', 'Ноември', 'Декември'],
+    EN: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
   };
 
   // Format dateKey "M-D" to human readable "D Month YYYY"
@@ -124,7 +124,7 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
     const month = parseInt(parts[0], 10);
     const day = parseInt(parts[1], 10);
     if (isNaN(month) || isNaN(day)) return dateKey;
-    const monthName = monthNames[language]?.[month - 1] || monthNames.en[month - 1];
+    const monthName = monthNames[language]?.[month - 1] || monthNames.EN[month - 1];
     return `${day} ${monthName} 2026`;
   };
 
@@ -254,16 +254,7 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
     return () => clearInterval(interval);
   }, [packages, reservations, language]);
 
-  // Debug: Log props on mount
-  useEffect(() => {
-    console.log('🎯 UserDashboard mounted with props:', {
-      sessionTokenProp: sessionToken ? '✅ Present' : '❌ Missing',
-      sessionTokenFromStorage: localStorage.getItem('wellnest_session') ? '✅ Present' : '❌ Missing',
-      activeSessionToken: activeSessionToken ? '✅ Using' : '❌ None',
-      userEmail,
-      language
-    });
-  }, []);
+  // Previously had debug logging here - removed for production
 
   // Load user's packages
   const loadPackages = async () => {
@@ -328,8 +319,9 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
         if (pkg) {
           const session = pkg.bookedSessions?.find(s => s.slotIndex === selectedSlotIndex);
           if (session && session.createdAt) {
-            const createdAt = new Date(session.createdAt);
-            const now = new Date();
+            const createdAtUTC = new Date(session.createdAt);
+            const createdAt = new Date(createdAtUTC.toLocaleString('en-US', { timeZone: 'Europe/Skopje' }));
+            const now = getSkopjeTime();
             const gracePeriodMs = 2 * 60 * 1000; // 2 minutes
             const elapsedMs = now.getTime() - createdAt.getTime();
             if (elapsedMs >= gracePeriodMs) {
@@ -433,10 +425,8 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
             b.email?.toLowerCase() === userEmail?.toLowerCase()
           ).length;
 
-          // Filter out past time slots for today
-          const now = getSkopjeTime();
-          const [hours] = time.split(':').map(Number);
-          const isPastTime = isToday && hours <= now.getHours();
+          // Filter out past time slots (using Skopje timezone with 5-min buffer)
+          const isPastTime = isTimeSlotPast(date, time);
 
           return {
             time,
@@ -451,7 +441,7 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
           slots.push({
             date,
             dateKey,
-            displayDate: date.toLocaleDateString(language === 'sq' ? 'sq-AL' : 'en-US', {
+            displayDate: date.toLocaleDateString(language === 'SQ' ? 'sq-AL' : language === 'MK' ? 'mk-MK' : 'en-US', {
               weekday: 'short',
               day: 'numeric',
               month: 'short'
@@ -749,7 +739,8 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
 
     // Within 24 hours → check grace period (2 minutes from booking)
     if (bookedSession.createdAt) {
-      const createdAt = new Date(bookedSession.createdAt);
+      const createdAtUTC = new Date(bookedSession.createdAt);
+      const createdAt = new Date(createdAtUTC.toLocaleString('en-US', { timeZone: 'Europe/Skopje' }));
       const minutesSinceBooking = (now.getTime() - createdAt.getTime()) / (1000 * 60);
       return minutesSinceBooking <= 2;
     }
@@ -762,7 +753,8 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
     if (!bookedSession || !bookedSession.createdAt) return 0;
 
     const now = getSkopjeTime();
-    const createdAt = new Date(bookedSession.createdAt);
+    const createdAtUTC = new Date(bookedSession.createdAt);
+    const createdAt = new Date(createdAtUTC.toLocaleString('en-US', { timeZone: 'Europe/Skopje' }));
     const gracePeriodMs = 2 * 60 * 1000; // 2 minutes
     const elapsedMs = now.getTime() - createdAt.getTime();
     const remainingMs = gracePeriodMs - elapsedMs;

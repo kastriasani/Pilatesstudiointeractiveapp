@@ -3,15 +3,27 @@ export type Language = 'SQ' | 'MK' | 'EN';
 export const translations = {
   SQ: {
     // Days
+    sunday: 'E DIEL',
     monday: 'E HËNË',
     tuesday: 'E MARTË',
     wednesday: 'E MËRKURË',
     thursday: 'E ENJTE',
     friday: 'E PREMTE',
-    
+    saturday: 'E SHTUNË',
+
     // Months
     january: 'Janar',
     february: 'Shkurt',
+    march: 'Mars',
+    april: 'Prill',
+    may: 'Maj',
+    june: 'Qershor',
+    july: 'Korrik',
+    august: 'Gusht',
+    september: 'Shtator',
+    october: 'Tetor',
+    november: 'Nëntor',
+    december: 'Dhjetor',
     
     // Instructor
     instructorTitle: 'Instruktore Pilatesi',
@@ -344,15 +356,27 @@ export const translations = {
 
   MK: {
     // Days
+    sunday: 'НЕДЕЛА',
     monday: 'ПОНЕДЕЛНИК',
     tuesday: 'ВТОРНИК',
     wednesday: 'СРЕДА',
     thursday: 'ЧЕТВРТОК',
     friday: 'ПЕТОК',
-    
+    saturday: 'САБОТА',
+
     // Months
     january: 'Јануари',
     february: 'Февруари',
+    march: 'Март',
+    april: 'Април',
+    may: 'Мај',
+    june: 'Јуни',
+    july: 'Јули',
+    august: 'Август',
+    september: 'Септември',
+    october: 'Октомври',
+    november: 'Ноември',
+    december: 'Декември',
     
     // Instructor
     instructorTitle: 'Инструктор Пилатес',
@@ -685,15 +709,27 @@ export const translations = {
 
   EN: {
     // Days
+    sunday: 'SUNDAY',
     monday: 'MONDAY',
     tuesday: 'TUESDAY',
     wednesday: 'WEDNESDAY',
     thursday: 'THURSDAY',
     friday: 'FRIDAY',
-    
+    saturday: 'SATURDAY',
+
     // Months
     january: 'January',
     february: 'February',
+    march: 'March',
+    april: 'April',
+    may: 'May',
+    june: 'June',
+    july: 'July',
+    august: 'August',
+    september: 'September',
+    october: 'October',
+    november: 'November',
+    december: 'December',
     
     // Instructor
     instructorTitle: 'Pilates Instructor',

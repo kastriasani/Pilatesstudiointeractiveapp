@@ -23,8 +23,8 @@ export function LoginPage({ onLogin, onBack }: LoginPageProps) {
     const expiry = localStorage.getItem('wellnest_session_expiry');
 
     if (session && userData) {
-      // Check if session is still valid
-      if (!expiry || Date.now() < parseInt(expiry)) {
+      // Check if session is still valid (require expiry to be present and not expired)
+      if (expiry && Date.now() < parseInt(expiry)) {
         // Valid session exists, redirect to dashboard
         navigate('/dashboard', { replace: true });
       } else {

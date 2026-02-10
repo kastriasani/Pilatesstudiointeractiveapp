@@ -19,7 +19,8 @@ import {
   getCalendarDates,
   getAllCalendarDates,
   formatDateShort,
-  formatDateKeyLegacy
+  formatDateKeyLegacy,
+  getSkopjeTime
 } from '../../utils/dateUtils';
 // BulkWaitlistUpload removed - dev functionality not for production
 // import { BulkWaitlistUpload } from './BulkWaitlistUpload';
@@ -78,11 +79,6 @@ type AdminPanelProps = {
   onLogout: () => void;
   sessionToken?: string;
 };
-
-// Mock data for demonstration
-const mockUsers: User[] = [];
-
-const mockBookings: Booking[] = [];
 
 type WaitlistUser = {
   id: string;
@@ -306,7 +302,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
   // Convert "M-D" format to "YYYY-MM-DD" for backend
   const convertToISODate = (dateKey: string): string => {
     const [month, day] = dateKey.split('-').map(Number);
-    const year = new Date().getFullYear();
+    const year = getSkopjeTime().getFullYear();
     return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
   };
 
@@ -817,14 +813,8 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
         return;
       }
 
-      console.log('Payment status updated successfully:', data);
-      
-      // Also update in bookings array
-      setBookings(prevBookings =>
-        prevBookings.map(booking =>
-          booking.id === bookingId ? { ...booking, status: newStatus } : booking
-        )
-      );
+      // Refresh bookings from backend to get updated state
+      await fetchBookings();
     } catch (error) {
       console.error('Error updating booking status:', error);
       // Revert the change if network error
@@ -1073,11 +1063,11 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
         }
       );
       if (response.ok) {
-        console.log('✅ Booking status updated successfully');
         await fetchBookings();
       } else {
         const errorData = await response.text();
-        console.error('❌ Failed to update booking status:', response.status, errorData);
+        console.error('Failed to update booking status:', response.status, errorData);
+        toast.error('Failed to update booking status. Please try again.');
       }
     } catch (error) {
       console.error('❌ Error updating booking status:', error);
@@ -1113,7 +1103,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
           } else {
             const errorData = await response.text();
             console.error('❌ Failed to remove from class:', response.status, errorData);
-            toast.error('Failed to remove user from class. Check console for details.');
+            toast.error('Failed to remove user from class. Please try again.');
           }
         } catch (error) {
           console.error('❌ Error removing from class:', error);
@@ -1770,7 +1760,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                       {(() => {
                                         const expiryDate = user.packages?.[0]?.expiryDate;
                                         if (!expiryDate) return null;
-                                        const daysLeft = Math.ceil((new Date(expiryDate).getTime() - new Date().getTime()) / (24 * 60 * 60 * 1000));
+                                        const daysLeft = Math.ceil((new Date(expiryDate).getTime() - getSkopjeTime().getTime()) / (24 * 60 * 60 * 1000));
                                         if (daysLeft <= 0) return (
                                           <span style={{ marginLeft: '6px' }}>
                                             · <span style={{ color: '#dc2626' }}>expired</span>

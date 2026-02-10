@@ -43,7 +43,6 @@ export function LoginRegisterModal({ onClose, onLoginSuccess, language }: LoginR
       );
 
       const responseText = await response.text();
-      console.log('Raw login response:', responseText);
 
       let data;
       try {
@@ -57,20 +56,18 @@ export function LoginRegisterModal({ onClose, onLoginSuccess, language }: LoginR
       }
 
       if (!response.ok) {
-        console.error('Login error:', data);
         setError(data.error || 'Invalid email or password');
         setTimeout(() => setError(''), 3000);
         setIsSubmitting(false);
         return;
       }
 
-      console.log('Login successful:', data);
-
       // Store session token in localStorage
       if (data.session) {
         localStorage.setItem('wellnest_session', data.session);
         localStorage.setItem('wellnest_user', JSON.stringify(data.user));
-        console.log('✅ Session token stored');
+        const expiryTime = Date.now() + (30 * 24 * 60 * 60 * 1000); // 30 days
+        localStorage.setItem('wellnest_session_expiry', expiryTime.toString());
       }
 
       // Set language from user preference

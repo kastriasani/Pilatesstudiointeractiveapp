@@ -21,6 +21,8 @@ export function ConfirmationScreen({ bookingData, onConfirm, onBack, onPaymentTo
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleConfirm = async () => {
+    if (isSubmitting) return; // Prevent double-submit
+
     const newErrors: Record<string, boolean> = {};
 
     if (!(bookingData.name || '').trim()) newErrors.name = true;
@@ -61,7 +63,6 @@ export function ConfirmationScreen({ bookingData, onConfirm, onBack, onPaymentTo
 
       // Get response text first to handle both JSON and non-JSON responses
       const responseText = await response.text();
-      console.log('Raw server response:', responseText);
       
       let data;
       try {
@@ -75,13 +76,10 @@ export function ConfirmationScreen({ bookingData, onConfirm, onBack, onPaymentTo
       }
 
       if (!response.ok) {
-        console.error('Booking creation error:', data);
         setErrorMessage(data.error || t.bookingError || 'Failed to create booking. Please try again.');
         setIsSubmitting(false);
         return;
       }
-
-      console.log('Booking created successfully:', data);
 
       // NOTE: Booking flow must NOT store session data
       // Dashboard access only after admin activation + password setup
@@ -169,7 +167,8 @@ export function ConfirmationScreen({ bookingData, onConfirm, onBack, onPaymentTo
             placeholder={`${t.name}*`}
             value={bookingData.name || ''}
             onChange={(e) => handleInputChange('name', e.target.value)}
-            className={`w-full px-3 py-2 rounded-lg bg-[#f5f0ed] text-sm text-[#3d2f28] placeholder:text-[#8b7764] focus:outline-none focus:ring-2 focus:ring-[#6b5949] ${
+            disabled={isSubmitting}
+            className={`w-full px-3 py-2 rounded-lg bg-[#f5f0ed] text-sm text-[#3d2f28] placeholder:text-[#8b7764] focus:outline-none focus:ring-2 focus:ring-[#6b5949] disabled:opacity-50 ${
               errors.name ? 'ring-2 ring-red-500' : ''
             }`}
           />
@@ -180,7 +179,8 @@ export function ConfirmationScreen({ bookingData, onConfirm, onBack, onPaymentTo
             placeholder={`${t.surname}*`}
             value={bookingData.surname || ''}
             onChange={(e) => handleInputChange('surname', e.target.value)}
-            className={`w-full px-3 py-2 rounded-lg bg-[#f5f0ed] text-sm text-[#3d2f28] placeholder:text-[#8b7764] focus:outline-none focus:ring-2 focus:ring-[#6b5949] ${
+            disabled={isSubmitting}
+            className={`w-full px-3 py-2 rounded-lg bg-[#f5f0ed] text-sm text-[#3d2f28] placeholder:text-[#8b7764] focus:outline-none focus:ring-2 focus:ring-[#6b5949] disabled:opacity-50 ${
               errors.surname ? 'ring-2 ring-red-500' : ''
             }`}
           />
@@ -191,7 +191,8 @@ export function ConfirmationScreen({ bookingData, onConfirm, onBack, onPaymentTo
             placeholder={`${t.mobile}*`}
             value={bookingData.mobile || ''}
             onChange={(e) => handleInputChange('mobile', e.target.value)}
-            className={`w-full px-3 py-2 rounded-lg bg-[#f5f0ed] text-sm text-[#3d2f28] placeholder:text-[#8b7764] focus:outline-none focus:ring-2 focus:ring-[#6b5949] ${
+            disabled={isSubmitting}
+            className={`w-full px-3 py-2 rounded-lg bg-[#f5f0ed] text-sm text-[#3d2f28] placeholder:text-[#8b7764] focus:outline-none focus:ring-2 focus:ring-[#6b5949] disabled:opacity-50 ${
               errors.mobile ? 'ring-2 ring-red-500' : ''
             }`}
           />
@@ -202,7 +203,8 @@ export function ConfirmationScreen({ bookingData, onConfirm, onBack, onPaymentTo
             placeholder={`${t.email}*`}
             value={bookingData.email || ''}
             onChange={(e) => handleInputChange('email', e.target.value)}
-            className={`w-full px-3 py-2 rounded-lg bg-[#f5f0ed] text-sm text-[#3d2f28] placeholder:text-[#8b7764] focus:outline-none focus:ring-2 focus:ring-[#6b5949] ${
+            disabled={isSubmitting}
+            className={`w-full px-3 py-2 rounded-lg bg-[#f5f0ed] text-sm text-[#3d2f28] placeholder:text-[#8b7764] focus:outline-none focus:ring-2 focus:ring-[#6b5949] disabled:opacity-50 ${
               errors.email ? 'ring-2 ring-red-500' : ''
             }`}
           />
