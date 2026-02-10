@@ -10,7 +10,7 @@ import { Hono } from "npm:hono";
 import { cors } from "npm:hono/cors";
 import { logger } from "npm:hono/logger";
 import * as kv from "./kv_store.ts";
-import { getSkopjeTime } from "./dateUtils.ts";
+import { getSkopjeTime, parseDateKey, isValidBookingDate, isTimeSlotPast } from "./dateUtils.ts";
 
 const app = new Hono();
 
@@ -1273,6 +1273,14 @@ app.post("/make-server-b87b0c07/packages/:id/first-session", async (c) => {
       return c.json({ error: "Missing required fields: dateKey, timeSlot" }, 400);
     }
 
+    const bookingDate = parseDateKey(dateKey);
+    if (!bookingDate || !isValidBookingDate(bookingDate)) {
+      return c.json({ error: "Invalid booking date - must be a future weekday" }, 400);
+    }
+    if (isTimeSlotPast(bookingDate, timeSlot)) {
+      return c.json({ error: "This time slot has already passed" }, 400);
+    }
+
     if (!appUrl) {
       return c.json({ error: "Missing app URL for email link" }, 400);
     }
@@ -2204,6 +2212,21 @@ app.post("/make-server-b87b0c07/activate", async (c) => {
       // Continue anyway - user might not have packages yet
     } else {
       console.log(`Updated ${updatedPackages?.length || 0} packages for ${normalizedEmail}`);
+
+      // Confirm any pending reservations linked to the activated packages
+      if (updatedPackages && updatedPackages.length > 0) {
+        const packageIds = updatedPackages.map((p: any) => p.id);
+        const { error: confirmError } = await supabase
+          .from('reservations')
+          .update({ reservation_status: 'confirmed', updated_at: now })
+          .eq('user_email', normalizedEmail)
+          .in('package_id', packageIds)
+          .eq('reservation_status', 'pending');
+
+        if (confirmError) {
+          console.error('Error confirming pending reservations:', confirmError);
+        }
+      }
     }
 
     // 3. Update payment_status for ALL reservations (not just pending)
@@ -4198,6 +4221,14 @@ app.post("/make-server-b87b0c07/user/packages/:id/reschedule", async (c) => {
       return c.json({ error: "Missing required fields" }, 400);
     }
 
+    const bookingDate = parseDateKey(dateKey);
+    if (!bookingDate || !isValidBookingDate(bookingDate)) {
+      return c.json({ error: "Invalid booking date - must be a future weekday" }, 400);
+    }
+    if (isTimeSlotPast(bookingDate, timeSlot)) {
+      return c.json({ error: "This time slot has already passed" }, 400);
+    }
+
     const supabase = getSupabase();
     const now = new Date().toISOString();
 
@@ -4323,6 +4354,14 @@ app.post("/make-server-b87b0c07/user/packages/:id/book-session", async (c) => {
       return c.json({ error: "Missing required fields" }, 400);
     }
 
+    const bookingDate = parseDateKey(dateKey);
+    if (!bookingDate || !isValidBookingDate(bookingDate)) {
+      return c.json({ error: "Invalid booking date - must be a future weekday" }, 400);
+    }
+    if (isTimeSlotPast(bookingDate, timeSlot)) {
+      return c.json({ error: "This time slot has already passed" }, 400);
+    }
+
     const supabase = getSupabase();
     const now = new Date().toISOString();
 
@@ -4335,6 +4374,11 @@ app.post("/make-server-b87b0c07/user/packages/:id/book-session", async (c) => {
 
     if (pkgError || !pkg) {
       return c.json({ error: "Package not found" }, 404);
+    }
+
+    // Check package expiry
+    if (pkg.expiry_date && new Date() > new Date(pkg.expiry_date)) {
+      return c.json({ error: "Package has expired" }, 400);
     }
 
     const serviceType = extractServiceType(pkg.package_type);
@@ -4491,7 +4535,8 @@ app.delete("/make-server-b87b0c07/user/packages/:id/reservations/:reservationId"
     // 1. If 24+ hours before session → can always cancel
     // 2. If within 24 hours → can only cancel within 2 minutes of booking (grace period)
     if (hoursUntilSession < 24) {
-      const createdAt = new Date(reservation.created_at);
+      const createdAtUTC = new Date(reservation.created_at);
+      const createdAt = new Date(createdAtUTC.toLocaleString('en-US', { timeZone: 'Europe/Skopje' }));
       const minutesSinceBooking = (now.getTime() - createdAt.getTime()) / (1000 * 60);
       const gracePeriodMinutes = 2;
 
