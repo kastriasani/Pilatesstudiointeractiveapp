@@ -1931,6 +1931,50 @@ app.patch("/make-server-b87b0c07/reservations/:id/status", async (c) => {
       return c.json({ error: 'Reservation not found' }, 404);
     }
 
+    // Capacity check: when reactivating a reservation (changing to confirmed/attended from a non-active status),
+    // verify the slot still has capacity to prevent overbooking
+    const activeStatuses = ['confirmed', 'attended', 'pending'];
+    const currentlyActive = activeStatuses.includes(reservation.reservation_status);
+    const becomingActive = reservationStatus && (reservationStatus === 'confirmed' || reservationStatus === 'attended');
+
+    if (becomingActive && !currentlyActive) {
+      // Count current active reservations in this slot (excluding this one)
+      const { data: slotReservations, error: slotError } = await supabase
+        .from('reservations')
+        .select('id, service_type')
+        .eq('date_key', reservation.date_key)
+        .eq('time_slot', reservation.time_slot)
+        .in('reservation_status', ['confirmed', 'attended', 'pending'])
+        .neq('id', reservationId);
+
+      if (slotError) {
+        console.error('Error checking slot capacity:', slotError);
+        return c.json({ error: 'Failed to verify slot capacity' }, 500);
+      }
+
+      // Calculate occupied seats (duo=2, individual=4, others=1)
+      let seatsOccupied = 0;
+      for (const r of (slotReservations || [])) {
+        if (r.service_type === 'duo') seatsOccupied += 2;
+        else if (r.service_type === 'individual') seatsOccupied += 4;
+        else seatsOccupied += 1;
+      }
+
+      // Calculate seats needed for this reservation
+      let seatsNeeded = 1;
+      if (reservation.service_type === 'duo') seatsNeeded = 2;
+      else if (reservation.service_type === 'individual') seatsNeeded = 4;
+
+      const maxCapacity = 4; // MAX_CAPACITY
+      if (seatsOccupied + seatsNeeded > maxCapacity) {
+        return c.json({
+          error: `Cannot reactivate reservation: slot ${reservation.date_key} ${reservation.time_slot} is at capacity (${seatsOccupied}/${maxCapacity} seats occupied)`
+        }, 409);
+      }
+
+      console.log(`✅ Capacity check passed for slot ${reservation.date_key} ${reservation.time_slot}: ${seatsOccupied}+${seatsNeeded}/${maxCapacity}`);
+    }
+
     // Build update object
     const updates: Record<string, any> = {
       updated_at: new Date().toISOString()
