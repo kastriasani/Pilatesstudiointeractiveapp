@@ -129,8 +129,8 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
   const [userSubTab, setUserSubTab] = useState<'confirmed' | 'pending' | 'archived'>('confirmed');
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<string | null>(null);
-  const [users, setUsers] = useState<User[]>(mockUsers);
-  const [bookings, setBookings] = useState<Booking[]>(mockBookings);
+  const [users, setUsers] = useState<User[]>([]);
+  const [bookings, setBookings] = useState<Booking[]>([]);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
