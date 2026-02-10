@@ -81,8 +81,14 @@ export function IndividualTraining({ onBack, language, onLogoClick }: Individual
     setIsSubmitting(true);
 
     try {
+      const packageTypeMap: Record<string, string> = {
+        '1class': 'individual1',
+        '8classes': 'individual8',
+        '12classes': 'individual12',
+      };
+
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/bookings`,
+        `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/packages`,
         {
           method: 'POST',
           headers: {
@@ -90,15 +96,12 @@ export function IndividualTraining({ onBack, language, onLogoClick }: Individual
             'Authorization': `Bearer ${publicAnonKey}`,
           },
           body: JSON.stringify({
+            userId: formData.email,
+            packageType: packageTypeMap[packageType],
             name: formData.name,
             surname: formData.surname,
             mobile: formData.mobile,
             email: formData.email,
-            date: new Date().toLocaleDateString(),
-            dateKey: 'individual',
-            timeSlot: 'individual',
-            selectedPackage: packageType,
-            payInStudio: formData.payInStudio,
             language,
           }),
         }
@@ -106,7 +109,7 @@ export function IndividualTraining({ onBack, language, onLogoClick }: Individual
 
       const data = await response.json();
 
-      if (data.success) {
+      if (data.success || data.packageId) {
         // Show success popup
         setShowSuccessPopup(true);
         setExpandedPackage(null);

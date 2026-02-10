@@ -216,9 +216,15 @@ function calculateEndTime(startTime: string): string {
 }
 
 function constructFullDate(dateKey: string, timeSlot: string): string {
-  const [month, day] = dateKey.split('-').map(Number);
+  const parts = dateKey.split('-').map(Number);
+  let year: number, month: number, day: number;
+  if (parts.length === 3) {
+    [year, month, day] = parts;
+  } else {
+    [month, day] = parts;
+    year = getSkopjeTime().getFullYear();
+  }
   const [hours, minutes] = timeSlot.split(':').map(Number);
-  const year = 2026;
   return new Date(year, month - 1, day, hours, minutes).toISOString();
 }
 
@@ -233,7 +239,13 @@ function getPackagePriceInfo(packageType: PackageType) {
 }
 
 function formatDateString(dateKey: string, language: string = 'en'): string {
-  const [month, day] = dateKey.split('-').map(Number);
+  const parts = dateKey.split('-').map(Number);
+  let month: number, day: number;
+  if (parts.length === 3) {
+    [, month, day] = parts;  // ISO: "2026-02-05"
+  } else {
+    [month, day] = parts;    // Legacy: "2-5"
+  }
   const lang = (language?.toLowerCase() || 'en') as 'sq' | 'mk' | 'en';
   const months = MONTH_NAMES[lang] || MONTH_NAMES.en;
   return `${day} ${months[month - 1]}`;
@@ -947,7 +959,7 @@ app.post("/make-server-b87b0c07/validate-coupon", async (c) => {
 
     // Check if coupon is expired (check multiple possible column names)
     const expiresAt = coupon.expires_at || coupon.expiresAt;
-    if (expiresAt && new Date(expiresAt) < new Date()) {
+    if (expiresAt && new Date(expiresAt) < getSkopjeTime()) {
       console.log(`❌ Coupon expired: ${normalizedCode}, expiresAt: ${expiresAt}`);
       return c.json({ valid: false, error: "Coupon expired" });
     }
@@ -1058,7 +1070,7 @@ app.post("/make-server-b87b0c07/packages", async (c) => {
       if (coupon && !couponError) {
         const isUsed = coupon.used === true || coupon.status === 'used' || coupon.status === 'redeemed';
         const expiresAt = coupon.expires_at || coupon.expiresAt;
-        const isExpired = expiresAt && new Date(expiresAt) < new Date();
+        const isExpired = expiresAt && new Date(expiresAt) < getSkopjeTime();
         const isActive = !coupon.status || coupon.status === 'active';
 
         if (!isUsed && !isExpired && isActive) {
@@ -1315,6 +1327,7 @@ app.post("/make-server-b87b0c07/packages/:id/first-session", async (c) => {
       const errorMap: Record<string, string> = {
         'Slot blocked by private session': 'Slot not available for booking',
         'Insufficient capacity': 'Slot is full',
+        'Duplicate booking': 'You already have a booking for this time slot',
         'Package not found': 'Package not found',
         'No remaining sessions': 'No remaining sessions in package',
         'Package is not in pending state': 'Package is not in pending state',
@@ -1689,6 +1702,7 @@ app.post("/make-server-b87b0c07/reservations", async (c) => {
       const errorMap: Record<string, string> = {
         'Slot blocked by private session': 'Slot not available for booking',
         'Insufficient capacity': 'Slot is full',
+        'Duplicate booking': 'You already have a booking for this time slot',
         'Package not found': 'Package not found',
         'No remaining sessions': 'No remaining sessions in package',
         'Package not active': 'Package is not active'
@@ -3071,7 +3085,7 @@ app.get("/make-server-b87b0c07/slots/live-days", async (c) => {
       .from('day_schedules')
       .select('date')
       .eq('status', 'live')
-      .gte('date', new Date().toISOString().split('T')[0])
+      .gte('date', getSkopjeTime().toISOString().split('T')[0])
       .order('date', { ascending: true });
 
     if (error) {
@@ -3096,7 +3110,7 @@ app.get("/make-server-b87b0c07/slots/availability", async (c) => {
       .from('day_schedules')
       .select('date')
       .eq('status', 'live')
-      .gte('date', new Date().toISOString().split('T')[0]);
+      .gte('date', getSkopjeTime().toISOString().split('T')[0]);
 
     if (liveDaysError) {
       console.error('Error fetching live days:', liveDaysError);
@@ -4354,6 +4368,7 @@ app.post("/make-server-b87b0c07/user/packages/:id/book-session", async (c) => {
       const errorMap: Record<string, string> = {
         'Slot blocked by private session': 'Slot not available for booking',
         'Insufficient capacity': 'Slot is full',
+        'Duplicate booking': 'You already have a booking for this time slot',
         'Package not found': 'Package not found',
         'No remaining sessions': 'No sessions remaining in this package',
         'Package not active': 'Package is not active'

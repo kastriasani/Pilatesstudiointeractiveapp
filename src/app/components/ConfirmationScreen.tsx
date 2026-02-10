@@ -1,5 +1,5 @@
 import { ChevronRight, Banknote, ChevronLeft } from 'lucide-react';
-import { BookingData } from '../App';
+import { BookingData } from '@/contexts/BookingContext';
 import { Language, translations } from '../translations';
 import { logo } from '../../assets/images';
 import { useState } from 'react';
@@ -46,7 +46,7 @@ export function ConfirmationScreen({ bookingData, onConfirm, onBack, onPaymentTo
         },
         body: JSON.stringify({
           userId: bookingData.email, // Use email as userId
-          serviceType: 'single', // Single session booking
+          serviceType: bookingData.trainingType || 'single',
           name: bookingData.name,
           surname: bookingData.surname,
           mobile: bookingData.mobile,

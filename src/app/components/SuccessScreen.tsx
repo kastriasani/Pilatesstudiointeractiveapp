@@ -1,5 +1,5 @@
 import { CheckCircle2, ArrowLeft } from 'lucide-react';
-import { BookingData } from '../App';
+import { BookingData } from '@/contexts/BookingContext';
 import { Language, translations } from '../translations';
 import { logo } from '../../assets/images';
 

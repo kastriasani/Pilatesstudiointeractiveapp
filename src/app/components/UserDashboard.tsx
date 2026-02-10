@@ -767,7 +767,7 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
   const getGracePeriodRemaining = (bookedSession: BookedSession): number => {
     if (!bookedSession || !bookedSession.createdAt) return 0;
 
-    const now = new Date();
+    const now = getSkopjeTime();
     const createdAt = new Date(bookedSession.createdAt);
     const gracePeriodMs = 2 * 60 * 1000; // 2 minutes
     const elapsedMs = now.getTime() - createdAt.getTime();
