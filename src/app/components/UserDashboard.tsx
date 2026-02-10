@@ -713,12 +713,6 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
         return i;
       }
     }
-    // Wrap around to beginning if needed
-    for (let i = 0; i < currentSlot; i++) {
-      if (!bookedSlotIndices.includes(i)) {
-        return i;
-      }
-    }
     return null;
   };
 

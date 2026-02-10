@@ -334,8 +334,14 @@ export const translations = {
     sessionBookedSuccess: 'Klasa u rezervua me sukses!',
     bookYourClass: 'Rezervo klasën',
     attended: 'E kryer',
+    whenIsNextClass: 'Kur është klasa juaj e radhës?',
+    bookAnotherClass: 'Rezervo një klasë tjetër',
+    yourNextClass: 'Klasa juaj e radhës',
+    noSessionsRemaining: 'Nuk ka seanca të mbetura',
+    confirmed: 'E konfirmuar',
+    pendingPayment: 'Në pritje të pagesës',
   },
-  
+
   MK: {
     // Days
     monday: 'ПОНЕДЕЛНИК',
@@ -669,6 +675,12 @@ export const translations = {
     sessionBookedSuccess: 'Класата е успешно резервирана!',
     bookYourClass: 'Резервирај класа',
     attended: 'Посетена',
+    whenIsNextClass: 'Кога е вашата следна класа?',
+    bookAnotherClass: 'Резервирај друга класа',
+    yourNextClass: 'Вашата следна класа',
+    noSessionsRemaining: 'Нема преостанати сесии',
+    confirmed: 'Потврдено',
+    pendingPayment: 'Во очекување на уплата',
   },
 
   EN: {
@@ -1004,5 +1016,11 @@ export const translations = {
     sessionBookedSuccess: 'Session booked successfully!',
     bookYourClass: 'Book your class',
     attended: 'Attended',
+    whenIsNextClass: 'When is your next class?',
+    bookAnotherClass: 'Book Another Class',
+    yourNextClass: 'Your Next Class',
+    noSessionsRemaining: 'No sessions remaining',
+    confirmed: 'Confirmed',
+    pendingPayment: 'Pending Payment',
   },
 };

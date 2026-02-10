@@ -55,6 +55,7 @@ export function PackageOverview({ onBack, language }: PackageOverviewProps) {
   });
   const [couponCode, setCouponCode] = useState('');
   const [couponValidation, setCouponValidation] = useState<{status: 'idle' | 'validating' | 'valid' | 'invalid', message?: string}>({ status: 'idle' });
+  const [formError, setFormError] = useState<string | null>(null);
 
   // New 2-step flow state
   const [showPackageCreatedPopup, setShowPackageCreatedPopup] = useState(false);
@@ -159,10 +160,16 @@ export function PackageOverview({ onBack, language }: PackageOverviewProps) {
   // Step 1: Create package
   const handleSubmit = async (packageType: 'package8' | 'package10' | 'package12') => {
     if (!formData.name || !formData.surname || !formData.mobile || !formData.email) {
-      alert('Please fill in all required fields');
+      setFormError(t.fillAllFields || 'Please fill in all required fields');
+      return;
+    }
+    const emailVal = formData.email.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailVal)) {
+      setFormError(t.invalidEmail || 'Please enter a valid email address');
       return;
     }
 
+    setFormError(null);
     setIsSubmitting(true);
 
     try {
@@ -192,7 +199,7 @@ export function PackageOverview({ onBack, language }: PackageOverviewProps) {
 
       if (!response.ok || !data.success) {
         console.error('❌ Package creation failed:', data);
-        alert(data.error || 'Package creation failed. Please try again.');
+        setFormError(data.error || 'Package creation failed. Please try again.');
         setIsSubmitting(false);
         return;
       }
@@ -213,7 +220,7 @@ export function PackageOverview({ onBack, language }: PackageOverviewProps) {
       setIsSubmitting(false);
     } catch (error) {
       console.error('❌ Error creating package:', error);
-      alert('An error occurred. Please try again.');
+      setFormError('An error occurred. Please try again.');
       setIsSubmitting(false);
     }
   };
@@ -263,11 +270,12 @@ export function PackageOverview({ onBack, language }: PackageOverviewProps) {
         // Parse ISO date (YYYY-MM-DD) to Date object
         const [year, month, day] = isoDate.split('-').map(Number);
         const date = new Date(year, month - 1, day);
-        const dateKey = formatDateKeyLegacy(date); // Legacy format for booking API
+        const dateKey = isoDate; // ISO format for booking API
+        const legacyKey = formatDateKeyLegacy(date); // Legacy format for matching old bookings
 
-        // Get all confirmed/attended bookings for this date
+        // Get all confirmed/attended bookings for this date (match both ISO and legacy formats)
         const dayBookings = existingBookings.filter((b: any) =>
-          b.dateKey === dateKey &&
+          (b.dateKey === dateKey || b.dateKey === legacyKey) &&
           (b.status === 'confirmed' || b.status === 'attended' || b.status === 'pending')
         );
 
@@ -358,7 +366,7 @@ export function PackageOverview({ onBack, language }: PackageOverviewProps) {
       
       if (!response.ok) {
         console.error('❌ First session booking failed:', response.status, responseText);
-        alert(responseText || 'Failed to book first session. Please try again.');
+        setFormError(responseText || 'Failed to book first session. Please try again.');
         setIsBookingFirstSession(false);
         return;
       }
@@ -369,14 +377,14 @@ export function PackageOverview({ onBack, language }: PackageOverviewProps) {
       } catch (parseError) {
         console.error('❌ JSON parse error:', parseError);
         console.log('Response text was:', responseText);
-        alert('Server response error. Please try again.');
+        setFormError('Server response error. Please try again.');
         setIsBookingFirstSession(false);
         return;
       }
 
       if (!data.success) {
         console.error('❌ First session booking failed:', data);
-        alert(data.error || 'Failed to book first session. Please try again.');
+        setFormError(data.error || 'Failed to book first session. Please try again.');
         setIsBookingFirstSession(false);
         return;
       }
@@ -423,16 +431,12 @@ export function PackageOverview({ onBack, language }: PackageOverviewProps) {
       // Show success popup
       setShowSuccessPopup(true);
 
-      // Auto-close popup after 30 seconds (longer in preview mode so users can click link)
-      setTimeout(() => {
-        setShowSuccessPopup(false);
-        setSuccessData(null);
-      }, data.isPreviewMode ? 30000 : 5000);
+      // User must manually close the success popup
 
       setIsBookingFirstSession(false);
     } catch (error) {
       console.error('❌ Error booking first session:', error);
-      alert('An error occurred. Please try again.');
+      setFormError('An error occurred. Please try again.');
       setIsBookingFirstSession(false);
     }
   };
@@ -473,11 +477,7 @@ export function PackageOverview({ onBack, language }: PackageOverviewProps) {
     setCouponCode('');
     setCouponValidation({ status: 'idle' });
 
-    // Auto-close after 5 seconds
-    setTimeout(() => {
-      setShowSuccessPopup(false);
-      setSuccessData(null);
-    }, 5000);
+    // User must manually close the success popup
   };
 
   const formatDate = (date: Date): string => {
@@ -747,7 +747,14 @@ export function PackageOverview({ onBack, language }: PackageOverviewProps) {
       {/* Header */}
       <div className="flex items-center mb-6">
         <button
-          onClick={onBack}
+          onClick={() => {
+            setExpandedPackage(null);
+            setPackageData(null);
+            setShowPackageCreatedPopup(false);
+            setShowFirstSessionModal(false);
+            setFormError(null);
+            onBack();
+          }}
           className="p-2.5 hover:bg-white/80 backdrop-blur-sm rounded-xl transition-all hover:shadow-md hover:scale-105 mr-3 border border-transparent hover:border-[#9ca571]/20"
         >
           <ArrowLeft className="w-5 h-5 text-[#6b5949]" />
@@ -937,6 +944,12 @@ export function PackageOverview({ onBack, language }: PackageOverviewProps) {
                     {t.payInStudio}
                   </label>
                 </div>
+
+                {formError && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 font-medium">
+                    {formError}
+                  </div>
+                )}
 
                 <button
                   onClick={() => handleSubmit(pkg.type)}

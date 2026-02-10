@@ -22,11 +22,12 @@ export function ConfirmationScreen({ bookingData, onConfirm, onBack, onPaymentTo
 
   const handleConfirm = async () => {
     const newErrors: Record<string, boolean> = {};
-    
+
     if (!(bookingData.name || '').trim()) newErrors.name = true;
     if (!(bookingData.surname || '').trim()) newErrors.surname = true;
     if (!(bookingData.mobile || '').trim()) newErrors.mobile = true;
-    if (!(bookingData.email || '').trim()) newErrors.email = true;
+    const emailVal = (bookingData.email || '').trim();
+    if (!emailVal || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailVal)) newErrors.email = true;
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);

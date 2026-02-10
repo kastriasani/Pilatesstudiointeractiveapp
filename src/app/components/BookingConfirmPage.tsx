@@ -9,15 +9,15 @@ export function BookingConfirmPage() {
   const { language } = useLanguage();
   const { bookingData, updateBookingData } = useBooking();
 
-  // Redirect to home if no booking data
+  // Redirect to home if no booking data (require both dateKey and timeSlot)
   useEffect(() => {
-    if (!bookingData.dateKey && !bookingData.timeSlot) {
+    if (!bookingData.dateKey || !bookingData.timeSlot) {
       navigate('/', { replace: true });
     }
   }, [bookingData, navigate]);
 
-  // Don't render if no booking data (will redirect)
-  if (!bookingData.dateKey && !bookingData.timeSlot) {
+  // Don't render if booking data incomplete (will redirect)
+  if (!bookingData.dateKey || !bookingData.timeSlot) {
     return null;
   }
 

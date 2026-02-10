@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { ChevronRight, ChevronLeft, User, ArrowLeft, Loader } from 'lucide-react';
 import { Language, translations } from '../translations';
 import { logo } from '../../assets/images';
@@ -57,6 +57,7 @@ export function BookingScreen({ trainingType, onBack, onSubmit, onInstructorClic
   const [isLoadingBookings, setIsLoadingBookings] = useState(true);
   const [liveDays, setLiveDays] = useState<string[]>([]);
   const [slotsPerDate, setSlotsPerDate] = useState<Record<string, { start_time: string; max_capacity: number }[]>>({});
+  const lastInteractionRef = useRef<number>(Date.now());
 
   // Fetch all bookings, live days, and slots for each live day
   useEffect(() => {
@@ -111,8 +112,12 @@ export function BookingScreen({ trainingType, onBack, onSubmit, onInstructorClic
     // Initial fetch
     fetchData();
 
-    // Refresh every 30 seconds to show real-time availability
-    const interval = setInterval(fetchData, 30000);
+    // Refresh every 60 seconds, but skip if user interacted in last 15 seconds
+    const interval = setInterval(() => {
+      if (Date.now() - lastInteractionRef.current > 15000) {
+        fetchData();
+      }
+    }, 60000);
 
     return () => clearInterval(interval);
   }, []);
@@ -178,10 +183,11 @@ export function BookingScreen({ trainingType, onBack, onSubmit, onInstructorClic
     if (!tabs[dayIndex]) return [];
 
     const tab = tabs[dayIndex];
-    const selectedDateKey = tab.key; // Legacy format for bookings lookup
+    const legacyDateKey = tab.key; // Legacy format for bookings lookup
     const isoDateKey = tab.isoKey; // ISO format for slots lookup
     const selectedDate = tab.fullDate;
-    const dayBookings = mockBookings[selectedDateKey] || {};
+    // Merge bookings from both key formats (API may return either)
+    const dayBookings = { ...(mockBookings[legacyDateKey] || {}), ...(mockBookings[isoDateKey] || {}) };
 
     // Get slots for this date from API (fetched dynamically)
     const dateSlots = slotsPerDate[isoDateKey] || [];
@@ -287,7 +293,7 @@ export function BookingScreen({ trainingType, onBack, onSubmit, onInstructorClic
           {tabs.map((tab, index) => (
             <button
               key={tab.isoKey}
-              onClick={() => setSelectedTab(index)}
+              onClick={() => { lastInteractionRef.current = Date.now(); setSelectedTab(index); }}
               className={`flex-shrink-0 min-w-[80px] px-4 py-4 rounded-xl text-center transition-all border-2 snap-center ${
                 selectedTab === index
                   ? 'bg-gradient-to-br from-[#9ca571] to-[#8a9463] text-white border-[#9ca571] shadow-lg'
@@ -339,7 +345,7 @@ export function BookingScreen({ trainingType, onBack, onSubmit, onInstructorClic
                     onSubmit({
                       timeSlot: slot.time,
                       date: tabs[selectedTab].date,
-                      dateKey: tabs[selectedTab].key
+                      dateKey: tabs[selectedTab].isoKey
                     });
                   }
                 }}
