@@ -4,8 +4,7 @@ import { Language, translations } from '../translations';
 import { logo } from '../../assets/images';
 import {
   getSkopjeTime,
-  isTimeSlotPast,
-  getEndTime
+  isTimeSlotPast
 } from '../../utils/dateUtils';
 
 const rinaPhoto = 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=400&h=600&fit=crop';
@@ -170,6 +169,16 @@ export function BookingScreen({ trainingType, onBack, onSubmit, onInstructorClic
   };
   
   const mockBookings = calculateBookingsPerSlot();
+
+  // Calculate end time (50 minute sessions)
+  const getEndTime = (startTime: string): string => {
+    const [hours, minutes] = startTime.split(':').map(Number);
+    const startMinutes = hours * 60 + minutes;
+    const endMinutes = startMinutes + 50;
+    const endHours = Math.floor(endMinutes / 60);
+    const endMins = endMinutes % 60;
+    return `${String(endHours).padStart(2, '0')}:${String(endMins).padStart(2, '0')}`;
+  };
 
   const getTimeSlotsForDay = (dayIndex: number): TimeSlot[] => {
     if (!tabs[dayIndex]) return [];
