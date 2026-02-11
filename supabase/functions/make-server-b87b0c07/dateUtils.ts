@@ -49,7 +49,9 @@ export const isWeekday = (date: Date): boolean => {
 /**
  * Check if a date is valid for booking:
  * - Not in the past
- * - Is a weekday (Mon-Fri)
+ * Note: Weekday check removed — admin controls which days are bookable
+ * via day_schedules table (live/draft status). If admin marks a Saturday
+ * as live, it should be bookable.
  */
 export const isValidBookingDate = (date: Date): boolean => {
   const today = getSkopjeToday();
@@ -61,8 +63,7 @@ export const isValidBookingDate = (date: Date): boolean => {
     return false;
   }
 
-  // Must be a weekday
-  return isWeekday(compareDate);
+  return true;
 };
 
 /**

@@ -2019,14 +2019,22 @@ app.patch("/make-server-b87b0c07/reservations/:id/status", async (c) => {
             const newSessionsAttended = (pkg.sessions_attended || []).filter((id: string) => id !== reservationId);
             const newRemainingSessions = pkg.total_sessions - newSessionsBooked.length;
 
+            const adminCancelUpdate: Record<string, any> = {
+              sessions_booked: newSessionsBooked,
+              sessions_attended: newSessionsAttended,
+              remaining_sessions: newRemainingSessions,
+              updated_at: new Date().toISOString()
+            };
+
+            // Restore package_status to 'active' if it was 'fully_used' (sessions now available again)
+            if (pkg.package_status === 'fully_used' && pkg.activation_status === 'activated') {
+              adminCancelUpdate.package_status = 'active';
+              console.log(`🔧 Restoring package_status to 'active' for package ${reservation.package_id} (was fully_used)`);
+            }
+
             await supabase
               .from('user_packages')
-              .update({
-                sessions_booked: newSessionsBooked,
-                sessions_attended: newSessionsAttended,
-                remaining_sessions: newRemainingSessions,
-                updated_at: new Date().toISOString()
-              })
+              .update(adminCancelUpdate)
               .eq('id', reservation.package_id);
 
             console.log(`🔄 Session restored for cancelled reservation ${reservationId}. Remaining: ${newRemainingSessions}`);
@@ -2156,10 +2164,19 @@ app.delete("/make-server-b87b0c07/reservations/:id", async (c) => {
           updated_at: new Date().toISOString()
         };
 
-        // If this was the first reservation, reset package status
+        // If this was the first reservation, clear the link
         if (pkg.first_reservation_id === reservationId) {
           packageUpdates.first_reservation_id = null;
-          packageUpdates.package_status = 'pending';
+          // Only reset to 'pending' if package was never activated
+          // (activated packages should stay 'active' so user can still book)
+          if (pkg.activation_status !== 'activated') {
+            packageUpdates.package_status = 'pending';
+          }
+        }
+
+        // Restore package_status to 'active' if it was 'fully_used' (sessions now available again)
+        if (pkg.package_status === 'fully_used' && pkg.activation_status === 'activated') {
+          packageUpdates.package_status = 'active';
         }
 
         await supabase
@@ -4425,6 +4442,16 @@ app.post("/make-server-b87b0c07/user/packages/:id/book-session", async (c) => {
       return c.json({ error: "Package has expired" }, 400);
     }
 
+    // Auto-correct package_status if package was activated but status drifted
+    // (e.g., 'fully_used' after cancel restored sessions, or admin reset to 'pending')
+    if (pkg.activation_status === 'activated' && pkg.package_status !== 'active' && pkg.remaining_sessions > 0) {
+      console.log(`🔧 Auto-correcting package_status from '${pkg.package_status}' to 'active' for package ${packageId}`);
+      await supabase
+        .from('user_packages')
+        .update({ package_status: 'active', updated_at: new Date().toISOString() })
+        .eq('id', packageId);
+    }
+
     const serviceType = extractServiceType(pkg.package_type);
 
     const dateString = formatDateString(dateKey, pkg.language || 'en');
@@ -4624,13 +4651,21 @@ app.delete("/make-server-b87b0c07/user/packages/:id/reservations/:reservationId"
       const newSessionsBooked = currentSessionsBooked.filter((id: string) => id !== reservationId);
       const newRemaining = pkg.remaining_sessions + 1;
 
+      const cancelUpdate: Record<string, any> = {
+        sessions_booked: newSessionsBooked,
+        remaining_sessions: newRemaining,
+        updated_at: nowISO
+      };
+
+      // Restore package_status to 'active' if it was 'fully_used' (sessions now available again)
+      if (pkg.package_status === 'fully_used' && pkg.activation_status === 'activated') {
+        cancelUpdate.package_status = 'active';
+        console.log(`🔧 Restoring package_status to 'active' for package ${packageId} (was fully_used)`);
+      }
+
       await supabase
         .from('user_packages')
-        .update({
-          sessions_booked: newSessionsBooked,
-          remaining_sessions: newRemaining,
-          updated_at: nowISO
-        })
+        .update(cancelUpdate)
         .eq('id', packageId);
 
       // Sync to users table
