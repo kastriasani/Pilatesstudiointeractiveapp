@@ -21,7 +21,7 @@ export function HomePage() {
 
     if (session && userData) {
       // Check if session is still valid
-      if (!expiry || Date.now() < parseInt(expiry)) {
+      if (expiry && Date.now() < parseInt(expiry)) {
         // Valid session exists, redirect to dashboard
         navigate('/dashboard', { replace: true });
       } else {
