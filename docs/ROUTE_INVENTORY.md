@@ -3,60 +3,76 @@
 > **Purpose:** Authoritative list of endpoints and counts.
 > **Read when:** Checking if masterplan is complete, or before changing routes.
 
-Generated: 2026-02-01 (final)
+Generated: 2026-02-10
 
 ```bash
 rg -n 'app\.(get|post|patch|delete)\(' supabase/functions/make-server-b87b0c07/index.ts
 ```
 
-## All Routes (35 registrations)
+## All Routes (51 registrations)
 
 | Line | Method | Route | Status |
 |-----:|--------|-------|--------|
-| 656 | GET | /health | N/A |
-| 662 | POST | /validate-coupon | ✅ Supabase |
-| 779 | POST | /packages | ✅ Supabase |
-| 1044 | POST | /packages/:id/first-session | ✅ Supabase |
-| 1240 | GET | /packages | ✅ Supabase |
-| 1299 | GET | /packages/:id | ✅ Supabase |
-| 1357 | POST | /reservations | ✅ Supabase |
-| 1512 | GET | /reservations | ✅ Supabase |
-| 1574 | GET | /reservations/:id | ✅ Supabase |
-| 1616 | PATCH | /reservations/:id/status | ✅ Supabase |
-| 1727 | DELETE | /reservations/:id | ✅ Supabase |
-| 1804 | POST | /activate | ✅ Supabase |
-| 1926 | GET | /admin/users | ✅ Supabase |
-| 2019 | PATCH | /admin/users/:email/payment | ✅ Supabase |
-| 2089 | GET | /bookings | ✅ Supabase |
-| 2145 | POST | /migrate-bookings | N/A (tool) |
-| 2275 | GET | /admin/calendar | ✅ Supabase |
-| 2354 | POST | /dev/clear-all-data | N/A (dev) |
-| 2383 | POST | /dev/generate-mock-data | N/A (dev) |
-| 2430 | POST | /auth/setup-password | ✅ Supabase |
-| 2531 | POST | /auth/register | ✅ Supabase |
-| 2630 | POST | /auth/login | ✅ Supabase |
-| 2698 | GET | /auth/verify | ✅ KV (sessions) |
-| 2740 | POST | /auth/logout | ✅ KV (sessions) |
-| 2761 | POST | /auth/admin/login | ✅ Supabase |
-| 2806 | GET | /user/packages | ✅ Supabase |
-| 2905 | POST | /user/packages/:id/reschedule | ✅ Supabase |
-| 3016 | GET | /debug/check-users | N/A (debug) |
-| 3041 | POST | /waitlist | ✅ Supabase |
-| 3104 | GET | /admin/waitlist | ✅ Supabase |
-| 3145 | POST | /admin/waitlist/send-invite | ✅ Supabase |
-| 3272 | GET | /waitlist/verify/:code | ✅ Supabase |
-| 3314 | POST | /waitlist/redeem | ✅ Supabase |
-| 3514 | DELETE | /admin/waitlist/:email | ✅ Supabase |
-| 3558 | POST | /upload-logo | N/A (file) |
+| 877 | GET | /health | N/A |
+| 883 | POST | /validate-coupon | ✅ Supabase |
+| 1000 | POST | /packages | ✅ Supabase |
+| 1266 | POST | /packages/:id/first-session | ✅ Supabase |
+| 1466 | GET | /packages | ✅ Supabase |
+| 1525 | GET | /packages/:id | ✅ Supabase |
+| 1583 | POST | /reservations | ✅ Supabase |
+| 1797 | GET | /reservations | ✅ Supabase |
+| 1859 | GET | /reservations/:id | ✅ Supabase |
+| 1901 | PATCH | /reservations/:id/status | ✅ Supabase |
+| 2071 | DELETE | /reservations/:id | ✅ Supabase |
+| 2148 | POST | /activate | ✅ Supabase |
+| 2272 | POST | /admin/users/:email/resend-login-email | ✅ Supabase |
+| 2362 | GET | /admin/users | ✅ Supabase |
+| 2472 | PATCH | /admin/users/:email/payment | ✅ Supabase |
+| 2555 | PATCH | /admin/users/:email/adjust-sessions | ✅ Supabase |
+| 2651 | DELETE | /users/:email | ✅ Supabase |
+| 2745 | GET | /bookings | ✅ Supabase |
+| 2808 | POST | /migrate-bookings | N/A (tool) |
+| 2944 | GET | /admin/calendar | ✅ Supabase |
+| 3024 | GET | /slots | ✅ Supabase |
+| 3080 | GET | /slots/live-days | ✅ Supabase |
+| 3104 | GET | /slots/availability | ✅ Supabase |
+| 3173 | GET | /admin/slots | ✅ Supabase |
+| 3227 | PATCH | /admin/days/:date/status | ✅ Supabase |
+| 3301 | POST | /admin/slots | ✅ Supabase |
+| 3361 | PATCH | /admin/slots/:id | ✅ Supabase |
+| 3439 | DELETE | /admin/slots/:id | ✅ Supabase |
+| 3538 | POST | /dev/clear-all-data | N/A (dev) |
+| 3567 | POST | /dev/generate-mock-data | N/A (dev) |
+| 3614 | POST | /auth/setup-password | ✅ Supabase |
+| 3716 | POST | /auth/register | ✅ Supabase |
+| 3816 | POST | /auth/login | ✅ Supabase |
+| 3885 | GET | /auth/verify | ✅ KV (sessions) |
+| 3917 | POST | /auth/logout | ✅ KV (sessions) |
+| 3938 | POST | /auth/admin/login | ✅ Supabase |
+| 3984 | PATCH | /user/language | ✅ Supabase |
+| 4024 | GET | /user/packages | ✅ Supabase |
+| 4185 | POST | /user/packages/:id/reschedule | ✅ Supabase |
+| 4310 | POST | /user/packages/:id/book-session | ✅ Supabase |
+| 4446 | DELETE | /user/packages/:id/reservations/:reservationId | ✅ Supabase |
+| 4575 | GET | /debug/check-users | N/A (debug) |
+| 4601 | POST | /admin/sync-user-sessions | ✅ Supabase |
+| 4663 | POST | /waitlist | ✅ Supabase |
+| 4726 | GET | /admin/waitlist | ✅ Supabase |
+| 4767 | POST | /admin/waitlist/send-invite | ✅ Supabase |
+| 4895 | POST | /admin/archived-users/send-email | ✅ Supabase |
+| 4965 | GET | /waitlist/verify/:code | ✅ Supabase |
+| 5007 | POST | /waitlist/redeem | ✅ Supabase |
+| 5213 | DELETE | /admin/waitlist/:email | ✅ Supabase |
+| 5283 | POST | /upload-logo | N/A (file) |
 
 ## Summary
 
 | Status | Count |
 |--------|------:|
-| ✅ Migrated to Supabase | 27 |
+| ✅ Migrated to Supabase | 43 |
 | ✅ KV acceptable (sessions) | 2 |
-| N/A (dev/debug/utility) | 5 |
-| **Total** | **34** |
+| N/A (dev/debug/utility) | 6 |
+| **Total** | **51** |
 
 ## Removed Endpoints
 

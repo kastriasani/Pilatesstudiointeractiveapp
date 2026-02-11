@@ -1018,6 +1018,31 @@ app.post("/make-server-b87b0c07/packages", async (c) => {
     const supabase = getSupabase();
     const now = new Date().toISOString();
 
+    // Prevent duplicate packages: check if user already has a pending package of the same type
+    const { data: existingPkg } = await supabase
+      .from('user_packages')
+      .select('id, created_at')
+      .eq('user_email', normalizedEmail)
+      .eq('package_type', packageType)
+      .eq('package_status', 'pending')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (existingPkg) {
+      // Return the existing package instead of creating a duplicate
+      console.log(`⚠️ Duplicate package prevented for ${normalizedEmail} (type: ${packageType}). Returning existing: ${existingPkg.id}`);
+      return c.json({
+        success: true,
+        package: { id: existingPkg.id },
+        packageId: existingPkg.id,
+        requiresFirstSessionBooking: true,
+        bonusClasses: 0,
+        redeemedCoupon: null,
+        message: "Package already exists. Please select date and time for your first session."
+      });
+    }
+
     // Upsert user in Supabase users table
     const { data: existingUser, error: userCheckError } = await supabase
       .from('users')
