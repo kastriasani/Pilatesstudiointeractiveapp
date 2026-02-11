@@ -309,27 +309,31 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
   }, [activeSessionToken]);
 
   // Timer for grace period countdown - updates every second when inline calendar is open
+  // Only auto-closes if the selected session was booked recently (within grace period)
   useEffect(() => {
     if (!inlineBookingPackageId || selectedSlotIndex === null) return;
 
+    // Check if the selected session is within grace period at the time of opening
+    const pkg = packages.find(p => p.id === inlineBookingPackageId);
+    const session = pkg?.bookedSessions?.find(s => s.slotIndex === selectedSlotIndex);
+    if (!session || !session.createdAt) return; // No session or no createdAt — nothing to auto-close
+
+    const createdAtUTC = new Date(session.createdAt);
+    const createdAt = new Date(createdAtUTC.toLocaleString('en-US', { timeZone: 'Europe/Skopje' }));
+    const gracePeriodMs = 2 * 60 * 1000; // 2 minutes
+    const initialElapsed = getSkopjeTime().getTime() - createdAt.getTime();
+
+    // If already past grace period when opened, don't start the auto-close timer
+    if (initialElapsed >= gracePeriodMs) return;
+
     const interval = setInterval(() => {
       setGracePeriodTick(prev => {
-        // Check if any session in grace period just expired
-        const pkg = packages.find(p => p.id === inlineBookingPackageId);
-        if (pkg) {
-          const session = pkg.bookedSessions?.find(s => s.slotIndex === selectedSlotIndex);
-          if (session && session.createdAt) {
-            const createdAtUTC = new Date(session.createdAt);
-            const createdAt = new Date(createdAtUTC.toLocaleString('en-US', { timeZone: 'Europe/Skopje' }));
-            const now = getSkopjeTime();
-            const gracePeriodMs = 2 * 60 * 1000; // 2 minutes
-            const elapsedMs = now.getTime() - createdAt.getTime();
-            if (elapsedMs >= gracePeriodMs) {
-              // Grace period expired - close the inline calendar
-              setInlineBookingPackageId(null);
-              setSelectedSlotIndex(null);
-            }
-          }
+        const now = getSkopjeTime();
+        const elapsedMs = now.getTime() - createdAt.getTime();
+        if (elapsedMs >= gracePeriodMs) {
+          // Grace period just expired - close the inline calendar
+          setInlineBookingPackageId(null);
+          setSelectedSlotIndex(null);
         }
         return prev + 1;
       });
