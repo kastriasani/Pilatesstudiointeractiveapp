@@ -183,6 +183,8 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
   };
   const [bookingChanges, setBookingChanges] = useState<BookingChange[]>([]);
   const [showChanges, setShowChanges] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
+  const [isArchiving, setIsArchiving] = useState(false);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Timeslot management state
@@ -202,22 +204,27 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
   // Fetch all bookings on component mount
   useEffect(() => {
     fetchBookings();
-    fetchBookingChanges();
+    fetchBookingChanges(showArchived);
     if (activeTab === 'waitlist') {
       fetchWaitlistUsers();
     }
   }, [activeTab]);
 
+  // Refetch when archive view toggles
+  useEffect(() => {
+    fetchBookingChanges(showArchived);
+  }, [showArchived]);
+
   // Auto-poll every 30 seconds so admin sees user changes
   useEffect(() => {
     pollingRef.current = setInterval(() => {
       fetchBookings(true);
-      fetchBookingChanges();
+      fetchBookingChanges(showArchived);
     }, 30000);
     return () => {
       if (pollingRef.current) clearInterval(pollingRef.current);
     };
-  }, []);
+  }, [showArchived]);
 
   // Scroll to top whenever tab changes
   useEffect(() => {
@@ -303,9 +310,9 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
     }
   };
 
-  const fetchBookingChanges = async () => {
+  const fetchBookingChanges = async (archived = false) => {
     try {
-      const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/admin/booking-changes?limit=50`, {
+      const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/admin/booking-changes?limit=50&archived=${archived}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -319,6 +326,29 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
       }
     } catch (error) {
       console.error('Error fetching booking changes:', error);
+    }
+  };
+
+  const handleArchiveChanges = async () => {
+    setIsArchiving(true);
+    try {
+      const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/admin/booking-changes/archive`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${publicAnonKey}`,
+          'X-Session-Token': getSessionToken(),
+        },
+      });
+      if (response.ok) {
+        toast.success('Changes archived');
+        await fetchBookingChanges(false);
+      }
+    } catch (error) {
+      console.error('Error archiving changes:', error);
+      toast.error('Failed to archive changes');
+    } finally {
+      setIsArchiving(false);
     }
   };
 
@@ -1662,8 +1692,8 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
               className="flex items-center gap-2 w-full bg-[#F5F0EE] rounded-lg px-4 py-3 text-sm font-medium text-[#3d2f28] hover:bg-[#ede5df] transition-colors"
             >
               <Clock className="w-4 h-4 text-[#8b7764]" />
-              <span>Recent Changes</span>
-              {bookingChanges.length > 0 && (
+              <span>{showArchived ? 'Archived Changes' : 'Recent Changes'}</span>
+              {!showArchived && bookingChanges.length > 0 && (
                 <span className="bg-[#c96442] text-white text-xs font-bold px-2 py-0.5 rounded-full">
                   {bookingChanges.length}
                 </span>
@@ -1673,9 +1703,30 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
               </span>
             </button>
             {showChanges && (
-              <div className="bg-[#F5F0EE] rounded-b-lg border-t border-[#e8dfd8] max-h-80 overflow-y-auto">
+              <div className="bg-[#F5F0EE] rounded-b-lg border-t border-[#e8dfd8]">
+                {/* Archive controls */}
+                <div className="flex items-center justify-between px-4 py-2 border-b border-[#e8dfd8]">
+                  <button
+                    onClick={() => setShowArchived(!showArchived)}
+                    className="text-xs text-[#8b7764] hover:text-[#6b5949] transition-colors"
+                  >
+                    {showArchived ? '← Back to recent' : 'View archived'}
+                  </button>
+                  {!showArchived && bookingChanges.length > 0 && (
+                    <button
+                      onClick={handleArchiveChanges}
+                      disabled={isArchiving}
+                      className="text-xs font-medium text-[#8b7764] hover:text-[#6b5949] disabled:opacity-50 transition-colors"
+                    >
+                      {isArchiving ? 'Archiving...' : 'Archive all'}
+                    </button>
+                  )}
+                </div>
+                <div className="max-h-80 overflow-y-auto">
                 {bookingChanges.length === 0 ? (
-                  <p className="text-sm text-stone-500 text-center py-4">No recent changes</p>
+                  <p className="text-sm text-stone-500 text-center py-4">
+                    {showArchived ? 'No archived changes' : 'No recent changes'}
+                  </p>
                 ) : (
                   <div className="divide-y divide-[#e8dfd8]">
                     {bookingChanges.map((change) => (
@@ -1720,6 +1771,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                     ))}
                   </div>
                 )}
+                </div>
               </div>
             )}
           </div>

@@ -4917,11 +4917,13 @@ app.get("/make-server-b87b0c07/admin/booking-changes", async (c) => {
     const limitParam = parseInt(c.req.query('limit') || '50');
     const limit = Math.min(Math.max(limitParam, 1), 200);
     const since = c.req.query('since'); // optional ISO timestamp
+    const archived = c.req.query('archived') === 'true';
 
     const supabase = getSupabase();
     let query = supabase
       .from('booking_changes')
       .select('*')
+      .eq('is_archived', archived)
       .order('created_at', { ascending: false })
       .limit(limit);
 
@@ -4955,6 +4957,33 @@ app.get("/make-server-b87b0c07/admin/booking-changes", async (c) => {
   } catch (error: any) {
     console.error('Error fetching booking changes:', error);
     return c.json({ error: 'Failed to fetch booking changes', details: error.message }, 500);
+  }
+});
+
+// POST /admin/booking-changes/archive - Archive all unarchived booking changes (admin only)
+app.post("/make-server-b87b0c07/admin/booking-changes/archive", async (c) => {
+  try {
+    const adminAuth = await verifyAdminSession(c);
+    if (!adminAuth.valid) {
+      return c.json({ error: adminAuth.error }, 401);
+    }
+
+    const supabase = getSupabase();
+    const { data, error } = await supabase
+      .from('booking_changes')
+      .update({ is_archived: true })
+      .eq('is_archived', false)
+      .select('id');
+
+    if (error) {
+      console.error('Error archiving booking changes:', error);
+      return c.json({ error: 'Failed to archive booking changes' }, 500);
+    }
+
+    return c.json({ success: true, archivedCount: data?.length || 0 });
+  } catch (error: any) {
+    console.error('Error archiving booking changes:', error);
+    return c.json({ error: 'Failed to archive booking changes', details: error.message }, 500);
   }
 });
 
