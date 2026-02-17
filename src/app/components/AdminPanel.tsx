@@ -761,12 +761,15 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
 
   const maxDailyCapacity = timeSlots.length * 4; // 7 slots × 4 capacity = 28 max bookings per day
 
+  const activeStatuses = ['pending', 'confirmed', 'attended'];
+
   const getBookingsForDate = (dateKey: string) => {
     // Convert legacy "M-D" format to ISO "YYYY-MM-DD" for comparison
     const isoDateKey = convertToISODate(dateKey);
     return bookings.filter(booking => {
       // Handle both formats: legacy "M-D" and ISO "YYYY-MM-DD"
-      return booking.dateKey === dateKey || booking.dateKey === isoDateKey;
+      return (booking.dateKey === dateKey || booking.dateKey === isoDateKey) &&
+        activeStatuses.includes(booking.status);
     });
   };
 
@@ -777,7 +780,8 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
     const isoDateKey = convertToISODate(dateKey);
     return bookings.filter(booking =>
       (booking.dateKey === dateKey || booking.dateKey === isoDateKey) &&
-      booking.timeSlot === startTime
+      booking.timeSlot === startTime &&
+      activeStatuses.includes(booking.status)
     );
   };
 
