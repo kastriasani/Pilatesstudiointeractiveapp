@@ -2901,6 +2901,7 @@ app.get("/make-server-b87b0c07/bookings", async (c) => {
       reservationStatus: r.reservation_status,
       paymentStatus: r.payment_status,
       isFriendBooking: r.is_friend_booking || false,
+      serviceType: r.service_type || 'single',
     }));
 
     console.log(`📅 Retrieved ${bookings.length} bookings from Supabase`);
@@ -4397,6 +4398,24 @@ app.post("/make-server-b87b0c07/user/packages/:id/reschedule", async (c) => {
 
     console.log(`Rescheduled first session for package ${packageId} (Supabase)`);
 
+    // Audit trail: log the reschedule
+    try {
+      await supabase.from('booking_changes').insert({
+        reservation_id: firstReservation.id,
+        user_email: firstReservation.user_email,
+        change_type: 'rescheduled',
+        old_date_key: firstReservation.date_key,
+        old_time_slot: firstReservation.time_slot,
+        new_date_key: updatedReservation.date_key,
+        new_time_slot: updatedReservation.time_slot,
+        user_name: firstReservation.name,
+        user_surname: firstReservation.surname,
+        package_type: pkg.package_type,
+      });
+    } catch (auditErr) {
+      console.error('Audit log error (reschedule):', auditErr);
+    }
+
     // Build response in camelCase for frontend
     const reservation = {
       id: updatedReservation.id,
@@ -4707,6 +4726,22 @@ app.delete("/make-server-b87b0c07/user/packages/:id/reservations/:reservationId"
 
     console.log(`🗑️ Cancelled reservation ${reservationId} for package ${packageId}`);
 
+    // Audit trail: log the cancellation
+    try {
+      await supabase.from('booking_changes').insert({
+        reservation_id: reservationId,
+        user_email: reservation.user_email,
+        change_type: 'cancelled',
+        old_date_key: reservation.date_key,
+        old_time_slot: reservation.time_slot,
+        user_name: reservation.name,
+        user_surname: reservation.surname,
+        package_type: reservation.package_type,
+      });
+    } catch (auditErr) {
+      console.error('Audit log error (cancel):', auditErr);
+    }
+
     return c.json({
       success: true,
       message: "Session cancelled successfully",
@@ -4868,6 +4903,58 @@ app.post("/make-server-b87b0c07/waitlist", async (c) => {
   } catch (error) {
     console.error('Error adding to waitlist:', error);
     return c.json({ error: 'Failed to add to waitlist', details: error.message }, 500);
+  }
+});
+
+// GET /admin/booking-changes - Fetch recent booking changes (admin only)
+app.get("/make-server-b87b0c07/admin/booking-changes", async (c) => {
+  try {
+    const adminAuth = await verifyAdminSession(c);
+    if (!adminAuth.valid) {
+      return c.json({ error: adminAuth.error }, 401);
+    }
+
+    const limitParam = parseInt(c.req.query('limit') || '50');
+    const limit = Math.min(Math.max(limitParam, 1), 200);
+    const since = c.req.query('since'); // optional ISO timestamp
+
+    const supabase = getSupabase();
+    let query = supabase
+      .from('booking_changes')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (since) {
+      query = query.gt('created_at', since);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('Error fetching booking changes:', error);
+      return c.json({ error: 'Failed to fetch booking changes' }, 500);
+    }
+
+    return c.json({
+      changes: (data || []).map((ch: any) => ({
+        id: ch.id,
+        reservationId: ch.reservation_id,
+        userEmail: ch.user_email,
+        changeType: ch.change_type,
+        oldDateKey: ch.old_date_key,
+        oldTimeSlot: ch.old_time_slot,
+        newDateKey: ch.new_date_key,
+        newTimeSlot: ch.new_time_slot,
+        userName: ch.user_name,
+        userSurname: ch.user_surname,
+        packageType: ch.package_type,
+        createdAt: ch.created_at,
+      }))
+    });
+  } catch (error: any) {
+    console.error('Error fetching booking changes:', error);
+    return c.json({ error: 'Failed to fetch booking changes', details: error.message }, 500);
   }
 });
 

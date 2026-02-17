@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Calendar, Users, LogOut, Mail, X, CheckCircle, Trash2, Ban, ShieldAlert, Settings, UserPlus, UserMinus, Send, AlertCircle, Loader2, Pencil, Plus } from 'lucide-react';
+import { Calendar, Users, LogOut, Mail, X, CheckCircle, Trash2, Ban, ShieldAlert, Settings, UserPlus, UserMinus, Send, AlertCircle, Loader2, Pencil, Plus, ChevronDown, ChevronUp, Clock } from 'lucide-react';
 import { logo } from '../../assets/images';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { DevTools } from './DevTools';
@@ -34,7 +34,7 @@ export type User = {
   mobile: string;
   email: string;
   status: UserStatus;
-  packageType?: 'package8' | 'package10' | 'package12' | 'single';
+  packageType?: 'package8' | 'package10' | 'package12' | 'single' | '1class' | '8classes' | '12classes' | 'duo1class' | 'duo8classes' | 'duo12classes';
   bookingDate?: string;
   bookingTime?: string;
   totalSessions?: number; // Total sessions purchased across all packages
@@ -42,7 +42,7 @@ export type User = {
   remainingSessions?: number; // Sessions remaining (source of truth)
   sessionsAdjustedAt?: string; // Last manual adjustment timestamp
   packages?: Array<{ // Track all packages purchased
-    type: 'package8' | 'package10' | 'package12';
+    type: 'package8' | 'package10' | 'package12' | '1class' | '8classes' | '12classes' | 'duo1class' | 'duo8classes' | 'duo12classes';
     sessions: number;
     purchasedDate: string;
     activatedDate?: string;
@@ -62,11 +62,12 @@ export type Booking = {
   dateKey: string;
   timeSlot: string;
   instructor: string;
-  selectedPackage?: 'package8' | 'package10' | 'package12';
+  selectedPackage?: 'package8' | 'package10' | 'package12' | '1class' | '8classes' | '12classes' | 'duo1class' | 'duo8classes' | 'duo12classes';
   payInStudio: boolean;
   language: string;
   status: UserStatus;
   isFriendBooking?: boolean;
+  serviceType?: string;
   createdAt: string;
 };
 
@@ -165,6 +166,25 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
   const [isSendingReengagement, setIsSendingReengagement] = useState(false);
   const [reengagementStatus, setReengagementStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
 
+  // Booking change history state
+  type BookingChange = {
+    id: string;
+    reservationId: string;
+    userEmail: string;
+    changeType: 'cancelled' | 'rescheduled';
+    oldDateKey: string;
+    oldTimeSlot: string;
+    newDateKey: string | null;
+    newTimeSlot: string | null;
+    userName: string;
+    userSurname: string;
+    packageType: string;
+    createdAt: string;
+  };
+  const [bookingChanges, setBookingChanges] = useState<BookingChange[]>([]);
+  const [showChanges, setShowChanges] = useState(false);
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   // Timeslot management state
   const [customSlots, setCustomSlots] = useState<any[]>([]);
   const [editingSlotId, setEditingSlotId] = useState<string | null>(null);
@@ -182,10 +202,22 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
   // Fetch all bookings on component mount
   useEffect(() => {
     fetchBookings();
+    fetchBookingChanges();
     if (activeTab === 'waitlist') {
       fetchWaitlistUsers();
     }
   }, [activeTab]);
+
+  // Auto-poll every 30 seconds so admin sees user changes
+  useEffect(() => {
+    pollingRef.current = setInterval(() => {
+      fetchBookings(true);
+      fetchBookingChanges();
+    }, 30000);
+    return () => {
+      if (pollingRef.current) clearInterval(pollingRef.current);
+    };
+  }, []);
 
   // Scroll to top whenever tab changes
   useEffect(() => {
@@ -195,9 +227,9 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
     }
   }, [activeTab, userSubTab]);
 
-  const fetchBookings = async () => {
+  const fetchBookings = async (silent = false) => {
     try {
-      setIsLoading(true);
+      if (!silent) setIsLoading(true);
       
       // Fetch bookings for calendar view
       const bookingsResponse = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/bookings`, {
@@ -267,7 +299,26 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
+    }
+  };
+
+  const fetchBookingChanges = async () => {
+    try {
+      const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/admin/booking-changes?limit=50`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${publicAnonKey}`,
+          'X-Session-Token': getSessionToken(),
+        },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setBookingChanges(data.changes || []);
+      }
+    } catch (error) {
+      console.error('Error fetching booking changes:', error);
     }
   };
 
@@ -701,7 +752,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
   const timeSlots: TimeSlot[] = [
     { time: '09:00 - 09:50', maxCapacity: 4 },
     { time: '10:00 - 10:50', maxCapacity: 4 },
-    { time: '16:00 - 16:50', maxCapacity: 4 },
+    { time: '11:00 - 11:50', maxCapacity: 4 },
     { time: '17:00 - 17:50', maxCapacity: 4 },
     { time: '18:00 - 18:50', maxCapacity: 4 },
     { time: '19:00 - 19:50', maxCapacity: 4 },
@@ -730,9 +781,17 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
     );
   };
 
-  const getTimeSlotCapacity = (dateKey: string, timeSlot: string) => {
-    const bookings = getBookingsForTimeSlot(dateKey, timeSlot);
-    return bookings.length;
+  const getSlotOccupancy = (dateKey: string, timeSlot: string) => {
+    const slotBookings = getBookingsForTimeSlot(dateKey, timeSlot);
+    const seatsOccupied = slotBookings.reduce((total, booking) => {
+      if (booking.serviceType === 'duo') return total + 2;
+      if (booking.serviceType === 'individual') return total + 4;
+      return total + 1;
+    }, 0);
+    const hasPrivateSession = slotBookings.some(
+      (b) => b.serviceType === 'individual' || b.serviceType === 'duo'
+    );
+    return { bookingCount: slotBookings.length, seatsOccupied, hasPrivateSession };
   };
 
   const isUserArchived = (user: User): boolean => {
@@ -1232,7 +1291,11 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
               <div className="flex gap-2 overflow-x-auto pb-1 snap-x snap-mandatory scrollbar-hide">
                 {dates.map((date) => {
                   const dayBookings = getBookingsForDate(date.dateKey);
-                  const bookingsCount = dayBookings.length;
+                  const daySeatsOccupied = dayBookings.reduce((total, booking) => {
+                    if (booking.serviceType === 'duo') return total + 2;
+                    if (booking.serviceType === 'individual') return total + 4;
+                    return total + 1;
+                  }, 0);
                   const isSelected = selectedDate === date.dateKey;
                   const todayKey = formatDateKeyLegacy(new Date());
                   const isToday = date.dateKey === todayKey;
@@ -1265,7 +1328,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                           {date.displayDate.split('.')[0]}
                         </span>
                         <span className={`text-[9px] ${isSelected ? 'text-stone-300' : 'text-stone-400'}`}>
-                          {bookingsCount}/{maxDailyCapacity}
+                          {daySeatsOccupied}/{maxDailyCapacity}
                         </span>
                       </button>
 
@@ -1321,12 +1384,13 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                   }))).map((slot: any) => {
                     const slotTime = slot.start_time?.substring(0, 5) || slot.start_time;
                     const timeSlotKey = `${slotTime} - ${slotTime}`;
-                    const bookingsCount = getBookingsForTimeSlot(selectedDate, timeSlotKey).length;
-                    const isSelected = selectedTimeSlot === timeSlotKey;
                     const slotBookings = getBookingsForTimeSlot(selectedDate, timeSlotKey);
+                    const { bookingCount, seatsOccupied, hasPrivateSession } = getSlotOccupancy(selectedDate, timeSlotKey);
+                    const effectiveSeats = hasPrivateSession ? (slot.max_capacity || 4) : seatsOccupied;
+                    const isSelected = selectedTimeSlot === timeSlotKey;
                     const hasPaidBooking = slotBookings.some((b: any) => b.paymentStatus === 'paid');
                     const hasUnpaidBooking = slotBookings.some((b: any) => b.paymentStatus !== 'paid');
-                    const hasBookings = bookingsCount > 0;
+                    const hasBookings = bookingCount > 0;
 
                     // Status dot color: green=paid, amber=unpaid, stone=empty
                     let dotColor = 'bg-stone-300'; // empty
@@ -1401,10 +1465,10 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                 <span className="text-sm font-medium text-stone-800 w-12">{slotTime}</span>
                                 <div className="flex-1 text-left">
                                   <span className="text-sm text-stone-600">
-                                    {bookingsCount === 0 ? 'Available' : `${bookingsCount} booked`}
+                                    {bookingCount === 0 ? 'Available' : `${bookingCount} booked`}
                                   </span>
                                 </div>
-                                <span className="text-sm text-stone-400">{bookingsCount}/{slot.max_capacity || 4}</span>
+                                <span className="text-sm text-stone-400">{effectiveSeats}/{slot.max_capacity || 4}</span>
                               </button>
 
                               {/* Delete button - only in edit mode and if no bookings */}
@@ -1422,12 +1486,13 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                         </div>
 
                         {/* Expanded bookings */}
-                        {isSelected && bookingsCount > 0 && (
+                        {isSelected && bookingCount > 0 && (
                           <div className="px-4 pb-3 space-y-2 bg-stone-50">
                             {slotBookings.map((booking) => {
-                              const baseCount = booking.selectedPackage === 'package8' ? 8
+                              const baseCount = booking.selectedPackage === 'package8' || booking.selectedPackage === '8classes' || booking.selectedPackage === 'duo8classes' ? 8
                                 : booking.selectedPackage === 'package10' ? 10
-                                : booking.selectedPackage === 'package12' ? 12 : 0;
+                                : booking.selectedPackage === 'package12' || booking.selectedPackage === '12classes' || booking.selectedPackage === 'duo12classes' ? 12
+                                : booking.selectedPackage === '1class' || booking.selectedPackage === 'duo1class' ? 1 : 0;
                               const isProcessing = processingBookingId === booking.id;
                               const isUpdatingPayment = paymentUpdatingEmail === booking.email;
                               const isPaid = booking.paymentStatus === 'paid';
@@ -1586,13 +1651,81 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                 )}
               </div>
             )}
+          {/* Recent Changes Section */}
+          <div className="mt-4">
+            <button
+              onClick={() => setShowChanges(!showChanges)}
+              className="flex items-center gap-2 w-full bg-[#F5F0EE] rounded-lg px-4 py-3 text-sm font-medium text-[#3d2f28] hover:bg-[#ede5df] transition-colors"
+            >
+              <Clock className="w-4 h-4 text-[#8b7764]" />
+              <span>Recent Changes</span>
+              {bookingChanges.length > 0 && (
+                <span className="bg-[#c96442] text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                  {bookingChanges.length}
+                </span>
+              )}
+              <span className="ml-auto">
+                {showChanges ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              </span>
+            </button>
+            {showChanges && (
+              <div className="bg-[#F5F0EE] rounded-b-lg border-t border-[#e8dfd8] max-h-80 overflow-y-auto">
+                {bookingChanges.length === 0 ? (
+                  <p className="text-sm text-stone-500 text-center py-4">No recent changes</p>
+                ) : (
+                  <div className="divide-y divide-[#e8dfd8]">
+                    {bookingChanges.map((change) => (
+                      <div key={change.id} className="px-4 py-3 flex items-start gap-3">
+                        <div className={`mt-0.5 w-2 h-2 rounded-full flex-shrink-0 ${
+                          change.changeType === 'cancelled' ? 'bg-red-500' : 'bg-blue-500'
+                        }`} />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-sm font-medium text-[#3d2f28]">
+                              {change.userName} {change.userSurname}
+                            </span>
+                            <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${
+                              change.changeType === 'cancelled'
+                                ? 'bg-red-100 text-red-700'
+                                : 'bg-blue-100 text-blue-700'
+                            }`}>
+                              {change.changeType === 'cancelled' ? 'Cancelled' : 'Rescheduled'}
+                            </span>
+                            {change.packageType && (
+                              <span className="text-xs text-[#8b7764]">{change.packageType}</span>
+                            )}
+                          </div>
+                          <div className="text-xs text-[#8b7764] mt-1">
+                            {change.changeType === 'cancelled' ? (
+                              <span>{change.oldDateKey} at {change.oldTimeSlot}</span>
+                            ) : (
+                              <span>
+                                <span className="line-through">{change.oldDateKey} {change.oldTimeSlot}</span>
+                                {' → '}
+                                <span className="font-medium text-[#3d2f28]">{change.newDateKey} {change.newTimeSlot}</span>
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <span className="text-xs text-[#8b7764] flex-shrink-0 whitespace-nowrap">
+                          {new Date(change.createdAt).toLocaleString('en-GB', {
+                            day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
+                          })}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
           </div>
         ) : activeTab === 'users' ? (
           <div className="flex-1 overflow-y-auto">
             <div className="bg-[#F5F0EE] rounded-lg shadow-sm">
               {/* User Database Header */}
               <div className="flex items-center justify-between p-4 border-b border-[#e8dfd8]">
-                <h2 className="text-base font-medium text-[#3d2f28]\">User Database</h2>
+                <h2 className="text-base font-medium text-[#3d2f28]">User Database</h2>
                 <p className="text-sm text-[#8b7764]">Total users: {users.length}</p>
               </div>
 
@@ -1692,7 +1825,10 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                 })()
                   .map((user) => {
                     const isExpanded = expandedUserId === user.id;
-                    const baseSessionCount = user.packageType === 'package8' ? 8 : user.packageType === 'package10' ? 10 : user.packageType === 'package12' ? 12 : 1;
+                    const baseSessionCount = user.packageType === 'package8' || user.packageType === '8classes' || user.packageType === 'duo8classes' ? 8
+                      : user.packageType === 'package10' ? 10
+                      : user.packageType === 'package12' || user.packageType === '12classes' || user.packageType === 'duo12classes' ? 12
+                      : 1;
                     const totalSessions = user.totalSessions || baseSessionCount;
                     const bonusSessions = totalSessions > baseSessionCount ? totalSessions - baseSessionCount : 0;
                     // remaining is source of truth, used is computed
@@ -1747,9 +1883,11 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                               {user.name} {user.surname}
                             </span>
                             <span className="text-xs text-[#8b7764]">
-                              {user.packageType === 'single' ? 'Single' : (
+                              {user.packageType === 'single' || user.packageType === '1class' || user.packageType === 'duo1class' ? (
+                                user.packageType === '1class' ? 'Individual' : user.packageType === 'duo1class' ? 'DUO' : 'Single'
+                              ) : (
                                 <>
-                                  {baseSessionCount}-pack
+                                  {user.packageType?.startsWith('duo') ? 'DUO ' : user.packageType === '8classes' || user.packageType === '12classes' ? 'Ind ' : ''}{baseSessionCount}-pack
                                   {user.status === 'confirmed' && (
                                     <>
                                       {' · '}
@@ -1819,6 +1957,20 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                   bonusSessions > 0 ? `12 + ${bonusSessions} Bonus Sessions` : '12 Sessions (4800 DEN)'
                                 )}
                                 {user.packageType === 'single' && 'Single (600 DEN)'}
+                                {user.packageType === '1class' && '1 Individual Class'}
+                                {user.packageType === '8classes' && (
+                                  bonusSessions > 0 ? `8 + ${bonusSessions} Bonus Individual` : '8 Individual Classes'
+                                )}
+                                {user.packageType === '12classes' && (
+                                  bonusSessions > 0 ? `12 + ${bonusSessions} Bonus Individual` : '12 Individual Classes'
+                                )}
+                                {user.packageType === 'duo1class' && '1 DUO Class'}
+                                {user.packageType === 'duo8classes' && (
+                                  bonusSessions > 0 ? `8 + ${bonusSessions} Bonus DUO` : '8 DUO Classes'
+                                )}
+                                {user.packageType === 'duo12classes' && (
+                                  bonusSessions > 0 ? `12 + ${bonusSessions} Bonus DUO` : '12 DUO Classes'
+                                )}
                               </div>
                             </div>
 
