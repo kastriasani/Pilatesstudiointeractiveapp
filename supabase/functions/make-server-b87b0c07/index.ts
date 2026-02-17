@@ -2065,6 +2065,22 @@ app.patch("/make-server-b87b0c07/reservations/:id/status", async (c) => {
             console.log(`🔄 Session restored for cancelled reservation ${reservationId}. Remaining: ${newRemainingSessions}`);
           }
         }
+
+        // Audit trail: log admin cancellation
+        try {
+          await supabase.from('booking_changes').insert({
+            reservation_id: reservationId,
+            user_email: reservation.user_email,
+            change_type: 'cancelled',
+            old_date_key: reservation.date_key,
+            old_time_slot: reservation.time_slot,
+            user_name: reservation.name,
+            user_surname: reservation.surname,
+            package_type: reservation.package_type,
+          });
+        } catch (auditErr) {
+          console.error('Audit log error (admin cancel):', auditErr);
+        }
       }
 
       if (reservationStatus === 'no_show') {
@@ -2209,6 +2225,22 @@ app.delete("/make-server-b87b0c07/reservations/:id", async (c) => {
           .update(packageUpdates)
           .eq('id', reservation.package_id);
       }
+    }
+
+    // Audit trail: log admin removal before deleting
+    try {
+      await supabase.from('booking_changes').insert({
+        reservation_id: reservationId,
+        user_email: reservation.user_email,
+        change_type: 'cancelled',
+        old_date_key: reservation.date_key,
+        old_time_slot: reservation.time_slot,
+        user_name: reservation.name,
+        user_surname: reservation.surname,
+        package_type: reservation.package_type,
+      });
+    } catch (auditErr) {
+      console.error('Audit log error (admin remove):', auditErr);
     }
 
     // Delete the reservation from Supabase
