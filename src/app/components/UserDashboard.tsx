@@ -1522,7 +1522,7 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
                   >
                     {/* Locked overlay */}
                     {!isEligibleForNewPackage && (
-                      <div className="absolute inset-0 bg-gray-200/70 z-10 flex items-center justify-center rounded-xl">
+                      <div className="absolute inset-0 bg-gray-200/30 z-10 flex items-center justify-center rounded-xl">
                         <div className="text-center px-4">
                           <Lock className="w-6 h-6 text-[#8b7764]/60 mx-auto mb-2" />
                           <p className="text-xs text-[#8b7764] font-medium leading-snug">
