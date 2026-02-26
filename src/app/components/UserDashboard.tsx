@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Package, Calendar, Clock, CreditCard, CheckCircle, AlertCircle, Edit2, Plus, ChevronDown, ChevronUp, Globe, Users, LogOut, Lock, ShoppingBag, X } from 'lucide-react';
+import { Package, Calendar, Clock, CheckCircle, AlertCircle, Edit2, Plus, ChevronDown, ChevronUp, Globe, Users, LogOut, Lock, ShoppingBag } from 'lucide-react';
 import { Language, translations } from '../translations';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -107,15 +107,7 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
   const [gracePeriodTick, setGracePeriodTick] = useState(0); // Forces re-render for countdown
 
   // Buy new package state
-  const [showBuyPackageModal, setShowBuyPackageModal] = useState(false);
-  const [buyPackageStep, setBuyPackageStep] = useState<'select' | 'first-session' | 'purchasing'>('select');
-  const [selectedNewPackageType, setSelectedNewPackageType] = useState<'package8' | 'package10' | 'package12' | null>(null);
-  const [newPackageId, setNewPackageId] = useState<string | null>(null);
-  const [buySlots, setBuySlots] = useState<DateSlot[]>([]);
   const [isBuyingPackage, setIsBuyingPackage] = useState(false);
-  const [buyError, setBuyError] = useState<string | null>(null);
-  const [buyCouponCode, setBuyCouponCode] = useState('');
-  const [buyCouponValidation, setBuyCouponValidation] = useState<{ status: 'idle' | 'validating' | 'valid' | 'invalid'; message?: string; bonusClasses?: number }>({ status: 'idle' });
 
   // Get session token from prop or localStorage as fallback
   const activeSessionToken = sessionToken || localStorage.getItem('wellnest_session') || '';
@@ -884,7 +876,6 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
   // Handle purchase of a new package
   const handlePurchasePackage = async (packageType: 'package8' | 'package10' | 'package12') => {
     setIsBuyingPackage(true);
-    setBuyError(null);
 
     try {
       const response = await fetch(
@@ -896,10 +887,7 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
             'Authorization': `Bearer ${publicAnonKey}`,
             'X-Session-Token': activeSessionToken,
           },
-          body: JSON.stringify({
-            packageType,
-            couponCode: buyCouponValidation.status === 'valid' ? buyCouponCode.trim() : undefined,
-          }),
+          body: JSON.stringify({ packageType }),
         }
       );
 
@@ -907,199 +895,21 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
 
       if (!response.ok) {
         if (handleSessionError(data.error)) return;
-        setBuyError(data.error || 'Failed to purchase package');
+        toast.error(data.error || 'Failed to purchase package');
         setIsBuyingPackage(false);
         return;
       }
 
       refreshSessionExpiry();
-      setNewPackageId(data.packageId);
-      setBuyPackageStep('first-session');
-
-      // Load available slots for first session booking
-      await loadBuySlots();
+      toast.success(t.packagePurchased || 'Package created! You can now book sessions.');
+      // Refresh packages list — the new package will appear as a line item with unpaid status
+      await loadPackages();
       setIsBuyingPackage(false);
 
     } catch (error) {
       console.error('Error purchasing package:', error);
-      setBuyError('An error occurred. Please try again.');
+      toast.error('An error occurred. Please try again.');
       setIsBuyingPackage(false);
-    }
-  };
-
-  // Load available slots for the buy package first-session step
-  const loadBuySlots = async () => {
-    try {
-      const [liveDaysResponse, bookingsResponse] = await Promise.all([
-        fetch(
-          `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/slots/live-days`,
-          { headers: { 'Authorization': `Bearer ${publicAnonKey}` } }
-        ),
-        fetch(
-          `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/slots/availability`,
-          { headers: { 'Authorization': `Bearer ${publicAnonKey}` } }
-        ),
-      ]);
-
-      if (!liveDaysResponse.ok) return;
-
-      const liveDaysData = await liveDaysResponse.json();
-      const liveDays: string[] = liveDaysData.dates || [];
-      if (liveDays.length === 0) { setBuySlots([]); return; }
-
-      const bookingsData = bookingsResponse.ok ? await bookingsResponse.json() : { bookings: [] };
-      const existingBookings = bookingsData.bookings || [];
-
-      const slotsResults = await Promise.all(
-        liveDays.map(dateKey =>
-          fetch(
-            `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/slots?date=${dateKey}`,
-            { headers: { 'Authorization': `Bearer ${publicAnonKey}` } }
-          ).then(res => res.json())
-        )
-      );
-
-      const slots: DateSlot[] = [];
-      const today = getSkopjeTime();
-      today.setHours(0, 0, 0, 0);
-
-      liveDays.forEach((dateKey, index) => {
-        const [year, month, day] = dateKey.split('-').map(Number);
-        const date = new Date(year, month - 1, day);
-
-        const daySlots = slotsResults[index]?.slots || [];
-        const timeSlotList = daySlots.length > 0
-          ? daySlots.map((s: any) => s.start_time)
-          : ['09:00', '10:00', '11:00', '17:00', '18:00', '19:00', '20:00'];
-
-        const shortDateKey = `${month}-${day}`;
-        const dayBookings = existingBookings.filter((b: any) =>
-          (b.dateKey === dateKey || b.dateKey === shortDateKey) &&
-          (b.status === 'confirmed' || b.status === 'attended' || b.status === 'pending')
-        );
-
-        const availableTimeSlots = timeSlotList.map((time: string) => {
-          const slotBookings = dayBookings.filter((b: any) => b.timeSlot === time);
-          const seatsOccupied = slotBookings.reduce((total: number, booking: any) => {
-            if (booking.serviceType === 'duo') return total + 2;
-            if (booking.serviceType === 'individual') return total + 4;
-            return total + 1;
-          }, 0);
-          const hasPrivateSession = slotBookings.some((b: any) =>
-            b.serviceType === 'individual' || b.serviceType === 'duo'
-          );
-          const maxCapacity = daySlots.find((s: any) => s.start_time === time)?.max_capacity || 4;
-          const available = hasPrivateSession ? 0 : Math.max(0, maxCapacity - seatsOccupied);
-          const userSlotBookings = slotBookings.filter((b: any) =>
-            b.email?.toLowerCase() === userEmail?.toLowerCase()
-          ).length;
-          const isPastTime = isTimeSlotPast(date, time);
-
-          return {
-            time,
-            available: isPastTime ? 0 : available,
-            maxCapacity,
-            isBooked: available <= 0 || isPastTime,
-            userBookings: userSlotBookings,
-          };
-        });
-
-        if (availableTimeSlots.some(slot => slot.available > 0)) {
-          slots.push({
-            date,
-            dateKey,
-            displayDate: date.toLocaleDateString(language === 'SQ' ? 'sq-AL' : language === 'MK' ? 'mk-MK' : 'en-US', {
-              weekday: 'short', day: 'numeric', month: 'short'
-            }),
-            timeSlots: availableTimeSlots,
-          });
-        }
-      });
-
-      setBuySlots(slots);
-    } catch (error) {
-      console.error('Error loading buy slots:', error);
-    }
-  };
-
-  // Book first session for newly purchased package
-  const handleBuyFirstSession = async (dateKey: string, timeSlot: string) => {
-    if (!newPackageId) return;
-    setIsBuyingPackage(true);
-
-    try {
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/packages/${newPackageId}/first-session`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${publicAnonKey}`,
-          },
-          body: JSON.stringify({ dateKey, timeSlot }),
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        setBuyError(data.error || 'Failed to book first session');
-        setIsBuyingPackage(false);
-        return;
-      }
-
-      toast.success(t.packagePurchased || 'Package created! Now select your first session.');
-      setShowBuyPackageModal(false);
-      setBuyPackageStep('select');
-      setSelectedNewPackageType(null);
-      setNewPackageId(null);
-      setBuyCouponCode('');
-      setBuyCouponValidation({ status: 'idle' });
-      setBuyError(null);
-      setIsBuyingPackage(false);
-
-      // Reload packages to show the new one
-      await loadPackages();
-
-    } catch (error) {
-      console.error('Error booking first session:', error);
-      setBuyError('An error occurred. Please try again.');
-      setIsBuyingPackage(false);
-    }
-  };
-
-  // Validate coupon for buy package
-  const validateBuyCoupon = async () => {
-    if (!buyCouponCode.trim()) return;
-    setBuyCouponValidation({ status: 'validating' });
-
-    try {
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/validate-coupon`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${publicAnonKey}`,
-          },
-          body: JSON.stringify({ code: buyCouponCode.trim() }),
-        }
-      );
-      const data = await response.json();
-      if (data.valid) {
-        setBuyCouponValidation({
-          status: 'valid',
-          message: data.message || 'Coupon applied!',
-          bonusClasses: data.bonusClasses,
-        });
-      } else {
-        setBuyCouponValidation({
-          status: 'invalid',
-          message: data.message || 'Invalid coupon code',
-        });
-      }
-    } catch {
-      setBuyCouponValidation({ status: 'invalid', message: 'Error validating coupon' });
     }
   };
 
@@ -1534,15 +1344,10 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
 
                     <button
                       onClick={() => {
-                        if (!isEligibleForNewPackage) return;
-                        setSelectedNewPackageType(pkg.type);
-                        setBuyPackageStep('select');
-                        setBuyError(null);
-                        setBuyCouponCode('');
-                        setBuyCouponValidation({ status: 'idle' });
-                        setShowBuyPackageModal(true);
+                        if (!isEligibleForNewPackage || isBuyingPackage) return;
+                        handlePurchasePackage(pkg.type);
                       }}
-                      disabled={!isEligibleForNewPackage}
+                      disabled={!isEligibleForNewPackage || isBuyingPackage}
                       className={`w-full p-4 text-left ${!isEligibleForNewPackage ? 'opacity-40' : ''}`}
                     >
                       {/* Recommended Badge */}
@@ -1665,207 +1470,6 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
         </div>
       )}
 
-      {/* Buy Package Modal */}
-      {showBuyPackageModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end justify-center">
-          <div className="bg-white rounded-t-3xl w-full max-h-[85vh] overflow-y-auto pb-safe">
-            {/* Modal Header */}
-            <div className="sticky top-0 bg-white border-b border-[#e8e6e3] px-5 py-4 flex items-center justify-between z-10">
-              <h2 className="text-base font-semibold text-[#3d2f28]">
-                {buyPackageStep === 'first-session'
-                  ? (t.bookFirstSession || 'Select Your First Session')
-                  : (t.buyNewPackage || 'Buy New Package')}
-              </h2>
-              <button
-                onClick={() => {
-                  setShowBuyPackageModal(false);
-                  setBuyPackageStep('select');
-                  setSelectedNewPackageType(null);
-                  setNewPackageId(null);
-                  setBuyError(null);
-                }}
-                className="text-[#8b7764] hover:text-[#6b5949] p-1"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {buyPackageStep === 'select' && selectedNewPackageType && (
-              <div className="px-5 py-5">
-                {/* Selected package summary */}
-                {(() => {
-                  const pkg = newPackageOptions.find(p => p.type === selectedNewPackageType);
-                  if (!pkg) return null;
-                  return (
-                    <div className={`rounded-2xl p-5 mb-5 ${
-                      pkg.isRecommended
-                        ? 'bg-gradient-to-br from-white via-white to-[#f8f9f4] border-2 border-[#9ca571]/40'
-                        : 'bg-white border border-[#e8e6e3]'
-                    }`}>
-                      {pkg.isRecommended && (
-                        <div className="bg-gradient-to-r from-[#9ca571] to-[#8a9463] text-white text-[10px] px-3 py-1 rounded-full inline-block mb-3 font-semibold uppercase tracking-wider shadow-sm">
-                          {t.recommended || 'Recommended'}
-                        </div>
-                      )}
-                      <div className="text-xl font-bold text-[#3d2f28] mb-1">{pkg.label}</div>
-                      <div className="text-2xl font-bold text-[#3d2f28] mb-2">
-                        {pkg.price} <span className="text-sm font-semibold text-[#6b5949]">DEN</span>
-                      </div>
-                      <p className="text-xs text-[#8b7764] mb-3">
-                        {pkg.type === 'package8' && (t.package8Detail || '8 training packages in a group (twice a week). For 35 days.')}
-                        {pkg.type === 'package10' && (t.package10Detail || '10 training packages in a group (twice a week). For 35 days.')}
-                        {pkg.type === 'package12' && (t.package12Detail || '12 training packages in a group (three times a week). For 35 days.')}
-                      </p>
-                      <div className="flex flex-wrap gap-3 text-[11px] text-[#6b5949]">
-                        <span className="flex items-center gap-1">
-                          <span className="w-1 h-1 bg-[#9ca571] rounded-full"></span>
-                          {t.classDuration || '50 min'}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <span className="w-1 h-1 bg-[#9ca571] rounded-full"></span>
-                          {t.validityPeriod || 'Valid 35 days'}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <span className="w-1 h-1 bg-[#9ca571] rounded-full"></span>
-                          {t.groupClass || 'Group class'}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })()}
-
-                {/* Coupon Code */}
-                <div className="mb-5">
-                  <label className="block text-xs font-semibold text-[#6b5949] mb-1.5">
-                    {t.couponCode || 'Coupon Code'} <span className="font-normal text-[#8b7764]/60">({t.optional || 'Optional'})</span>
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={buyCouponCode}
-                      onChange={(e) => {
-                        setBuyCouponCode(e.target.value.toUpperCase());
-                        setBuyCouponValidation({ status: 'idle' });
-                      }}
-                      placeholder={t.couponPlaceholder || 'Enter code'}
-                      className={`flex-1 px-4 py-2.5 rounded-xl bg-[#f5f0ed] text-sm text-[#3d2f28] placeholder:text-[#8b7764]/60 focus:outline-none focus:ring-2 focus:bg-white transition-all border ${
-                        buyCouponValidation.status === 'valid'
-                          ? 'border-green-500 focus:ring-green-500/50'
-                          : buyCouponValidation.status === 'invalid'
-                          ? 'border-red-500 focus:ring-red-500/50'
-                          : 'border-[#e8e6e3] focus:ring-[#9ca571]/50'
-                      } uppercase`}
-                    />
-                    <button
-                      onClick={validateBuyCoupon}
-                      disabled={!buyCouponCode.trim() || buyCouponValidation.status === 'validating'}
-                      className="px-4 py-2.5 bg-[#9ca571] text-white rounded-xl text-xs font-semibold hover:bg-[#8a9463] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {buyCouponValidation.status === 'validating' ? '...' : (t.apply || 'Apply')}
-                    </button>
-                  </div>
-                  {buyCouponValidation.status === 'valid' && (
-                    <p className="text-xs text-green-600 mt-1.5 flex items-center gap-1">
-                      <CheckCircle className="w-3 h-3" /> {buyCouponValidation.message}
-                    </p>
-                  )}
-                  {buyCouponValidation.status === 'invalid' && (
-                    <p className="text-xs text-red-600 mt-1.5 flex items-center gap-1">
-                      <AlertCircle className="w-3 h-3" /> {buyCouponValidation.message}
-                    </p>
-                  )}
-                </div>
-
-                {/* Pay at studio note */}
-                <div className="flex items-center gap-3 bg-[#f5f0ed] rounded-xl p-3 mb-5">
-                  <CreditCard className="w-4 h-4 text-[#6b5949]" />
-                  <p className="text-xs text-[#6b5949] font-medium">
-                    {t.payAtStudio || 'Payment is made at the studio'}
-                  </p>
-                </div>
-
-                {buyError && (
-                  <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 font-medium mb-4">
-                    {buyError}
-                  </div>
-                )}
-
-                {/* Purchase button */}
-                <button
-                  onClick={() => selectedNewPackageType && handlePurchasePackage(selectedNewPackageType)}
-                  disabled={isBuyingPackage}
-                  className="w-full bg-gradient-to-r from-[#9ca571] to-[#8a9463] text-white py-3.5 rounded-xl text-sm font-semibold hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isBuyingPackage ? '...' : (t.purchasePackage || 'Purchase')}
-                </button>
-              </div>
-            )}
-
-            {buyPackageStep === 'first-session' && (
-              <div className="px-5 py-5">
-                <div className="bg-green-50 border border-green-200 rounded-xl p-3 mb-4">
-                  <p className="text-xs text-green-800 font-medium">
-                    {t.packagePurchased || 'Package created! Now select your first session.'}
-                  </p>
-                </div>
-
-                {buyError && (
-                  <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 font-medium mb-4">
-                    {buyError}
-                  </div>
-                )}
-
-                {buySlots.length === 0 ? (
-                  <div className="text-center py-8">
-                    <p className="text-sm text-[#6b5949]">{t.noSlotsAvailable || 'No slots available'}</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {buySlots.map((dateSlot) => (
-                      <div key={dateSlot.dateKey} className="bg-white rounded-xl border border-[#e8e6e3] p-4">
-                        <p className="text-sm font-semibold text-[#3d2f28] mb-3">
-                          {dateSlot.displayDate}
-                        </p>
-                        <div className="grid grid-cols-2 gap-2">
-                          {dateSlot.timeSlots.map((timeSlot) => (
-                            <button
-                              key={timeSlot.time}
-                              onClick={() => handleBuyFirstSession(dateSlot.dateKey, timeSlot.time)}
-                              disabled={timeSlot.available <= 0 || isBuyingPackage}
-                              className={`py-3 px-3 rounded-lg text-sm font-medium transition-all ${
-                                timeSlot.available > 0 && !isBuyingPackage
-                                  ? 'bg-gradient-to-r from-[#9ca571] to-[#8a9463] text-white hover:shadow-lg'
-                                  : 'bg-[#e8e6e3] text-[#8b7764] cursor-not-allowed'
-                              }`}
-                            >
-                              <span className="font-semibold">{isBuyingPackage ? '...' : timeSlot.time}</span>
-                              <span className={`block text-xs mt-1 ${timeSlot.available > 0 ? 'text-white/80' : 'text-[#8b7764]'}`}>
-                                {timeSlot.available <= 0
-                                  ? (t.full || 'Full')
-                                  : `${timeSlot.available} ${timeSlot.available === 1
-                                      ? (t.spotFree || 'spot')
-                                      : (t.spotsFree || 'spots')}`
-                                }
-                              </span>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {buyPackageStep === 'purchasing' && (
-              <div className="px-5 py-12 text-center">
-                <div className="w-10 h-10 border-4 border-[#9ca571] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                <p className="text-sm text-[#6b5949]">{t.processing || 'Processing...'}</p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* Reschedule/Book Modal */}
       {showRescheduleModal && selectedPackage && (
