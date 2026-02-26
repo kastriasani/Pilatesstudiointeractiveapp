@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Calendar, Users, LogOut, Mail, X, CheckCircle, Trash2, Ban, ShieldAlert, Settings, UserPlus, UserMinus, Send, AlertCircle, Loader2, Pencil, Plus, ChevronDown, ChevronUp, Clock } from 'lucide-react';
+import { Calendar, Users, LogOut, Mail, X, CheckCircle, Trash2, Ban, ShieldAlert, Settings, UserPlus, UserMinus, Send, AlertCircle, Loader2, Pencil, Plus, ChevronDown, ChevronUp, Clock, XCircle } from 'lucide-react';
 import { logo } from '../../assets/images';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { DevTools } from './DevTools';
@@ -35,8 +35,6 @@ export type User = {
   email: string;
   status: UserStatus;
   packageType?: 'package8' | 'package10' | 'package12' | 'single' | '1class' | '8classes' | '12classes' | 'duo1class' | 'duo8classes' | 'duo12classes';
-  bookingDate?: string;
-  bookingTime?: string;
   totalSessions?: number; // Total sessions purchased across all packages
   usedSessions?: number; // Sessions used (computed from total - remaining)
   remainingSessions?: number; // Sessions remaining (source of truth)
@@ -68,6 +66,7 @@ export type Booking = {
   status: UserStatus;
   isFriendBooking?: boolean;
   serviceType?: string;
+  paymentStatus?: string;
   createdAt: string;
 };
 
@@ -85,14 +84,14 @@ type WaitlistUser = {
   id: string;
   name: string;
   surname: string;
-  mobile: string;
+  phone: string;
   email: string;
-  redemptionCode: string;
+  redemptionCode?: string;
   status: 'pending' | 'invited' | 'redeemed';
   addedAt: string;
   invitedAt?: string;
   redeemedAt?: string;
-  inviteEmailSent: boolean;
+  inviteEmailSent?: boolean;
 };
 
 export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPanelProps) {
@@ -132,7 +131,6 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<string | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
@@ -166,12 +164,24 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
   const [isSendingReengagement, setIsSendingReengagement] = useState(false);
   const [reengagementStatus, setReengagementStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
 
+  // Login requests state
+  const [loginRequests, setLoginRequests] = useState<Array<{
+    id: string;
+    email: string;
+    name: string;
+    surname: string;
+    paymentStatus: string;
+    package: any;
+    createdAt: string;
+  }>>([]);
+  const [processingLoginRequest, setProcessingLoginRequest] = useState<string | null>(null);
+
   // Booking change history state
   type BookingChange = {
     id: string;
     reservationId: string;
     userEmail: string;
-    changeType: 'cancelled' | 'rescheduled';
+    changeType: 'cancelled' | 'rescheduled' | 'class_cancelled' | 'session_correction';
     oldDateKey: string;
     oldTimeSlot: string;
     newDateKey: string | null;
@@ -303,10 +313,79 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
       console.log('Confirmed users:', formattedUsers.filter(u => u.status === 'confirmed'));
 
       setUsers(formattedUsers);
+
+      // Fetch login requests
+      try {
+        const loginReqResponse = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/admin/login-requests`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${publicAnonKey}`,
+            'X-Session-Token': getSessionToken(),
+          },
+        });
+        if (loginReqResponse.ok) {
+          const loginReqData = await loginReqResponse.json();
+          setLoginRequests(loginReqData.requests || []);
+        }
+      } catch (err) {
+        console.error('Error fetching login requests:', err);
+      }
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
       if (!silent) setIsLoading(false);
+    }
+  };
+
+  const handleApproveLoginRequest = async (requestId: string) => {
+    setProcessingLoginRequest(requestId);
+    try {
+      const response = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/admin/login-requests/${requestId}/approve`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${publicAnonKey}`,
+            'X-Session-Token': getSessionToken(),
+          },
+        }
+      );
+      if (response.ok) {
+        setLoginRequests(prev => prev.filter(r => r.id !== requestId));
+      } else {
+        const data = await response.json();
+        console.error('Failed to approve login request:', data);
+      }
+    } catch (error) {
+      console.error('Error approving login request:', error);
+    } finally {
+      setProcessingLoginRequest(null);
+    }
+  };
+
+  const handleDismissLoginRequest = async (requestId: string) => {
+    setProcessingLoginRequest(requestId);
+    try {
+      const response = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/admin/login-requests/${requestId}/dismiss`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${publicAnonKey}`,
+            'X-Session-Token': getSessionToken(),
+          },
+        }
+      );
+      if (response.ok) {
+        setLoginRequests(prev => prev.filter(r => r.id !== requestId));
+      }
+    } catch (error) {
+      console.error('Error dismissing login request:', error);
+    } finally {
+      setProcessingLoginRequest(null);
     }
   };
 
@@ -556,6 +635,44 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
         console.error('Error deleting slot:', error);
       }
     });
+  };
+
+  const handleCancelClass = (slotTime: string, bookingCount: number) => {
+    if (!selectedDate) return;
+
+    showConfirm(
+      'Cancel Entire Class',
+      `Are you sure you want to cancel the ${slotTime} class? This will cancel ${bookingCount} booking(s), restore session credits, and notify all booked users by email.`,
+      async () => {
+        const isoDate = convertToISODate(selectedDate);
+        try {
+          const response = await fetch(
+            `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/admin/cancel-class`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${publicAnonKey}`,
+                'X-Session-Token': getSessionToken(),
+              },
+              body: JSON.stringify({ date: isoDate, timeSlot: slotTime }),
+            }
+          );
+          if (response.ok) {
+            const data = await response.json();
+            toast.success(data.message || 'Class cancelled successfully');
+            await fetchBookings();
+            await fetchSlotsForDate(selectedDate);
+          } else {
+            const data = await response.json();
+            toast.error(data.error || 'Failed to cancel class');
+          }
+        } catch (error) {
+          console.error('Error cancelling class:', error);
+          toast.error('Network error. Please check your connection.');
+        }
+      }
+    );
   };
 
   const handleAddSlot = async () => {
@@ -1296,6 +1413,11 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
           >
             <Users className="w-4 h-4" />
             Users
+            {loginRequests.length > 0 && (
+              <span className="bg-amber-500 text-white text-xs px-2 py-0.5 rounded-full">
+                {loginRequests.length}
+              </span>
+            )}
           </button>
           <button
             onClick={() => setActiveTab('waitlist')}
@@ -1505,6 +1627,16 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                 <span className="text-sm text-stone-400">{effectiveSeats}/{slot.max_capacity || 4}</span>
                               </button>
 
+                              {/* Cancel entire class button - in edit mode when bookings exist */}
+                              {isEditMode && hasBookings && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleCancelClass(slotTime, bookingCount); }}
+                                  className="p-1.5 text-stone-400 hover:text-red-500 transition-colors"
+                                  title="Cancel entire class (refund sessions & notify users)"
+                                >
+                                  <XCircle className="w-4 h-4" />
+                                </button>
+                              )}
                               {/* Delete button - only in edit mode and if no bookings */}
                               {isEditMode && !hasBookings && (
                                 <button
@@ -1732,7 +1864,11 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                     {bookingChanges.map((change) => (
                       <div key={change.id} className="px-4 py-3 flex items-start gap-3">
                         <div className={`mt-0.5 w-2 h-2 rounded-full flex-shrink-0 ${
-                          change.changeType === 'cancelled' ? 'bg-red-500' : 'bg-blue-500'
+                          change.changeType === 'cancelled' || change.changeType === 'class_cancelled'
+                            ? 'bg-red-500'
+                            : change.changeType === 'session_correction'
+                            ? 'bg-amber-500'
+                            : 'bg-blue-500'
                         }`} />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
@@ -1742,16 +1878,30 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                             <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${
                               change.changeType === 'cancelled'
                                 ? 'bg-red-100 text-red-700'
+                                : change.changeType === 'class_cancelled'
+                                ? 'bg-red-100 text-red-700'
+                                : change.changeType === 'session_correction'
+                                ? 'bg-amber-100 text-amber-700'
                                 : 'bg-blue-100 text-blue-700'
                             }`}>
-                              {change.changeType === 'cancelled' ? 'Cancelled' : 'Rescheduled'}
+                              {change.changeType === 'cancelled' ? 'Cancelled'
+                                : change.changeType === 'class_cancelled' ? 'Class Cancelled'
+                                : change.changeType === 'session_correction' ? 'Session Correction'
+                                : 'Rescheduled'}
                             </span>
                             {change.packageType && (
                               <span className="text-xs text-[#8b7764]">{change.packageType}</span>
                             )}
                           </div>
                           <div className="text-xs text-[#8b7764] mt-1">
-                            {change.changeType === 'cancelled' ? (
+                            {change.changeType === 'session_correction' ? (
+                              <span>
+                                Sessions: <span className="line-through">{change.newDateKey}</span>
+                                {' → '}
+                                <span className="font-medium text-[#3d2f28]">{change.newTimeSlot}</span>
+                                {' '}(corrected for {change.oldDateKey} at {change.oldTimeSlot})
+                              </span>
+                            ) : change.changeType === 'cancelled' || change.changeType === 'class_cancelled' ? (
                               <span>{change.oldDateKey} at {change.oldTimeSlot}</span>
                             ) : (
                               <span>
@@ -1784,6 +1934,45 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                 <h2 className="text-base font-medium text-[#3d2f28]">User Database</h2>
                 <p className="text-sm text-[#8b7764]">Total users: {users.length}</p>
               </div>
+
+              {/* Login Requests Notification */}
+              {loginRequests.length > 0 && (
+                <div className="mx-4 mt-3 mb-2 bg-amber-50 border border-amber-200 rounded-xl p-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="inline-flex items-center justify-center w-5 h-5 bg-amber-500 text-white text-xs font-bold rounded-full">{loginRequests.length}</span>
+                    <span className="text-sm font-medium text-amber-800">Login Requests</span>
+                  </div>
+                  <div className="space-y-2">
+                    {loginRequests.map(req => (
+                      <div key={req.id} className="flex items-center justify-between bg-white rounded-lg p-2 border border-amber-100">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium text-[#3d2f28] truncate">{req.name} {req.surname}</p>
+                          <p className="text-xs text-[#8b7764] truncate">{req.email}</p>
+                          <p className="text-xs text-amber-600">
+                            {req.package ? `${req.package.package_type} - ${req.paymentStatus}` : 'No package'}
+                          </p>
+                        </div>
+                        <div className="flex gap-1 ml-2 flex-shrink-0">
+                          <button
+                            onClick={() => handleApproveLoginRequest(req.id)}
+                            disabled={processingLoginRequest === req.id}
+                            className="px-2 py-1 bg-green-500 text-white rounded text-xs font-medium hover:bg-green-600 disabled:opacity-50"
+                          >
+                            {processingLoginRequest === req.id ? '...' : 'Send Login'}
+                          </button>
+                          <button
+                            onClick={() => handleDismissLoginRequest(req.id)}
+                            disabled={processingLoginRequest === req.id}
+                            className="px-2 py-1 bg-stone-300 text-stone-700 rounded text-xs font-medium hover:bg-stone-400 disabled:opacity-50"
+                          >
+                            Dismiss
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Paid / Pending / Archived Tabs */}
               <div className="flex border-b border-[#e8dfd8] px-4">
@@ -2048,25 +2237,6 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                               </div>
                             )}
 
-                            {/* Booking Details */}
-                            {user.bookingDate && user.bookingTime && (
-                              <div className="mb-3 p-3 bg-[#F5F0EE] rounded-md">
-                                <p className="text-xs text-[#8b7764] mb-1">Booking Details:</p>
-                                <p className="text-sm text-[#3d2f28]">
-                                  {user.bookingDate} at {user.bookingTime}
-                                </p>
-                              </div>
-                            )}
-
-                            {/* Code Sent Time */}
-                            {user.codeSentAt && (
-                              <div className="mb-3 p-3 bg-[#F5F0EE] rounded-md">
-                                <p className="text-xs text-[#8b7764] mb-1">Code Sent:</p>
-                                <p className="text-sm text-[#3d2f28]">
-                                  {new Date(user.codeSentAt).toLocaleString()}
-                                </p>
-                              </div>
-                            )}
 
                             {/* Sessions Remaining (for confirmed users with packages) */}
                             {user.status === 'confirmed' && user.packageType !== 'single' && (
@@ -2333,7 +2503,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                             <div className="font-medium text-[#3d2f28]">{user.name} {user.surname}</div>
                           </td>
                           <td className="px-3 py-2.5 text-[#6b5949]">{user.email}</td>
-                          <td className="px-3 py-2.5 text-[#6b5949]">{user.mobile}</td>
+                          <td className="px-3 py-2.5 text-[#6b5949]">{user.phone}</td>
                           <td className="px-3 py-2.5 text-center">
                             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
                               user.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :

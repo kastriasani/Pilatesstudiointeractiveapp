@@ -23,7 +23,7 @@ type FormData = {
 
 type PackageData = {
   packageId: string;
-  activationCode: string;
+  activationCode?: string;
   packageType: string;
 };
 
@@ -56,6 +56,8 @@ export function PackageOverview({ onBack, language }: PackageOverviewProps) {
   const [couponCode, setCouponCode] = useState('');
   const [couponValidation, setCouponValidation] = useState<{status: 'idle' | 'validating' | 'valid' | 'invalid', message?: string}>({ status: 'idle' });
   const [formError, setFormError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, boolean>>({});
+  const [isEmailRegistered, setIsEmailRegistered] = useState(false);
 
   // New 2-step flow state
   const [showPackageCreatedPopup, setShowPackageCreatedPopup] = useState(false);
@@ -159,17 +161,26 @@ export function PackageOverview({ onBack, language }: PackageOverviewProps) {
 
   // Step 1: Create package
   const handleSubmit = async (packageType: 'package8' | 'package10' | 'package12') => {
-    if (!formData.name || !formData.surname || !formData.mobile || !formData.email) {
+    const errors: Record<string, boolean> = {};
+    if (!formData.name) errors.name = true;
+    if (!formData.surname) errors.surname = true;
+    if (!formData.mobile) errors.mobile = true;
+    if (!formData.email) errors.email = true;
+    setFieldErrors(errors);
+
+    if (Object.keys(errors).length > 0) {
       setFormError(t.fillAllFields || 'Please fill in all required fields');
       return;
     }
     const emailVal = formData.email.trim();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailVal)) {
+      setFieldErrors({ email: true });
       setFormError(t.invalidEmail || 'Please enter a valid email address');
       return;
     }
 
     setFormError(null);
+    setFieldErrors({});
     setIsSubmitting(true);
 
     try {
@@ -199,6 +210,9 @@ export function PackageOverview({ onBack, language }: PackageOverviewProps) {
 
       if (!response.ok || !data.success) {
         console.error('❌ Package creation failed:', data);
+        if (data.errorType === 'EMAIL_ALREADY_REGISTERED') {
+          setIsEmailRegistered(true);
+        }
         setFormError(data.error || 'Package creation failed. Please try again.');
         setIsSubmitting(false);
         return;
@@ -844,46 +858,46 @@ export function PackageOverview({ onBack, language }: PackageOverviewProps) {
             {expandedPackage === pkg.type && (
               <div className="px-5 pb-5 space-y-3.5 border-t border-[#e8e6e3]/50 pt-5 animate-slide-down bg-gradient-to-b from-transparent to-[#faf9f7]/30">
                 <div>
-                  <label className="block text-xs font-semibold text-[#6b5949] mb-1.5 tracking-wide">{t.name}</label>
+                  <label className={`block text-xs font-semibold mb-1.5 tracking-wide ${fieldErrors.name ? 'text-red-600' : 'text-[#6b5949]'}`}>{t.name} *</label>
                   <input
                     type="text"
                     value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    onChange={(e) => { setFormData({ ...formData, name: e.target.value }); setFieldErrors(prev => ({ ...prev, name: false })); }}
                     placeholder={t.namePlaceholder}
-                    className="w-full px-4 py-2.5 rounded-xl bg-gradient-to-br from-[#f5f0ed] to-[#f0ebe6] text-sm text-[#3d2f28] placeholder:text-[#8b7764]/60 focus:outline-none focus:ring-2 focus:ring-[#9ca571]/50 focus:bg-white transition-all shadow-inner border border-[#e8e6e3]/50"
+                    className={`w-full px-4 py-2.5 rounded-xl bg-gradient-to-br from-[#f5f0ed] to-[#f0ebe6] text-sm text-[#3d2f28] placeholder:text-[#8b7764]/60 focus:outline-none focus:ring-2 focus:bg-white transition-all shadow-inner border ${fieldErrors.name ? 'border-red-400 focus:ring-red-400/50' : 'border-[#e8e6e3]/50 focus:ring-[#9ca571]/50'}`}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-[#6b5949] mb-1.5 tracking-wide">{t.surname}</label>
+                  <label className={`block text-xs font-semibold mb-1.5 tracking-wide ${fieldErrors.surname ? 'text-red-600' : 'text-[#6b5949]'}`}>{t.surname} *</label>
                   <input
                     type="text"
                     value={formData.surname}
-                    onChange={(e) => setFormData({ ...formData, surname: e.target.value })}
+                    onChange={(e) => { setFormData({ ...formData, surname: e.target.value }); setFieldErrors(prev => ({ ...prev, surname: false })); }}
                     placeholder={t.surnamePlaceholder}
-                    className="w-full px-4 py-2.5 rounded-xl bg-gradient-to-br from-[#f5f0ed] to-[#f0ebe6] text-sm text-[#3d2f28] placeholder:text-[#8b7764]/60 focus:outline-none focus:ring-2 focus:ring-[#9ca571]/50 focus:bg-white transition-all shadow-inner border border-[#e8e6e3]/50"
+                    className={`w-full px-4 py-2.5 rounded-xl bg-gradient-to-br from-[#f5f0ed] to-[#f0ebe6] text-sm text-[#3d2f28] placeholder:text-[#8b7764]/60 focus:outline-none focus:ring-2 focus:bg-white transition-all shadow-inner border ${fieldErrors.surname ? 'border-red-400 focus:ring-red-400/50' : 'border-[#e8e6e3]/50 focus:ring-[#9ca571]/50'}`}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-[#6b5949] mb-1.5 tracking-wide">{t.mobile}</label>
+                  <label className={`block text-xs font-semibold mb-1.5 tracking-wide ${fieldErrors.mobile ? 'text-red-600' : 'text-[#6b5949]'}`}>{t.mobile} *</label>
                   <input
                     type="tel"
                     value={formData.mobile}
-                    onChange={(e) => setFormData({ ...formData, mobile: e.target.value })}
+                    onChange={(e) => { setFormData({ ...formData, mobile: e.target.value }); setFieldErrors(prev => ({ ...prev, mobile: false })); }}
                     placeholder={t.mobilePlaceholder}
-                    className="w-full px-4 py-2.5 rounded-xl bg-gradient-to-br from-[#f5f0ed] to-[#f0ebe6] text-sm text-[#3d2f28] placeholder:text-[#8b7764]/60 focus:outline-none focus:ring-2 focus:ring-[#9ca571]/50 focus:bg-white transition-all shadow-inner border border-[#e8e6e3]/50"
+                    className={`w-full px-4 py-2.5 rounded-xl bg-gradient-to-br from-[#f5f0ed] to-[#f0ebe6] text-sm text-[#3d2f28] placeholder:text-[#8b7764]/60 focus:outline-none focus:ring-2 focus:bg-white transition-all shadow-inner border ${fieldErrors.mobile ? 'border-red-400 focus:ring-red-400/50' : 'border-[#e8e6e3]/50 focus:ring-[#9ca571]/50'}`}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-[#6b5949] mb-1.5 tracking-wide">{t.email}</label>
+                  <label className={`block text-xs font-semibold mb-1.5 tracking-wide ${fieldErrors.email ? 'text-red-600' : 'text-[#6b5949]'}`}>{t.email} *</label>
                   <input
                     type="email"
                     value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    onChange={(e) => { setFormData({ ...formData, email: e.target.value }); setFieldErrors(prev => ({ ...prev, email: false })); }}
                     placeholder={t.emailPlaceholder}
-                    className="w-full px-4 py-2.5 rounded-xl bg-gradient-to-br from-[#f5f0ed] to-[#f0ebe6] text-sm text-[#3d2f28] placeholder:text-[#8b7764]/60 focus:outline-none focus:ring-2 focus:ring-[#9ca571]/50 focus:bg-white transition-all shadow-inner border border-[#e8e6e3]/50"
+                    className={`w-full px-4 py-2.5 rounded-xl bg-gradient-to-br from-[#f5f0ed] to-[#f0ebe6] text-sm text-[#3d2f28] placeholder:text-[#8b7764]/60 focus:outline-none focus:ring-2 focus:bg-white transition-all shadow-inner border ${fieldErrors.email ? 'border-red-400 focus:ring-red-400/50' : 'border-[#e8e6e3]/50 focus:ring-[#9ca571]/50'}`}
                   />
                 </div>
 
@@ -948,6 +962,14 @@ export function PackageOverview({ onBack, language }: PackageOverviewProps) {
                 {formError && (
                   <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 font-medium">
                     {formError}
+                    {isEmailRegistered && (
+                      <a
+                        href="/login"
+                        className="block mt-2 text-[#9ca571] hover:underline font-medium"
+                      >
+                        {t.goToLogin || 'Go to Login'} &rarr;
+                      </a>
+                    )}
                   </div>
                 )}
 

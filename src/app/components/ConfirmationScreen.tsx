@@ -19,6 +19,7 @@ export function ConfirmationScreen({ bookingData, onConfirm, onBack, onPaymentTo
   const [errors, setErrors] = useState<Record<string, boolean>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isEmailRegistered, setIsEmailRegistered] = useState(false);
 
   const handleConfirm = async () => {
     if (isSubmitting) return; // Prevent double-submit
@@ -76,6 +77,9 @@ export function ConfirmationScreen({ bookingData, onConfirm, onBack, onPaymentTo
       }
 
       if (!response.ok) {
+        if (data.errorType === 'EMAIL_ALREADY_REGISTERED') {
+          setIsEmailRegistered(true);
+        }
         setErrorMessage(data.error || t.bookingError || 'Failed to create booking. Please try again.');
         setIsSubmitting(false);
         return;
@@ -128,7 +132,7 @@ export function ConfirmationScreen({ bookingData, onConfirm, onBack, onPaymentTo
             )}
             {bookingData.selectedPackage && (
               <p className="text-sm">
-                {bookingData.selectedPackage === 'package8' ? `8 ${t.sessions}` : `12 ${t.sessions}`} - {t.package}
+                {bookingData.selectedPackage === 'package8' ? `8 ${t.sessions}` : bookingData.selectedPackage === 'package10' ? `10 ${t.sessions}` : `12 ${t.sessions}`} - {t.package}
               </p>
             )}
           </div>
@@ -229,6 +233,14 @@ export function ConfirmationScreen({ bookingData, onConfirm, onBack, onPaymentTo
       {errorMessage && (
         <div className="bg-red-50 border border-red-200 rounded-xl p-3 mb-4">
           <p className="text-sm text-red-600">{errorMessage}</p>
+          {isEmailRegistered && (
+            <a
+              href="/login"
+              className="inline-block mt-2 text-sm font-medium text-[#9ca571] hover:underline"
+            >
+              {t.goToLogin || 'Go to Login'} &rarr;
+            </a>
+          )}
         </div>
       )}
 

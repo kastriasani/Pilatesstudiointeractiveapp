@@ -10,7 +10,7 @@ import { Hono } from "npm:hono";
 import { cors } from "npm:hono/cors";
 import { logger } from "npm:hono/logger";
 import * as kv from "./kv_store.ts";
-import { getSkopjeTime, parseDateKey, isValidBookingDate, isTimeSlotPast } from "./dateUtils.ts";
+import { getSkopjeTime, parseDateKey, isValidBookingDate, isTimeSlotPast, formatDateKey } from "./dateUtils.ts";
 
 const app = new Hono();
 
@@ -375,11 +375,9 @@ async function verifyPassword(password: string, storedHash: string): Promise<boo
   return hashHex === storedHash;
 }
 
-async function calculateSlotCapacity(dateKey: string, timeSlot: string): Promise<{available: number, isBlocked: boolean, isPrivate: boolean}> {
-  const supabase = getSupabase();
-
-  // Derive alternate date key format for backwards compatibility
-  // ISO "2026-02-05" → legacy "2-5", legacy "2-5" → ISO "2026-02-05"
+// Returns both ISO and legacy date key variants for a given dateKey
+// e.g. "2026-02-05" → ["2026-02-05", "2-5"], "2-5" → ["2-5", "2026-02-05"]
+function getDateKeyVariants(dateKey: string): string[] {
   let altDateKey = dateKey;
   if (/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) {
     const [, m, d] = dateKey.split('-');
@@ -389,13 +387,20 @@ async function calculateSlotCapacity(dateKey: string, timeSlot: string): Promise
     const year = new Date().getFullYear();
     altDateKey = `${year}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
   }
+  return [dateKey, altDateKey];
+}
+
+async function calculateSlotCapacity(dateKey: string, timeSlot: string): Promise<{available: number, isBlocked: boolean, isPrivate: boolean}> {
+  const supabase = getSupabase();
+
+  const dateKeyVariants = getDateKeyVariants(dateKey);
 
   // Query Supabase for reservations at this slot (including pending - they still occupy seats)
   // Match both date key formats to catch all bookings for this date
   const { data: slotReservations, error } = await supabase
     .from('reservations')
     .select('service_type, reservation_status')
-    .in('date_key', [dateKey, altDateKey])
+    .in('date_key', dateKeyVariants)
     .eq('time_slot', timeSlot)
     .in('reservation_status', ['pending', 'confirmed', 'attended']);
 
@@ -426,6 +431,61 @@ async function calculateSlotCapacity(dateKey: string, timeSlot: string): Promise
     isBlocked: seatsOccupied >= 4,
     isPrivate: false
   };
+}
+
+// ============ AUTO-DEDUCT MISSED SESSIONS ============
+
+// Check for past confirmed reservations that were never attended and mark as no_show
+async function autoDeductMissedSessions(userEmail: string): Promise<{ deducted: number }> {
+  const supabase = getSupabase();
+  const today = formatDateKey(getSkopjeTime());
+  const now = new Date().toISOString();
+
+  // Find past confirmed reservations (date < today) that should be marked as no_show
+  const { data: missedReservations, error } = await supabase
+    .from('reservations')
+    .select('id, package_id, date_key, time_slot')
+    .eq('user_email', userEmail)
+    .eq('reservation_status', 'confirmed')
+    .lt('date_key', today);
+
+  if (error || !missedReservations || missedReservations.length === 0) {
+    return { deducted: 0 };
+  }
+
+  let deducted = 0;
+
+  for (const reservation of missedReservations) {
+    // Mark reservation as no_show
+    await supabase
+      .from('reservations')
+      .update({ reservation_status: 'no_show', updated_at: now })
+      .eq('id', reservation.id);
+
+    // Add to package sessions_attended (penalty - session consumed)
+    if (reservation.package_id) {
+      const { data: pkg } = await supabase
+        .from('user_packages')
+        .select('sessions_attended')
+        .eq('id', reservation.package_id)
+        .single();
+
+      if (pkg && !pkg.sessions_attended?.includes(reservation.id)) {
+        await supabase
+          .from('user_packages')
+          .update({
+            sessions_attended: [...(pkg.sessions_attended || []), reservation.id],
+            updated_at: now
+          })
+          .eq('id', reservation.package_id);
+      }
+    }
+
+    deducted++;
+    console.log(`⚠️ Auto-deducted missed session: ${reservation.date_key} ${reservation.time_slot} for ${userEmail}`);
+  }
+
+  return { deducted };
 }
 
 // ============ EMAIL FUNCTIONS ============
@@ -655,6 +715,9 @@ function getEmailTranslations(language: string) {
       reengageOfferLabel: 'OFERTË SPECIALE',
       reengageOffer: 'Rezervoni paketë 8, 10 ose 12 klasë brenda 48 orëve dhe merrni +1 klasë falas!',
       reengageExpiry: 'Oferta skadon pas 48 orëve.',
+      classCancelledSubject: 'Klasa e anuluar - Wellnest Pilates',
+      classCancelled: 'Klasa juaj e rezervuar është anuluar.',
+      classCancelledApology: 'Na vjen keq për bezrahatinë. Ju lutem rezervoni një klasë tjetër.',
     },
     mk: {
       greeting: 'Здраво',
@@ -685,6 +748,9 @@ function getEmailTranslations(language: string) {
       reengageOfferLabel: 'СПЕЦИЈАЛНА ПОНУДА',
       reengageOffer: 'Резервирајте пакет од 8, 10 или 12 класи во рок од 48 часа и добивате +1 класа бесплатно!',
       reengageExpiry: 'Понудата истекува за 48 часа.',
+      classCancelledSubject: 'Откажана класа - Велнест Пилатес',
+      classCancelled: 'Вашата резервирана класа е откажана.',
+      classCancelledApology: 'Се извинуваме за непријатноста. Ве молиме резервирајте друга класа.',
     },
     en: {
       greeting: 'Hello',
@@ -715,6 +781,9 @@ function getEmailTranslations(language: string) {
       reengageOfferLabel: 'SPECIAL OFFER',
       reengageOffer: 'Book an 8, 10, or 12 class package within 48 hours and get +1 class FREE!',
       reengageExpiry: 'Offer expires in 48 hours.',
+      classCancelledSubject: 'Class Cancelled - Wellnest Pilates',
+      classCancelled: 'Your booked class has been cancelled.',
+      classCancelledApology: 'We apologize for the inconvenience. Please book another class.',
     }
   };
   return translations[lang] || translations.en;
@@ -768,6 +837,35 @@ async function sendBookingEmail(
     : 'Booking Confirmation - Wellnest Pilates';
 
   return sendEmail(email, subject, html);
+}
+
+// Send class cancellation email (when admin cancels an entire class)
+async function sendClassCancelledEmail(
+  email: string,
+  name: string,
+  sessionDate: string,
+  sessionTime: string,
+  language: string = 'en'
+) {
+  const t = getEmailTranslations(language);
+  const lang = (language?.toLowerCase() || 'en') as 'sq' | 'mk' | 'en';
+
+  const content: EmailContent = {
+    greeting: `${t.greeting}, ${name}`,
+    message: t.classCancelled,
+    highlight: {
+      title: lang === 'sq' ? 'KLASA E ANULUAR' : lang === 'mk' ? 'ОТКАЖАНА КЛАСА' : 'CANCELLED CLASS',
+      lines: [
+        `${t.date}: ${sessionDate}`,
+        `${t.time}: ${sessionTime}`
+      ]
+    },
+    note: t.classCancelledApology,
+    closing: t.lookForward
+  };
+
+  const html = generateEmailTemplate(content, lang);
+  return sendEmail(email, t.classCancelledSubject, html);
 }
 
 // Send account activation email (after admin approves payment)
@@ -1055,27 +1153,34 @@ app.post("/make-server-b87b0c07/packages", async (c) => {
       return c.json({ error: 'Failed to check user', details: userCheckError.message }, 500);
     }
 
-    if (!existingUser) {
-      // Create new user
-      const { error: userCreateError } = await supabase
-        .from('users')
-        .insert({
-          email: normalizedEmail,
-          name,
-          surname,
-          mobile,
-          language: language?.toLowerCase() || 'sq',
-          created_at: now,
-          updated_at: now,
-          blocked: false
-        });
-
-      if (userCreateError) {
-        console.error('Error creating user:', userCreateError);
-        return c.json({ error: 'Failed to create user', details: userCreateError.message }, 500);
-      }
-      console.log(`User created in Supabase: ${normalizedEmail}`);
+    if (existingUser) {
+      // Block registered users from using the public booking flow again
+      console.log(`⚠️ Blocked duplicate registration for ${normalizedEmail} via /packages`);
+      return c.json({
+        error: 'This email is already registered. Please log in to your account to purchase a new package.',
+        errorType: 'EMAIL_ALREADY_REGISTERED'
+      }, 400);
     }
+
+    // Create new user
+    const { error: userCreateError } = await supabase
+      .from('users')
+      .insert({
+        email: normalizedEmail,
+        name,
+        surname,
+        mobile,
+        language: language?.toLowerCase() || 'sq',
+        created_at: now,
+        updated_at: now,
+        blocked: false
+      });
+
+    if (userCreateError) {
+      console.error('Error creating user:', userCreateError);
+      return c.json({ error: 'Failed to create user', details: userCreateError.message }, 500);
+    }
+    console.log(`User created in Supabase: ${normalizedEmail}`);
 
     let totalSessions = extractSessionCount(packageType);
     let bonusClasses = 0;
@@ -1664,6 +1769,16 @@ app.post("/make-server-b87b0c07/reservations", async (c) => {
       return c.json({ error: 'Failed to check user', details: userCheckError.message }, 500);
     }
 
+    if (existingUser && !isPackageSession) {
+      // Block registered users from using the public booking flow again
+      // Exception: allow if booking a first session for a just-created package (isPackageSession=true)
+      console.log(`⚠️ Blocked duplicate registration for ${normalizedEmail} via /reservations`);
+      return c.json({
+        error: 'This email is already registered. Please log in to your account to book a session.',
+        errorType: 'EMAIL_ALREADY_REGISTERED'
+      }, 400);
+    }
+
     if (!existingUser) {
       // Create new user for single session booking
       const { error: userCreateError } = await supabase
@@ -1829,6 +1944,11 @@ app.post("/make-server-b87b0c07/reservations", async (c) => {
 // GET /reservations - MIGRATED TO SUPABASE
 app.get("/make-server-b87b0c07/reservations", async (c) => {
   try {
+    const adminAuth = await verifyAdminSession(c);
+    if (!adminAuth.valid) {
+      return c.json({ error: adminAuth.error }, 401);
+    }
+
     const userId = c.req.query('userId');
     const dateKey = c.req.query('dateKey');
     const status = c.req.query('status');
@@ -1843,7 +1963,7 @@ app.get("/make-server-b87b0c07/reservations", async (c) => {
     }
 
     if (dateKey) {
-      query = query.eq('date_key', dateKey);
+      query = query.in('date_key', getDateKeyVariants(dateKey));
     }
 
     if (status) {
@@ -1891,6 +2011,11 @@ app.get("/make-server-b87b0c07/reservations", async (c) => {
 // GET /reservations/:id - MIGRATED TO SUPABASE
 app.get("/make-server-b87b0c07/reservations/:id", async (c) => {
   try {
+    const adminAuth = await verifyAdminSession(c);
+    if (!adminAuth.valid) {
+      return c.json({ error: adminAuth.error }, 401);
+    }
+
     const reservationId = c.req.param('id');
 
     const supabase = getSupabase();
@@ -1967,7 +2092,7 @@ app.patch("/make-server-b87b0c07/reservations/:id/status", async (c) => {
       const { data: slotReservations, error: slotError } = await supabase
         .from('reservations')
         .select('id, service_type')
-        .eq('date_key', reservation.date_key)
+        .in('date_key', getDateKeyVariants(reservation.date_key))
         .eq('time_slot', reservation.time_slot)
         .in('reservation_status', ['confirmed', 'attended', 'pending'])
         .neq('id', reservationId);
@@ -2171,6 +2296,11 @@ app.patch("/make-server-b87b0c07/reservations/:id/status", async (c) => {
 // DELETE /reservations/:id - MIGRATED TO SUPABASE
 app.delete("/make-server-b87b0c07/reservations/:id", async (c) => {
   try {
+    const adminAuth = await verifyAdminSession(c);
+    if (!adminAuth.valid) {
+      return c.json({ error: adminAuth.error }, 401);
+    }
+
     const reservationId = c.req.param('id');
     const supabase = getSupabase();
 
@@ -2438,10 +2568,8 @@ app.post("/make-server-b87b0c07/admin/users/:email/resend-login-email", async (c
       return c.json({ error: 'User not found' }, 404);
     }
 
-    // Check if user is paid
-    if (user.payment_status !== 'paid') {
-      return c.json({ error: 'User must be paid before sending login email' }, 400);
-    }
+    // Note: removed payment_status check - admin can send login to unpaid users too
+    // (e.g. users who missed first class and need to rebook)
 
     // Generate new verification token
     const verificationToken = generateSecureToken('verify');
@@ -2498,6 +2626,183 @@ app.post("/make-server-b87b0c07/admin/users/:email/resend-login-email", async (c
 });
 
 // ============ ADMIN ENDPOINTS ============
+
+// GET /admin/login-requests - Fetch pending login requests
+app.get("/make-server-b87b0c07/admin/login-requests", async (c) => {
+  try {
+    const adminAuth = await verifyAdminSession(c);
+    if (!adminAuth.valid) {
+      return c.json({ error: adminAuth.error }, 401);
+    }
+
+    const supabase = getSupabase();
+
+    // Get pending requests with user info
+    const { data: requests, error } = await supabase
+      .from('login_requests')
+      .select('*')
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching login requests:', error);
+      return c.json({ error: 'Failed to fetch requests' }, 500);
+    }
+
+    // Enrich with user details
+    const enrichedRequests = [];
+    for (const req of requests || []) {
+      const { data: user } = await supabase
+        .from('users')
+        .select('name, surname, email, payment_status, activation_status')
+        .eq('email', req.user_email)
+        .maybeSingle();
+
+      const { data: packages } = await supabase
+        .from('user_packages')
+        .select('package_type, package_status, payment_status, remaining_sessions, total_sessions')
+        .eq('user_email', req.user_email)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      enrichedRequests.push({
+        id: req.id,
+        email: req.user_email,
+        name: user?.name || '',
+        surname: user?.surname || '',
+        paymentStatus: user?.payment_status || 'unpaid',
+        package: packages?.[0] || null,
+        createdAt: req.created_at
+      });
+    }
+
+    return c.json({ requests: enrichedRequests });
+
+  } catch (error) {
+    console.error('Error in login-requests:', error);
+    return c.json({ error: 'Failed to fetch requests' }, 500);
+  }
+});
+
+// POST /admin/login-requests/:id/approve - Approve a login request and send credentials
+app.post("/make-server-b87b0c07/admin/login-requests/:id/approve", async (c) => {
+  try {
+    const adminAuth = await verifyAdminSession(c);
+    if (!adminAuth.valid) {
+      return c.json({ error: adminAuth.error }, 401);
+    }
+
+    const requestId = c.req.param('id');
+    const supabase = getSupabase();
+    const now = new Date().toISOString();
+
+    // Get the request
+    const { data: loginRequest, error: reqError } = await supabase
+      .from('login_requests')
+      .select('*')
+      .eq('id', requestId)
+      .single();
+
+    if (reqError || !loginRequest) {
+      return c.json({ error: 'Login request not found' }, 404);
+    }
+
+    if (loginRequest.status !== 'pending') {
+      return c.json({ error: 'Request already processed' }, 400);
+    }
+
+    const normalizedEmail = loginRequest.user_email;
+
+    // Get user
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', normalizedEmail)
+      .single();
+
+    if (userError || !user) {
+      return c.json({ error: 'User not found' }, 404);
+    }
+
+    // Generate verification token (same as existing resend-login flow)
+    const verificationToken = generateSecureToken('verify');
+    const tokenKey = `verification_token:${verificationToken}`;
+    const tokenExpiry = new Date();
+    tokenExpiry.setHours(tokenExpiry.getHours() + 24);
+
+    await kv.set(tokenKey, {
+      id: tokenKey,
+      token: verificationToken,
+      email: normalizedEmail,
+      expiresAt: tokenExpiry.toISOString(),
+      used: false,
+      createdAt: now
+    });
+
+    // Send activation email with password setup link
+    const appUrl = c.req.header('origin') || 'https://app.wellnestpilates.com';
+    const emailResult = await sendActivationEmail(
+      normalizedEmail,
+      user.name || '',
+      verificationToken,
+      appUrl,
+      user.language || 'en'
+    );
+
+    if (!emailResult.success) {
+      console.error('Failed to send login email:', emailResult.error);
+      return c.json({ error: 'Failed to send email', details: emailResult.error }, 500);
+    }
+
+    // Mark request as approved
+    await supabase
+      .from('login_requests')
+      .update({ status: 'approved', updated_at: now })
+      .eq('id', requestId);
+
+    // Update user login email timestamp
+    await supabase
+      .from('users')
+      .update({ login_email_sent_at: now, updated_at: now })
+      .eq('email', normalizedEmail);
+
+    console.log(`✅ Login request approved for: ${normalizedEmail}`);
+    return c.json({ success: true, message: 'Login email sent successfully!' });
+
+  } catch (error) {
+    console.error('Error approving login request:', error);
+    return c.json({ error: 'Failed to approve request' }, 500);
+  }
+});
+
+// POST /admin/login-requests/:id/dismiss - Dismiss a login request
+app.post("/make-server-b87b0c07/admin/login-requests/:id/dismiss", async (c) => {
+  try {
+    const adminAuth = await verifyAdminSession(c);
+    if (!adminAuth.valid) {
+      return c.json({ error: adminAuth.error }, 401);
+    }
+
+    const requestId = c.req.param('id');
+    const supabase = getSupabase();
+    const now = new Date().toISOString();
+
+    const { error } = await supabase
+      .from('login_requests')
+      .update({ status: 'dismissed', updated_at: now })
+      .eq('id', requestId);
+
+    if (error) {
+      return c.json({ error: 'Failed to dismiss request' }, 500);
+    }
+
+    return c.json({ success: true });
+
+  } catch (error) {
+    console.error('Error dismissing login request:', error);
+    return c.json({ error: 'Failed to dismiss request' }, 500);
+  }
+});
 
 // Get all users with aggregated package and payment data - MIGRATED TO SUPABASE
 app.get("/make-server-b87b0c07/admin/users", async (c) => {
@@ -2762,7 +3067,7 @@ app.patch("/make-server-b87b0c07/admin/users/:email/adjust-sessions", async (c) 
       return c.json({ error: 'Failed to update user' }, 500);
     }
 
-    // Also update user_packages if exists
+    // Also update user_packages if exists (only active/pending packages, not expired/cancelled)
     await supabase
       .from('user_packages')
       .update({
@@ -2770,7 +3075,8 @@ app.patch("/make-server-b87b0c07/admin/users/:email/adjust-sessions", async (c) 
         sessions_adjusted_at: adjustedAt,
         updated_at: adjustedAt,
       })
-      .eq('user_email', normalizedEmail);
+      .eq('user_email', normalizedEmail)
+      .in('package_status', ['active', 'pending']);
 
     console.log(`📊 Sessions adjusted for ${normalizedEmail}: ${currentRemaining} → ${newRemaining} (${adjustment > 0 ? '+1' : '-1'})`);
 
@@ -2903,7 +3209,7 @@ app.get("/make-server-b87b0c07/bookings", async (c) => {
     }
 
     if (dateKey) {
-      query = query.eq('date_key', dateKey);
+      query = query.in('date_key', getDateKeyVariants(dateKey));
     }
 
     const { data, error } = await query.order('created_at', { ascending: false });
@@ -3101,7 +3407,7 @@ app.get("/make-server-b87b0c07/admin/calendar", async (c) => {
     const { data: reservations, error } = await supabase
       .from('reservations')
       .select('*')
-      .eq('date_key', dateKey);
+      .in('date_key', getDateKeyVariants(dateKey));
 
     if (error) {
       console.error('Error fetching calendar from Supabase:', error);
@@ -3120,7 +3426,7 @@ app.get("/make-server-b87b0c07/admin/calendar", async (c) => {
       // Calculate capacity inline
       const hasPrivateSession = slotReservations.some((r: any) => r.service_type === 'individual' || r.service_type === 'duo');
       const seatsOccupied = slotReservations.reduce((total: number, r: any) => {
-        return total + (r.service_type === 'duo' ? 2 : 1);
+        return total + (r.service_type === 'individual' ? 4 : r.service_type === 'duo' ? 2 : 1);
       }, 0);
       const available = hasPrivateSession ? 0 : Math.max(0, 4 - seatsOccupied);
 
@@ -3601,9 +3907,9 @@ app.delete("/make-server-b87b0c07/admin/slots/:id", async (c) => {
       const { data: bookings } = await supabase
         .from('reservations')
         .select('id')
-        .eq('date_key', date)
+        .in('date_key', getDateKeyVariants(date))
         .eq('time_slot', startTime)
-        .in('reservation_status', ['confirmed', 'attended'])
+        .in('reservation_status', ['confirmed', 'attended', 'pending'])
         .limit(1);
 
       if (bookings && bookings.length > 0) {
@@ -3647,9 +3953,9 @@ app.delete("/make-server-b87b0c07/admin/slots/:id", async (c) => {
     const { data: bookings } = await supabase
       .from('reservations')
       .select('id')
-      .eq('date_key', slot.date)
+      .in('date_key', getDateKeyVariants(slot.date))
       .eq('time_slot', slot.start_time.substring(0, 5))
-      .in('reservation_status', ['confirmed', 'attended'])
+      .in('reservation_status', ['confirmed', 'attended', 'pending'])
       .limit(1);
 
     if (bookings && bookings.length > 0) {
@@ -3672,6 +3978,146 @@ app.delete("/make-server-b87b0c07/admin/slots/:id", async (c) => {
   } catch (error) {
     console.error('Error deleting slot:', error);
     return c.json({ error: 'Failed to delete slot', details: error.message }, 500);
+  }
+});
+
+// POST /admin/cancel-class - Cancel an entire class (all bookings for a date+time slot)
+app.post("/make-server-b87b0c07/admin/cancel-class", async (c) => {
+  try {
+    const adminAuth = await verifyAdminSession(c);
+    if (!adminAuth.valid) {
+      return c.json({ error: adminAuth.error }, 401);
+    }
+
+    const { date, timeSlot } = await c.req.json();
+    if (!date || !timeSlot) {
+      return c.json({ error: 'date and timeSlot are required' }, 400);
+    }
+
+    const supabase = getSupabase();
+
+    // Fetch all active reservations for this slot
+    const { data: reservations, error: fetchError } = await supabase
+      .from('reservations')
+      .select('*')
+      .in('date_key', getDateKeyVariants(date))
+      .eq('time_slot', timeSlot)
+      .in('reservation_status', ['confirmed', 'attended', 'pending']);
+
+    if (fetchError) {
+      console.error('Error fetching reservations for cancel-class:', fetchError);
+      return c.json({ error: 'Failed to fetch reservations' }, 500);
+    }
+
+    if (!reservations || reservations.length === 0) {
+      return c.json({ error: 'No active bookings found for this class' }, 404);
+    }
+
+    console.log(`🚫 Cancelling entire class: ${date} ${timeSlot} — ${reservations.length} bookings`);
+
+    let cancelledCount = 0;
+
+    for (const reservation of reservations) {
+      // Restore session to package if linked
+      if (reservation.package_id) {
+        const { data: pkg } = await supabase
+          .from('user_packages')
+          .select('*')
+          .eq('id', reservation.package_id)
+          .single();
+
+        if (pkg) {
+          const newSessionsBooked = (pkg.sessions_booked || []).filter((id: string) => id !== reservation.id);
+          const newSessionsAttended = (pkg.sessions_attended || []).filter((id: string) => id !== reservation.id);
+          const newRemainingSessions = pkg.total_sessions - newSessionsBooked.length;
+
+          const pkgUpdate: Record<string, any> = {
+            sessions_booked: newSessionsBooked,
+            sessions_attended: newSessionsAttended,
+            remaining_sessions: newRemainingSessions,
+            updated_at: new Date().toISOString()
+          };
+
+          if (pkg.package_status === 'fully_used' && pkg.activation_status === 'activated') {
+            pkgUpdate.package_status = 'active';
+            console.log(`🔧 Restoring package_status to 'active' for package ${reservation.package_id}`);
+          }
+
+          const { error: pkgError } = await supabase
+            .from('user_packages')
+            .update(pkgUpdate)
+            .eq('id', reservation.package_id);
+
+          if (pkgError) {
+            console.error(`⚠️ Failed to restore session for ${reservation.user_email}:`, pkgError);
+          } else {
+            console.log(`🔄 Session restored for ${reservation.user_email}. Remaining: ${newRemainingSessions}`);
+          }
+        }
+      }
+
+      // Audit trail
+      try {
+        await supabase.from('booking_changes').insert({
+          reservation_id: reservation.id,
+          user_email: reservation.user_email,
+          change_type: 'class_cancelled',
+          old_date_key: reservation.date_key,
+          old_time_slot: reservation.time_slot,
+          user_name: reservation.name,
+          user_surname: reservation.surname,
+          package_type: reservation.package_type,
+        });
+      } catch (auditErr) {
+        console.error('Audit log error (cancel-class):', auditErr);
+      }
+
+      // Update reservation status to cancelled
+      const { error: cancelError } = await supabase
+        .from('reservations')
+        .update({ reservation_status: 'cancelled', updated_at: new Date().toISOString() })
+        .eq('id', reservation.id);
+
+      if (cancelError) {
+        console.error(`⚠️ Failed to cancel reservation ${reservation.id}:`, cancelError);
+      } else {
+        cancelledCount++;
+      }
+    }
+
+    // Send cancellation emails to all affected users
+    const uniqueEmails = [...new Set(reservations.map(r => r.user_email))];
+    for (const email of uniqueEmails) {
+      try {
+        // Look up user language
+        const { data: user } = await supabase
+          .from('users')
+          .select('name, language')
+          .eq('email', email)
+          .single();
+
+        const lang = user?.language || 'en';
+        const name = user?.name || reservations.find(r => r.user_email === email)?.name || '';
+        const dateStr = formatDateString(date, lang);
+
+        await sendClassCancelledEmail(email, name, dateStr, timeSlot, lang);
+        console.log(`📧 Cancellation email sent to ${email}`);
+      } catch (emailErr) {
+        console.error(`Failed to send cancellation email to ${email}:`, emailErr);
+      }
+    }
+
+    console.log(`✅ Class cancelled: ${date} ${timeSlot} — ${cancelledCount} bookings cancelled, ${uniqueEmails.length} emails sent`);
+
+    return c.json({
+      success: true,
+      cancelledCount,
+      emailsSent: uniqueEmails.length,
+      message: `Class cancelled. ${cancelledCount} booking(s) cancelled and ${uniqueEmails.length} notification(s) sent.`
+    });
+  } catch (error) {
+    console.error('Error cancelling class:', error);
+    return c.json({ error: 'Failed to cancel class', details: error.message }, 500);
   }
 });
 
@@ -3836,6 +4282,12 @@ app.post("/make-server-b87b0c07/auth/setup-password", async (c) => {
 
     console.log(`Password set for user (Supabase): ${normalizedEmail}`);
 
+    // Auto-deduct any missed sessions (past confirmed reservations never attended)
+    const { deducted } = await autoDeductMissedSessions(normalizedEmail);
+    if (deducted > 0) {
+      console.log(`📋 Auto-deducted ${deducted} missed session(s) for ${normalizedEmail} on password setup`);
+    }
+
     return c.json({
       success: true,
       message: "Registration complete! You can now log in.",
@@ -3954,6 +4406,73 @@ app.post("/make-server-b87b0c07/auth/register", async (c) => {
   }
 });
 
+// POST /auth/request-login - Public endpoint for users to request login credentials
+app.post("/make-server-b87b0c07/auth/request-login", async (c) => {
+  try {
+    const body = await c.req.json();
+    const { email } = body;
+
+    if (!email) {
+      return c.json({ error: 'Email is required' }, 400);
+    }
+
+    const normalizedEmail = normalizeEmail(email);
+    const supabase = getSupabase();
+    const now = new Date().toISOString();
+
+    // Check if user exists
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('email, name, surname')
+      .eq('email', normalizedEmail)
+      .maybeSingle();
+
+    if (userError || !user) {
+      return c.json({ error: 'No account found with this email.' }, 404);
+    }
+
+    // Check if there's already a pending request for this email
+    const { data: existingRequest } = await supabase
+      .from('login_requests')
+      .select('id, created_at')
+      .eq('user_email', normalizedEmail)
+      .eq('status', 'pending')
+      .maybeSingle();
+
+    if (existingRequest) {
+      return c.json({
+        success: true,
+        message: 'A login request has already been submitted. The admin will send your credentials shortly.'
+      });
+    }
+
+    // Create login request
+    const { error: insertError } = await supabase
+      .from('login_requests')
+      .insert({
+        user_email: normalizedEmail,
+        status: 'pending',
+        created_at: now,
+        updated_at: now
+      });
+
+    if (insertError) {
+      console.error('Error creating login request:', insertError);
+      return c.json({ error: 'Failed to submit request' }, 500);
+    }
+
+    console.log(`📩 Login request created for: ${normalizedEmail}`);
+    return c.json({
+      success: true,
+      message: 'Your request has been sent to the admin. You will receive a login email shortly.'
+    });
+
+  } catch (error) {
+    console.error('Error in request-login:', error);
+    return c.json({ error: 'Request failed', details: (error as Error).message }, 500);
+  }
+});
+
 // POST /auth/login - MIGRATED TO SUPABASE (sessions stay in KV)
 app.post("/make-server-b87b0c07/auth/login", async (c) => {
   try {
@@ -4004,6 +4523,12 @@ app.post("/make-server-b87b0c07/auth/login", async (c) => {
     await kv.set(sessionKey, sessionData);
 
     console.log(`User logged in: ${normalizedEmail}`);
+
+    // Auto-deduct any missed sessions (past confirmed reservations never attended)
+    const { deducted } = await autoDeductMissedSessions(normalizedEmail);
+    if (deducted > 0) {
+      console.log(`📋 Auto-deducted ${deducted} missed session(s) for ${normalizedEmail} on login`);
+    }
 
     return c.json({
       success: true,
@@ -4474,6 +4999,171 @@ app.post("/make-server-b87b0c07/user/packages/:id/reschedule", async (c) => {
   }
 });
 
+// POST /user/packages/purchase - Buy a new package from the dashboard (authenticated)
+app.post("/make-server-b87b0c07/user/packages/purchase", async (c) => {
+  try {
+    const sessionAuth = await verifyUserSession(c);
+    if (!sessionAuth.valid) {
+      return c.json({ error: sessionAuth.error }, 401);
+    }
+
+    const body = await c.req.json();
+    const { packageType, couponCode } = body;
+
+    if (!packageType || !['package8', 'package10', 'package12'].includes(packageType)) {
+      return c.json({ error: 'Invalid package type' }, 400);
+    }
+
+    const normalizedEmail = sessionAuth.session.email;
+    const supabase = getSupabase();
+    const now = new Date().toISOString();
+
+    // Get user info
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('name, surname, mobile, email, language')
+      .eq('email', normalizedEmail)
+      .single();
+
+    if (userError || !user) {
+      return c.json({ error: 'User not found' }, 404);
+    }
+
+    // Check eligibility: user must have a nearly-finished active package
+    // (7/8, 9/10, or 11/12 sessions used — i.e. remaining_sessions <= 1)
+    const { data: activePackages } = await supabase
+      .from('user_packages')
+      .select('id, package_type, remaining_sessions, package_status')
+      .eq('user_email', normalizedEmail)
+      .in('package_status', ['active'])
+      .gt('remaining_sessions', 1);
+
+    // If user has any active package with more than 1 remaining session, block purchase
+    if (activePackages && activePackages.length > 0) {
+      return c.json({
+        error: 'You can only purchase a new package when your current package has 1 or fewer sessions remaining.',
+        errorType: 'PACKAGE_NOT_ELIGIBLE'
+      }, 400);
+    }
+
+    // Prevent duplicate pending packages of the same type
+    const { data: existingPkg } = await supabase
+      .from('user_packages')
+      .select('id')
+      .eq('user_email', normalizedEmail)
+      .eq('package_type', packageType)
+      .eq('package_status', 'pending')
+      .maybeSingle();
+
+    if (existingPkg) {
+      return c.json({
+        success: true,
+        package: { id: existingPkg.id },
+        packageId: existingPkg.id,
+        requiresFirstSessionBooking: true,
+        bonusClasses: 0,
+        redeemedCoupon: null,
+        message: 'Package already exists. Please select date and time for your first session.'
+      });
+    }
+
+    let totalSessions = extractSessionCount(packageType);
+    let bonusClasses = 0;
+    let redeemedCouponCode = null;
+
+    // Handle coupon redemption
+    if (couponCode) {
+      const normalizedCoupon = couponCode.trim().toUpperCase();
+
+      const { data: coupon, error: couponError } = await supabase
+        .from('redemption_codes')
+        .select('*')
+        .eq('code', normalizedCoupon)
+        .maybeSingle();
+
+      if (coupon && !couponError) {
+        const isUsed = coupon.used === true || coupon.status === 'used' || coupon.status === 'redeemed';
+        const expiresAt = coupon.expires_at || coupon.expiresAt;
+        const isExpired = expiresAt && new Date(expiresAt) < getSkopjeTime();
+        const isActive = !coupon.status || coupon.status === 'active';
+
+        if (!isUsed && !isExpired && isActive) {
+          bonusClasses = 1;
+          totalSessions += bonusClasses;
+          redeemedCouponCode = normalizedCoupon;
+
+          await supabase
+            .from('redemption_codes')
+            .update({ used: true, status: 'redeemed', used_at: now, used_by_email: normalizedEmail })
+            .eq('id', coupon.id);
+
+          console.log(`✅ Coupon ${normalizedCoupon} redeemed by ${normalizedEmail} (dashboard purchase)`);
+        }
+      }
+    }
+
+    // Insert package
+    const { data: insertedPackage, error: packageError } = await supabase
+      .from('user_packages')
+      .insert({
+        user_email: normalizedEmail,
+        package_type: packageType,
+        total_sessions: totalSessions,
+        base_sessions: extractSessionCount(packageType),
+        bonus_classes: bonusClasses,
+        remaining_sessions: totalSessions,
+        sessions_booked: [],
+        sessions_attended: [],
+        redeemed_coupon_code: redeemedCouponCode,
+        package_status: 'pending',
+        activation_status: 'pending',
+        payment_status: 'unpaid',
+        purchase_date: now,
+        activation_date: null,
+        expiry_date: null,
+        first_reservation_id: null,
+        name: user.name,
+        surname: user.surname,
+        mobile: user.mobile,
+        email: normalizedEmail,
+        language: user.language || 'sq',
+        created_at: now,
+        updated_at: now
+      })
+      .select()
+      .single();
+
+    if (packageError) {
+      console.error('Error creating package (dashboard):', packageError);
+      return c.json({ error: 'Failed to create package', details: packageError.message }, 500);
+    }
+
+    const packageId = insertedPackage.id;
+
+    // Update redemption_codes with package_id if coupon was used
+    if (redeemedCouponCode) {
+      await supabase
+        .from('redemption_codes')
+        .update({ package_id: packageId })
+        .eq('code', redeemedCouponCode);
+    }
+
+    console.log(`📦 Dashboard package purchase: ${normalizedEmail} bought ${packageType} (id: ${packageId})`);
+
+    return c.json({
+      success: true,
+      packageId,
+      requiresFirstSessionBooking: true,
+      bonusClasses,
+      redeemedCoupon: redeemedCouponCode
+    });
+
+  } catch (error) {
+    console.error('Error in user package purchase:', error);
+    return c.json({ error: 'Failed to purchase package', details: (error as Error).message }, 500);
+  }
+});
+
 // POST /user/packages/:id/book-session - Book a session for a package (when no first session exists)
 app.post("/make-server-b87b0c07/user/packages/:id/book-session", async (c) => {
   try {
@@ -4526,6 +5216,24 @@ app.post("/make-server-b87b0c07/user/packages/:id/book-session", async (c) => {
         .from('user_packages')
         .update({ package_status: 'active', updated_at: new Date().toISOString() })
         .eq('id', packageId);
+    }
+
+    // Unpaid package limit: max 2 upcoming bookings
+    if (pkg.payment_status !== 'paid') {
+      const today = formatDateKey(getSkopjeTime());
+      const { data: upcomingBookings } = await supabase
+        .from('reservations')
+        .select('id')
+        .eq('package_id', packageId)
+        .in('reservation_status', ['confirmed', 'pending'])
+        .gte('date_key', today);
+
+      if (upcomingBookings && upcomingBookings.length >= 2) {
+        return c.json({
+          error: 'You can only have 2 upcoming bookings while your package is unpaid. Please visit the studio to complete payment.',
+          errorType: 'UNPAID_BOOKING_LIMIT'
+        }, 400);
+      }
     }
 
     const serviceType = extractServiceType(pkg.package_type);
@@ -4722,10 +5430,32 @@ app.delete("/make-server-b87b0c07/user/packages/:id/reservations/:reservationId"
       .single();
 
     if (pkg) {
-      // Remove reservation from sessions_booked and increment remaining
+      // Remove reservation from sessions_booked and recalculate remaining (consistent with admin cancel paths)
       const currentSessionsBooked = pkg.sessions_booked || [];
       const newSessionsBooked = currentSessionsBooked.filter((id: string) => id !== reservationId);
-      const newRemaining = pkg.remaining_sessions + 1;
+      const newRemaining = pkg.total_sessions - newSessionsBooked.length;
+
+      // Detect if session count was drifted (old +1 formula would give a different result)
+      const oldFormulaWouldGive = pkg.remaining_sessions + 1;
+      if (oldFormulaWouldGive !== newRemaining) {
+        console.log(`⚠️ Session correction for ${reservation.user_email}: old formula would give ${oldFormulaWouldGive}, corrected to ${newRemaining}`);
+        try {
+          await supabase.from('booking_changes').insert({
+            reservation_id: reservationId,
+            user_email: reservation.user_email,
+            change_type: 'session_correction',
+            old_date_key: reservation.date_key,
+            old_time_slot: reservation.time_slot,
+            new_date_key: String(oldFormulaWouldGive),
+            new_time_slot: String(newRemaining),
+            user_name: reservation.name,
+            user_surname: reservation.surname,
+            package_type: reservation.package_type,
+          });
+        } catch (corrErr) {
+          console.error('Failed to log session correction:', corrErr);
+        }
+      }
 
       const cancelUpdate: Record<string, any> = {
         sessions_booked: newSessionsBooked,
@@ -5331,35 +6061,42 @@ app.post("/make-server-b87b0c07/waitlist/redeem", async (c) => {
     const { name, surname, email, phone: mobile, language: waitlistLanguage } = waitlistUser;
     const normalizedEmail = email.toLowerCase().trim();
 
-    // Create or update user in Supabase (not KV)
+    // Check if user already exists in Supabase
     const { data: existingUser } = await supabase
       .from('users')
       .select('*')
       .eq('email', normalizedEmail)
       .maybeSingle();
 
-    if (!existingUser) {
-      const { error: userCreateError } = await supabase
-        .from('users')
-        .insert({
-          email: normalizedEmail,
-          name,
-          surname,
-          mobile,
-          language: waitlistLanguage?.toLowerCase() || 'sq',
-          activation_status: 'activated',
-          payment_status: 'paid',
-          created_at: now,
-          updated_at: now,
-          blocked: false
-        });
-
-      if (userCreateError) {
-        console.error('Error creating user:', userCreateError);
-        return c.json({ error: 'Failed to create user', details: userCreateError.message }, 500);
-      }
-      console.log(`User created from waitlist: ${normalizedEmail}`);
+    if (existingUser) {
+      // Block registered users from redeeming waitlist code again
+      console.log(`⚠️ Blocked duplicate registration for ${normalizedEmail} via waitlist redemption`);
+      return c.json({
+        error: 'This email is already registered. Please log in to your account.',
+        errorType: 'EMAIL_ALREADY_REGISTERED'
+      }, 400);
     }
+
+    const { error: userCreateError } = await supabase
+      .from('users')
+      .insert({
+        email: normalizedEmail,
+        name,
+        surname,
+        mobile,
+        language: waitlistLanguage?.toLowerCase() || 'sq',
+        activation_status: 'activated',
+        payment_status: 'paid',
+        created_at: now,
+        updated_at: now,
+        blocked: false
+      });
+
+    if (userCreateError) {
+      console.error('Error creating user:', userCreateError);
+      return c.json({ error: 'Failed to create user', details: userCreateError.message }, 500);
+    }
+    console.log(`User created from waitlist: ${normalizedEmail}`);
 
     // Create package: 8 paid classes + 1 FREE bonus = 9 total
     // After first booking (the free class), remaining = 8
