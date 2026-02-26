@@ -39,11 +39,18 @@ export type User = {
   usedSessions?: number; // Sessions used (computed from total - remaining)
   remainingSessions?: number; // Sessions remaining (source of truth)
   sessionsAdjustedAt?: string; // Last manual adjustment timestamp
-  packages?: Array<{ // Track all packages purchased
-    type: 'package8' | 'package10' | 'package12' | '1class' | '8classes' | '12classes' | 'duo1class' | 'duo8classes' | 'duo12classes';
-    sessions: number;
-    purchasedDate: string;
-    activatedDate?: string;
+  packages?: Array<{
+    id: string;
+    type: string;
+    status: string;
+    paymentStatus: string;
+    activationStatus: string;
+    totalSessions: number;
+    remainingSessions: number;
+    baseSessions: number;
+    bonusClasses: number;
+    createdAt: string;
+    purchaseDate?: string;
     activationDate?: string;
     expiryDate?: string;
   }>;
@@ -299,7 +306,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
           mobile: user.mobile,
           email: user.email,
           status, // Map payment status to display status
-          packageType: user.packages[0]?.type || 'single',
+          packageType: user.packages?.[0]?.type || 'single',
           totalSessions: user.totalSessions,
           usedSessions: user.usedSessions,
           remainingSessions: user.remainingSessions,
@@ -2128,39 +2135,52 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                               {user.name} {user.surname}
                             </span>
                             <span className="text-xs text-[#8b7764]">
-                              {user.packageType === 'single' || user.packageType === '1class' || user.packageType === 'duo1class' ? (
-                                user.packageType === '1class' ? 'Individual' : user.packageType === 'duo1class' ? 'DUO' : 'Single'
-                              ) : (
-                                <>
-                                  {user.packageType?.startsWith('duo') ? 'DUO ' : user.packageType === '8classes' || user.packageType === '12classes' ? 'Ind ' : ''}{baseSessionCount}-pack
-                                  {user.status === 'confirmed' && (
-                                    <>
-                                      {' · '}
-                                      <span style={{ color: remainingSessions > 0 ? '#7A8F3A' : '#dc2626' }}>
-                                        {remainingSessions}
-                                      </span>
-                                      /{totalSessions}
-                                      {(() => {
-                                        const expiryDate = user.packages?.[0]?.expiryDate;
-                                        if (!expiryDate) return null;
-                                        const daysLeft = Math.ceil((new Date(expiryDate).getTime() - getSkopjeTime().getTime()) / (24 * 60 * 60 * 1000));
-                                        if (daysLeft <= 0) return (
-                                          <span style={{ marginLeft: '6px' }}>
-                                            · <span style={{ color: '#dc2626' }}>expired</span>
+                              {(() => {
+                                const pkgs = user.packages || [];
+                                const activeOrPending = pkgs.filter(p => p.status === 'active' || p.status === 'pending');
+                                if (pkgs.length === 0) return 'No package';
+                                // Show count if multiple packages
+                                const countLabel = pkgs.length > 1 ? `${pkgs.length} pkgs` : (
+                                  activeOrPending[0]?.type === 'single' || activeOrPending[0]?.type === '1class' || activeOrPending[0]?.type === 'duo1class'
+                                    ? (activeOrPending[0]?.type === '1class' ? 'Individual' : activeOrPending[0]?.type === 'duo1class' ? 'DUO' : 'Single')
+                                    : `${baseSessionCount}-pack`
+                                );
+                                // Show aggregate remaining/total for active packages
+                                const activeTotal = activeOrPending.reduce((s, p) => s + (p.totalSessions || 0), 0);
+                                const activeRemaining = activeOrPending.reduce((s, p) => s + (p.remainingSessions || 0), 0);
+                                return (
+                                  <>
+                                    {countLabel}
+                                    {activeTotal > 0 && (
+                                      <>
+                                        {' · '}
+                                        <span style={{ color: activeRemaining > 0 ? '#7A8F3A' : '#dc2626' }}>
+                                          {activeRemaining}
+                                        </span>
+                                        /{activeTotal}
+                                      </>
+                                    )}
+                                    {(() => {
+                                      // Show expiry from the most relevant active package
+                                      const activePkg = activeOrPending.find(p => p.expiryDate && p.status === 'active');
+                                      if (!activePkg?.expiryDate) return null;
+                                      const daysLeft = Math.ceil((new Date(activePkg.expiryDate).getTime() - getSkopjeTime().getTime()) / (24 * 60 * 60 * 1000));
+                                      if (daysLeft <= 0) return (
+                                        <span style={{ marginLeft: '6px' }}>
+                                          · <span style={{ color: '#dc2626' }}>expired</span>
+                                        </span>
+                                      );
+                                      return (
+                                        <span style={{ marginLeft: '6px' }}>
+                                          · <span style={{ color: daysLeft <= 5 ? '#dc2626' : daysLeft <= 10 ? '#e97a1f' : '#8b7764' }}>
+                                            {daysLeft}d left
                                           </span>
-                                        );
-                                        return (
-                                          <span style={{ marginLeft: '6px' }}>
-                                            · <span style={{ color: daysLeft <= 5 ? '#dc2626' : daysLeft <= 10 ? '#e97a1f' : '#8b7764' }}>
-                                              {daysLeft}d left
-                                            </span>
-                                          </span>
-                                        );
-                                      })()}
-                                    </>
-                                  )}
-                                </>
-                              )}
+                                        </span>
+                                      );
+                                    })()}
+                                  </>
+                                );
+                              })()}
                             </span>
                           </div>
                         </button>
@@ -2169,159 +2189,148 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                         {/* Expanded View */}
                         {isExpanded && (
                           <div className="px-4 pb-4 border-t border-[#e8dfd8] bg-[#f5f0ed] bg-opacity-50">
-                            {/* Status + Package */}
-                            <div className="flex items-center gap-3 mt-3 mb-3">
-                              <div
-                                className={`px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-1.5 ${
-                                  user.status === 'confirmed'
-                                    ? 'bg-green-100 text-green-700'
-                                    : 'bg-amber-100 text-amber-700'
-                                }`}
-                              >
-                                {user.status === 'confirmed' ? (
-                                  <>
-                                    <CheckCircle className="w-4 h-4" />
-                                    Paid
-                                  </>
-                                ) : (
-                                  <>
-                                    <AlertCircle className="w-4 h-4" />
-                                    Not Paid
-                                  </>
-                                )}
-                              </div>
-
-                              <div className="text-sm text-[#3d2f28] font-medium">
-                                {user.packageType === 'package8' && (
-                                  bonusSessions > 0 ? `8 + ${bonusSessions} Bonus Sessions` : '8 Sessions (3500 DEN)'
-                                )}
-                                {user.packageType === 'package10' && (
-                                  bonusSessions > 0 ? `10 + ${bonusSessions} Bonus Sessions` : '10 Sessions (4200 DEN)'
-                                )}
-                                {user.packageType === 'package12' && (
-                                  bonusSessions > 0 ? `12 + ${bonusSessions} Bonus Sessions` : '12 Sessions (4800 DEN)'
-                                )}
-                                {user.packageType === 'single' && 'Single (600 DEN)'}
-                                {user.packageType === '1class' && '1 Individual Class'}
-                                {user.packageType === '8classes' && (
-                                  bonusSessions > 0 ? `8 + ${bonusSessions} Bonus Individual` : '8 Individual Classes'
-                                )}
-                                {user.packageType === '12classes' && (
-                                  bonusSessions > 0 ? `12 + ${bonusSessions} Bonus Individual` : '12 Individual Classes'
-                                )}
-                                {user.packageType === 'duo1class' && '1 DUO Class'}
-                                {user.packageType === 'duo8classes' && (
-                                  bonusSessions > 0 ? `8 + ${bonusSessions} Bonus DUO` : '8 DUO Classes'
-                                )}
-                                {user.packageType === 'duo12classes' && (
-                                  bonusSessions > 0 ? `12 + ${bonusSessions} Bonus DUO` : '12 DUO Classes'
-                                )}
-                              </div>
-                            </div>
-
-                            {/* Payment Date */}
-                            {user.status === 'confirmed' && user.packages?.[0]?.activationDate && (
-                              <div className="mb-3 p-3 bg-[#F5F0EE] rounded-md">
-                                <p className="text-xs text-[#8b7764] mb-1">Payment Date:</p>
-                                <p className="text-sm text-[#3d2f28]">
-                                  {new Date(user.packages[0].activationDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
-                                </p>
-                              </div>
-                            )}
-
                             {/* Phone Number */}
                             {user.mobile && (
-                              <div className="mb-3 p-3 bg-[#F5F0EE] rounded-md">
+                              <div className="mt-3 mb-3 p-3 bg-[#F5F0EE] rounded-md">
                                 <p className="text-xs text-[#8b7764] mb-1">Phone:</p>
                                 <p className="text-sm text-[#3d2f28]">{formatPhone(user.mobile)}</p>
                               </div>
                             )}
 
+                            {/* All Packages */}
+                            {(user.packages && user.packages.length > 0) ? user.packages.map((pkg, pkgIndex) => {
+                              const pkgBaseCount = pkg.baseSessions || (
+                                pkg.type === 'package8' || pkg.type === '8classes' || pkg.type === 'duo8classes' ? 8
+                                : pkg.type === 'package10' ? 10
+                                : pkg.type === 'package12' || pkg.type === '12classes' || pkg.type === 'duo12classes' ? 12
+                                : 1
+                              );
+                              const pkgBonus = pkg.bonusClasses || 0;
+                              const pkgTotal = pkg.totalSessions || pkgBaseCount + pkgBonus;
+                              const pkgRemaining = pkg.remainingSessions ?? 0;
+                              const pkgUsed = pkgTotal - pkgRemaining;
+                              const pkgNormalRemaining = Math.max(0, pkgBaseCount - Math.max(0, pkgUsed - pkgBonus));
+                              const pkgBonusRemaining = Math.max(0, pkgBonus - Math.min(pkgUsed, pkgBonus));
+                              const isPaid = pkg.paymentStatus === 'paid' || pkg.activationStatus === 'activated';
+                              const isActive = pkg.status === 'active';
+                              const isExpired = pkg.status === 'expired';
+                              const isCancelled = pkg.status === 'cancelled';
+                              const isFullyUsed = pkg.status === 'fully_used';
 
-                            {/* Sessions Remaining (for confirmed users with packages) */}
-                            {user.status === 'confirmed' && user.packageType !== 'single' && (
-                              <div className="mb-3 p-3 bg-[#F5F0EE] rounded-md">
-                                <p className="text-xs text-[#8b7764] mb-1">Package Usage:</p>
-                                <div className="flex items-center justify-between">
-                                  <p className="text-sm text-[#3d2f28]">
-                                    <span className="font-medium" style={{ color: '#7A8F3A' }}>{remainingSessions}</span> / {totalSessions} sessions remaining
-                                  </p>
-                                  <div className="text-xs text-[#8b7764]">
-                                    Used: {usedSessions}
+                              const pkgLabel = pkg.type === 'package8' ? '8 Sessions'
+                                : pkg.type === 'package10' ? '10 Sessions'
+                                : pkg.type === 'package12' ? '12 Sessions'
+                                : pkg.type === 'single' ? 'Single'
+                                : pkg.type === '1class' ? '1 Individual'
+                                : pkg.type === '8classes' ? '8 Individual'
+                                : pkg.type === '12classes' ? '12 Individual'
+                                : pkg.type === 'duo1class' ? '1 DUO'
+                                : pkg.type === 'duo8classes' ? '8 DUO'
+                                : pkg.type === 'duo12classes' ? '12 DUO'
+                                : pkg.type;
+
+                              return (
+                                <div key={pkg.id || pkgIndex} className={`mb-3 p-3 rounded-md border ${
+                                  isExpired || isCancelled ? 'bg-gray-50 border-gray-200'
+                                  : isFullyUsed ? 'bg-stone-50 border-stone-200'
+                                  : isPaid ? 'bg-green-50/50 border-green-200'
+                                  : 'bg-amber-50/50 border-amber-200'
+                                }`}>
+                                  {/* Package header */}
+                                  <div className="flex items-center justify-between mb-2">
+                                    <div className="text-sm text-[#3d2f28] font-medium">
+                                      {pkgLabel}{pkgBonus > 0 ? ` + ${pkgBonus} Bonus` : ''}
+                                    </div>
+                                    <div className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase ${
+                                      isExpired ? 'bg-red-100 text-red-700'
+                                      : isCancelled ? 'bg-red-100 text-red-700'
+                                      : isFullyUsed ? 'bg-stone-100 text-stone-600'
+                                      : isPaid ? 'bg-green-100 text-green-700'
+                                      : 'bg-amber-100 text-amber-700'
+                                    }`}>
+                                      {isExpired ? 'Expired' : isCancelled ? 'Cancelled' : isFullyUsed ? 'Completed' : isPaid ? 'Paid' : 'Unpaid'}
+                                    </div>
                                   </div>
-                                </div>
-                                {/* Mini-bar Visual */}
-                                <div className="mt-2 flex items-center">
-                                  {/* Normal package bars */}
-                                  <div className="flex" style={{ gap: '2px' }}>
-                                    {Array.from({ length: normalTotal }).map((_, i) => (
-                                      <span
-                                        key={`normal-${i}`}
-                                        style={{
-                                          width: '14px',
-                                          height: '10px',
-                                          borderRadius: '3px',
-                                          display: 'inline-block',
-                                          backgroundColor: i < normalRemaining ? '#7A8F3A' : 'rgba(122,143,58,0.2)',
-                                        }}
-                                      />
-                                    ))}
-                                  </div>
-                                  {/* Bonus bar (if applicable) */}
-                                  {bonusTotal > 0 && (
+
+                                  {/* Sessions bar */}
+                                  {pkgBaseCount > 1 && (
                                     <>
-                                      <span style={{ display: 'inline-block', width: '6px' }} />
-                                      <span
-                                        style={{
-                                          width: '14px',
-                                          height: '10px',
-                                          borderRadius: '3px',
-                                          display: 'inline-block',
-                                          backgroundColor: bonusRemaining > 0 ? '#D8A93B' : 'rgba(216,169,59,0.2)',
-                                        }}
-                                      />
+                                      <div className="flex items-center justify-between text-xs mb-1">
+                                        <span className="text-[#3d2f28]">
+                                          <span className="font-medium" style={{ color: pkgRemaining > 0 ? '#7A8F3A' : '#dc2626' }}>{pkgRemaining}</span> / {pkgTotal} remaining
+                                        </span>
+                                        <span className="text-[#8b7764]">Used: {pkgUsed}</span>
+                                      </div>
+                                      <div className="flex items-center">
+                                        <div className="flex" style={{ gap: '2px' }}>
+                                          {Array.from({ length: pkgBaseCount }).map((_, i) => (
+                                            <span
+                                              key={`pkg-${pkgIndex}-normal-${i}`}
+                                              style={{
+                                                width: '14px', height: '10px', borderRadius: '3px', display: 'inline-block',
+                                                backgroundColor: i < pkgNormalRemaining ? '#7A8F3A' : 'rgba(122,143,58,0.2)',
+                                              }}
+                                            />
+                                          ))}
+                                        </div>
+                                        {pkgBonus > 0 && (
+                                          <>
+                                            <span style={{ display: 'inline-block', width: '6px' }} />
+                                            <span style={{
+                                              width: '14px', height: '10px', borderRadius: '3px', display: 'inline-block',
+                                              backgroundColor: pkgBonusRemaining > 0 ? '#D8A93B' : 'rgba(216,169,59,0.2)',
+                                            }} />
+                                          </>
+                                        )}
+                                      </div>
                                     </>
                                   )}
-                                </div>
-                                {/* Adjust Sessions Buttons */}
-                                <div className="mt-3 flex gap-3">
-                                  <button
-                                    onClick={() => handleAdjustSessions(user, -1)}
-                                    disabled={remainingSessions <= 0 || adjustingSessionsEmail === user.email}
-                                    className={`w-10 h-10 rounded-md text-lg font-bold flex items-center justify-center transition-colors ${
-                                      remainingSessions <= 0 || adjustingSessionsEmail === user.email
-                                        ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                                        : 'bg-white border border-[#6b5949] text-[#6b5949] hover:bg-[#6b5949] hover:text-white'
-                                    }`}
-                                  >
-                                    {adjustingSessionsEmail === user.email ? (
-                                      <Loader2 className="w-4 h-4 animate-spin" />
-                                    ) : (
-                                      '−'
+
+                                  {/* Dates row */}
+                                  <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-[11px] text-[#8b7764]">
+                                    {pkg.purchaseDate && (
+                                      <span>Purchased: {new Date(pkg.purchaseDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
                                     )}
-                                  </button>
-                                  <button
-                                    onClick={() => handleAdjustSessions(user, 1)}
-                                    disabled={remainingSessions >= totalSessions || adjustingSessionsEmail === user.email}
-                                    className={`w-10 h-10 rounded-md text-lg font-bold flex items-center justify-center transition-colors ${
-                                      remainingSessions >= totalSessions || adjustingSessionsEmail === user.email
-                                        ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                                        : 'bg-white border border-[#6b5949] text-[#6b5949] hover:bg-[#6b5949] hover:text-white'
-                                    }`}
-                                  >
-                                    {adjustingSessionsEmail === user.email ? (
-                                      <Loader2 className="w-4 h-4 animate-spin" />
-                                    ) : (
-                                      '+'
+                                    {pkg.activationDate && (
+                                      <span>Activated: {new Date(pkg.activationDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
                                     )}
-                                  </button>
+                                    {pkg.expiryDate && (
+                                      <span>Expires: {new Date(pkg.expiryDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
+                                    )}
+                                  </div>
+
+                                  {/* Adjust sessions - only for active packages */}
+                                  {isActive && pkgBaseCount > 1 && (
+                                    <div className="mt-2 flex gap-3">
+                                      <button
+                                        onClick={() => handleAdjustSessions(user, -1)}
+                                        disabled={remainingSessions <= 0 || adjustingSessionsEmail === user.email}
+                                        className={`w-8 h-8 rounded text-sm font-bold flex items-center justify-center transition-colors ${
+                                          remainingSessions <= 0 || adjustingSessionsEmail === user.email
+                                            ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                                            : 'bg-white border border-[#6b5949] text-[#6b5949] hover:bg-[#6b5949] hover:text-white'
+                                        }`}
+                                      >
+                                        {adjustingSessionsEmail === user.email ? <Loader2 className="w-3 h-3 animate-spin" /> : '−'}
+                                      </button>
+                                      <button
+                                        onClick={() => handleAdjustSessions(user, 1)}
+                                        disabled={remainingSessions >= totalSessions || adjustingSessionsEmail === user.email}
+                                        className={`w-8 h-8 rounded text-sm font-bold flex items-center justify-center transition-colors ${
+                                          remainingSessions >= totalSessions || adjustingSessionsEmail === user.email
+                                            ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                                            : 'bg-white border border-[#6b5949] text-[#6b5949] hover:bg-[#6b5949] hover:text-white'
+                                        }`}
+                                      >
+                                        {adjustingSessionsEmail === user.email ? <Loader2 className="w-3 h-3 animate-spin" /> : '+'}
+                                      </button>
+                                    </div>
+                                  )}
                                 </div>
-                                {/* Last adjusted timestamp */}
-                                {user.sessionsAdjustedAt && (
-                                  <p className="mt-2 text-xs text-[#8b7764]">
-                                    Last adjusted: {new Date(user.sessionsAdjustedAt).toLocaleString()}
-                                  </p>
-                                )}
+                              );
+                            }) : (
+                              <div className="mt-3 mb-3 p-3 bg-[#F5F0EE] rounded-md">
+                                <p className="text-xs text-[#8b7764]">No packages</p>
                               </div>
                             )}
 

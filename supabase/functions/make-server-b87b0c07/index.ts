@@ -2837,10 +2837,10 @@ app.get("/make-server-b87b0c07/admin/users", async (c) => {
       return c.json({ error: 'Failed to fetch reservations', details: resError.message }, 500);
     }
 
-    // Fetch user_packages for activation/expiry dates
+    // Fetch all user_packages (full details for multi-package support)
     const { data: userPackages, error: pkgError } = await supabase
       .from('user_packages')
-      .select('user_email, activation_date, expiry_date, package_status')
+      .select('id, user_email, package_type, package_status, activation_status, payment_status, total_sessions, remaining_sessions, base_sessions, bonus_classes, activation_date, expiry_date, purchase_date, created_at')
       .order('created_at', { ascending: false });
 
     if (pkgError) {
@@ -2855,23 +2855,31 @@ app.get("/make-server-b87b0c07/admin/users", async (c) => {
         (res: any) => res.user_email === user.email
       );
 
-      // Find the most recent package from user_packages table
-      const userPkg = (userPackages || []).find(
+      // Get ALL packages for this user from user_packages table
+      const userPkgs = (userPackages || []).filter(
         (pkg: any) => pkg.user_email === user.email
       );
 
-      // Package info is stored directly on user in Supabase schema
-      const packages = user.package_type ? [{
-        id: user.id,
-        type: user.package_type,
-        status: user.activation_status || 'pending',
-        paymentStatus: user.payment_status || 'unpaid',
-        activationStatus: user.activation_status || 'pending',
-        sessionsUsed: user.used_sessions || 0,
-        createdAt: user.created_at,
-        activationDate: userPkg?.activation_date || null,
-        expiryDate: userPkg?.expiry_date || null,
-      }] : [];
+      const packages = userPkgs.map((pkg: any) => ({
+        id: pkg.id,
+        type: pkg.package_type,
+        status: pkg.package_status || 'pending',
+        paymentStatus: pkg.payment_status || 'unpaid',
+        activationStatus: pkg.activation_status || 'pending',
+        totalSessions: pkg.total_sessions || 0,
+        remainingSessions: pkg.remaining_sessions || 0,
+        baseSessions: pkg.base_sessions || 0,
+        bonusClasses: pkg.bonus_classes || 0,
+        createdAt: pkg.created_at,
+        purchaseDate: pkg.purchase_date || pkg.created_at,
+        activationDate: pkg.activation_date || null,
+        expiryDate: pkg.expiry_date || null,
+      }));
+
+      // Aggregate totals across all packages
+      const totalSessions = packages.reduce((sum: number, p: any) => sum + p.totalSessions, 0);
+      const remainingSessions = packages.reduce((sum: number, p: any) => sum + p.remainingSessions, 0);
+      const usedSessions = totalSessions - remainingSessions;
 
       return {
         id: user.id,
@@ -2887,11 +2895,12 @@ app.get("/make-server-b87b0c07/admin/users", async (c) => {
           timeSlot: res.time_slot,
           reservationStatus: res.reservation_status,
           paymentStatus: res.payment_status,
+          packageId: res.package_id,
           createdAt: res.created_at,
         })),
-        totalSessions: user.total_sessions || 0,
-        usedSessions: user.used_sessions || 0,
-        remainingSessions: user.remaining_sessions || 0,
+        totalSessions,
+        usedSessions,
+        remainingSessions,
         sessionsAdjustedAt: user.sessions_adjusted_at || null,
         createdAt: user.created_at,
         blocked: user.blocked || false,
