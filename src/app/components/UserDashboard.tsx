@@ -87,6 +87,9 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
   // Handle session expired errors - use onLogout to clear storage and redirect
   const handleSessionError = (error: string): boolean => {
     if (error === 'Session expired' || error === 'Invalid session' || error === 'No session token provided') {
+      // Reset loading flags before logout to prevent stale state if unmount is delayed
+      setIsRescheduling(false);
+      setIsBuyingPackage(false);
       toast.error('Your session has expired. Please log in again.');
       onLogout();
       return true;
@@ -119,16 +122,27 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
     EN: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
   };
 
-  // Format dateKey "M-D" to human readable "D Month YYYY"
+  // Format dateKey "M-D" or "YYYY-MM-DD" to human readable "D Month YYYY"
   const formatDateKey = (dateKey: string): string => {
     if (!dateKey) return '';
     const parts = dateKey.split('-');
-    if (parts.length !== 2) return dateKey; // Return as-is if not M-D format
-    const month = parseInt(parts[0], 10);
-    const day = parseInt(parts[1], 10);
+    let year: number, month: number, day: number;
+    if (parts.length === 3) {
+      // ISO format: YYYY-MM-DD
+      year = parseInt(parts[0], 10);
+      month = parseInt(parts[1], 10);
+      day = parseInt(parts[2], 10);
+    } else if (parts.length === 2) {
+      // Legacy format: M-D
+      month = parseInt(parts[0], 10);
+      day = parseInt(parts[1], 10);
+      year = getSkopjeTime().getFullYear();
+    } else {
+      return dateKey;
+    }
     if (isNaN(month) || isNaN(day)) return dateKey;
     const monthName = monthNames[language]?.[month - 1] || monthNames.EN[month - 1];
-    return `${day} ${monthName} ${getSkopjeTime().getFullYear()}`;
+    return `${day} ${monthName} ${year}`;
   };
 
   // Format time slot to time range (50 min session)
@@ -188,9 +202,15 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
 
     // Check standalone reservations
     reservations.filter(r => !r.packageId && r.reservationStatus !== 'cancelled').forEach(res => {
-      // Convert M-D format to full date
-      const [month, day] = res.dateKey.split('-').map(Number);
-      const year = getSkopjeTime().getFullYear();
+      // Parse both YYYY-MM-DD and legacy M-D formats
+      let year: number, month: number, day: number;
+      const parts = res.dateKey.split('-').map(Number);
+      if (parts.length === 3) {
+        [year, month, day] = parts;
+      } else {
+        [month, day] = parts;
+        year = getSkopjeTime().getFullYear();
+      }
       const sessionDateTime = new Date(year, month - 1, day, ...res.timeSlot.split(':').map(Number));
       if (sessionDateTime > now && (!nextSession || sessionDateTime < nextSession.dateTime)) {
         nextSession = {
@@ -259,13 +279,13 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
 
   // Previously had debug logging here - removed for production
 
-  // Load user's packages
-  const loadPackages = async () => {
+  // Load user's packages. Returns fresh packages array for callers that need it immediately.
+  const loadPackages = async (): Promise<PackageDetails[]> => {
     try {
       setLoading(true);
-      
+
       console.log('🔐 Loading packages...');
-      
+
       const response = await fetch(
         `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/user/packages`,
         {
@@ -280,22 +300,26 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         console.error('❌ Failed to load packages:', response.status, errorData);
-        if (handleSessionError(errorData.error)) return;
+        if (handleSessionError(errorData.error)) return [];
         toast.error(`Failed to load packages: ${errorData.error || 'Unknown error'}`);
-        return;
+        return [];
       }
 
       const data = await response.json();
       if (data.success) {
         refreshSessionExpiry(); // Keep frontend expiry in sync with backend
-        setPackages(data.packages || []);
+        const freshPackages = data.packages || [];
+        setPackages(freshPackages);
         setReservations(data.reservations || []);
         setLastUpdated(new Date());
         console.log('📦 Loaded user packages:', data.packages);
         console.log('📅 Loaded user reservations:', data.reservations);
+        return freshPackages;
       }
+      return [];
     } catch (error) {
       console.error('Error loading packages:', error);
+      return [];
     } finally {
       setLoading(false);
     }
@@ -346,7 +370,7 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
   }, [inlineBookingPackageId, selectedSlotIndex, packages]);
 
   // Load available slots for rescheduling - fetches ONLY live days from API
-  const loadAvailableSlots = async () => {
+  const loadAvailableSlots = async (): Promise<DateSlot[]> => {
     try {
       // Fetch live days and bookings in parallel
       const [liveDaysResponse, bookingsResponse] = await Promise.all([
@@ -366,7 +390,7 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
 
       if (!liveDaysResponse.ok) {
         console.error('Failed to load live days');
-        return;
+        return [];
       }
 
       const liveDaysData = await liveDaysResponse.json();
@@ -375,7 +399,7 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
       if (liveDays.length === 0) {
         console.log('📅 No live days available');
         setAvailableSlots([]);
-        return;
+        return [];
       }
 
       const bookingsData = bookingsResponse.ok ? await bookingsResponse.json() : { bookings: [] };
@@ -460,8 +484,10 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
 
       setAvailableSlots(slots);
       console.log('📅 Loaded', slots.length, 'available LIVE dates for booking');
+      return slots;
     } catch (error) {
       console.error('Error loading slots:', error);
+      return [];
     }
   };
 
@@ -662,8 +688,8 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
     setIsRescheduling(true);
 
     // Refresh availability to prevent booking a full slot
-    await loadAvailableSlots();
-    const freshSlot = availableSlots
+    const freshSlots = await loadAvailableSlots();
+    const freshSlot = freshSlots
       .find(d => d.dateKey === dateKey)
       ?.timeSlots.find(s => s.time === timeSlot);
     if (!freshSlot || freshSlot.available <= 0) {
@@ -703,12 +729,13 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
       console.log('✅ Session booked via inline calendar:', data);
       toast.success(t.sessionBookedSuccess || 'Session booked successfully!');
 
-      // Reload packages
-      await loadPackages();
+      // Reload packages and use fresh data for auto-advance
+      const freshPackages = await loadPackages();
+      const freshPkg = freshPackages.find(p => p.id === pkg.id) || pkg;
 
-      // Auto-advance to next empty slot
-      const nextEmptySlot = findNextEmptySlot(pkg, selectedSlotIndex);
-      if (nextEmptySlot !== null && nextEmptySlot < pkg.totalSessions) {
+      // Auto-advance to next empty slot using fresh data
+      const nextEmptySlot = findNextEmptySlot(freshPkg, selectedSlotIndex);
+      if (nextEmptySlot !== null && nextEmptySlot < freshPkg.totalSessions) {
         setSelectedSlotIndex(nextEmptySlot);
       } else {
         // Close inline calendar if all slots are filled
@@ -1095,7 +1122,7 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
                     </p>
                     {pkg.bookedSessions.some(s => !s.attended && new Date(s.dateKey + 'T23:59:59') >= new Date()) && (
                       <p className="text-xs text-amber-700 mt-1">
-                        {t.unpaidBookingLimit || 'You can only have 1 upcoming booking while your package is unpaid.'}
+                        {t.unpaidBookingLimit || 'You can only have 2 upcoming bookings while your package is unpaid.'}
                       </p>
                     )}
                   </div>
@@ -1191,7 +1218,9 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
                     {/* Cancel button for booked sessions */}
                     {(() => {
                       const selectedSession = getBookedSessionForSlot(pkg, selectedSlotIndex);
-                      if (selectedSession && canCancelSession(selectedSession)) {
+                      if (!selectedSession) return null;
+
+                      if (canCancelSession(selectedSession)) {
                         const within24h = isWithin24Hours(selectedSession);
                         const graceSeconds = within24h ? getGracePeriodRemaining(selectedSession) : 0;
 
@@ -1227,6 +1256,22 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
                           </div>
                         );
                       }
+
+                      // Session exists but can't be cancelled — show explanation if within 24h
+                      if (isWithin24Hours(selectedSession) && !selectedSession.attended) {
+                        return (
+                          <div className="mb-3 p-3 bg-white rounded-lg border border-[#e8e6e3]">
+                            <div className="text-xs text-[#6b5949]">
+                              <span className="font-medium">{t.currentBooking || 'Current booking'}:</span>{' '}
+                              {formatShortDate(selectedSession.dateKey)} {t.at || 'at'} {selectedSession.time}
+                            </div>
+                            <p className="text-[10px] text-[#8b7764] mt-1">
+                              {t.cannotCancelWithin24h || 'Cancellation is not available within 24 hours of class time.'}
+                            </p>
+                          </div>
+                        );
+                      }
+
                       return null;
                     })()}
 
@@ -1407,13 +1452,13 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
           )}
 
           {/* Single Session Reservations (not linked to packages) */}
-          {reservations.filter(r => !r.packageId).length > 0 && (
+          {reservations.filter(r => !r.packageId && r.reservationStatus !== 'cancelled' && r.reservationStatus !== 'no_show').length > 0 && (
             <div className="mt-6">
               <h3 className="text-sm font-semibold text-[#3d2f28] mb-3">
                 {t.yourNextClass || 'Your Next Class'}
               </h3>
               <div className="space-y-3">
-                {reservations.filter(r => !r.packageId).map((res) => (
+                {reservations.filter(r => !r.packageId && r.reservationStatus !== 'cancelled' && r.reservationStatus !== 'no_show').map((res) => (
                   <div key={res.id} className="bg-white rounded-xl p-4 shadow-sm border border-[#e8e6e3]">
                     <div className="flex items-center gap-3 mb-3">
                       <div className="w-10 h-10 bg-[#e8dfd8] rounded-full flex items-center justify-center">
