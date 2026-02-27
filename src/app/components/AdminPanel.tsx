@@ -2386,10 +2386,14 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                 </button>
                               ) : user.status === 'confirmed' ? (
                                 <>
-                                  <div className="px-3 py-1.5 bg-green-100 text-green-700 rounded-md text-xs font-medium flex items-center gap-1.5">
+                                  <button
+                                    onClick={() => handleStatusChange(user.id)}
+                                    className="px-3 py-1.5 bg-green-100 text-green-700 rounded-md text-xs font-medium hover:bg-amber-100 hover:text-amber-700 transition-colors flex items-center gap-1.5"
+                                    title="Click to mark as unpaid"
+                                  >
                                     <CheckCircle className="w-3 h-3" />
-                                    Activated
-                                  </div>
+                                    Paid
+                                  </button>
                                   <button
                                     onClick={() => handleResendLoginEmail(user)}
                                     disabled={sendingLoginEmailTo === user.email}
