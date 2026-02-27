@@ -2376,14 +2376,24 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                             {/* Code + Action */}
                             <div className="flex flex-wrap items-center gap-2">
                               {user.status === 'pending' ? (
-                                <button
-                                  onClick={() => handleActivateUser(user)}
-                                  className="px-3 py-1.5 bg-green-600 text-white rounded-md text-xs font-medium hover:bg-green-700 transition-colors flex items-center gap-1.5"
-                                  disabled={isSendingEmail}
-                                >
-                                  <CheckCircle className="w-3 h-3" />
-                                  Activate User
-                                </button>
+                                <>
+                                  <button
+                                    onClick={() => handleStatusChange(user.id)}
+                                    className="px-3 py-1.5 bg-amber-100 text-amber-700 rounded-md text-xs font-medium hover:bg-green-100 hover:text-green-700 transition-colors flex items-center gap-1.5"
+                                    title="Click to mark as paid"
+                                  >
+                                    <AlertCircle className="w-3 h-3" />
+                                    Unpaid
+                                  </button>
+                                  <button
+                                    onClick={() => handleActivateUser(user)}
+                                    className="px-3 py-1.5 bg-green-600 text-white rounded-md text-xs font-medium hover:bg-green-700 transition-colors flex items-center gap-1.5"
+                                    disabled={isSendingEmail}
+                                  >
+                                    <CheckCircle className="w-3 h-3" />
+                                    Activate
+                                  </button>
+                                </>
                               ) : user.status === 'confirmed' ? (
                                 <>
                                   <button
