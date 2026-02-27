@@ -361,12 +361,15 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
       );
       if (response.ok) {
         setLoginRequests(prev => prev.filter(r => r.id !== requestId));
+        toast.success('Login request approved');
       } else {
         const data = await response.json();
         console.error('Failed to approve login request:', data);
+        toast.error('Failed to approve login request');
       }
     } catch (error) {
       console.error('Error approving login request:', error);
+      toast.error('Network error approving request');
     } finally {
       setProcessingLoginRequest(null);
     }
@@ -388,9 +391,13 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
       );
       if (response.ok) {
         setLoginRequests(prev => prev.filter(r => r.id !== requestId));
+        toast.success('Login request dismissed');
+      } else {
+        toast.error('Failed to dismiss login request');
       }
     } catch (error) {
       console.error('Error dismissing login request:', error);
+      toast.error('Network error dismissing request');
     } finally {
       setProcessingLoginRequest(null);
     }
@@ -522,6 +529,17 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
     const isoDate = convertToISODate(dateKey);
     const newStatus = isCurrentlyLive ? 'draft' : 'live';
 
+    // Prevent setting past dates to live
+    if (newStatus === 'live') {
+      const [m, d] = dateKey.split('-').map(Number);
+      const now = getSkopjeTime();
+      const dateToCheck = new Date(now.getFullYear(), m - 1, d, 23, 59, 59);
+      if (dateToCheck < now) {
+        toast.error('Cannot set a past date to live');
+        return;
+      }
+    }
+
     console.log(`Toggling day ${isoDate} from ${isCurrentlyLive ? 'live' : 'draft'} to ${newStatus}`);
 
     try {
@@ -573,7 +591,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
 
   // Auto-select today's date on mount so calendar opens with today's time slots visible
   useEffect(() => {
-    const todayKey = formatDateKeyLegacy(new Date());
+    const todayKey = formatDateKeyLegacy(getSkopjeTime());
     if (!selectedDate) {
       setSelectedDate(todayKey);
     }
@@ -957,7 +975,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
     if ((user.remainingSessions ?? 0) <= 0 && (user.totalSessions ?? 0) > 0) return true;
     // Package expired (35-day validity passed)
     const expiryDate = user.packages?.[0]?.expiryDate;
-    if (expiryDate && new Date(expiryDate).getTime() < Date.now()) return true;
+    if (expiryDate && new Date(expiryDate).getTime() < getSkopjeTime().getTime()) return true;
     // Paid users with no active package (completed their service)
     if (user.status === 'confirmed' && (user.totalSessions ?? 0) === 0) return true;
     return false;
@@ -1351,6 +1369,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
       );
       if (response.ok) {
         console.log('✅ User activated successfully');
+        toast.success(`${name} activated successfully`);
         await fetchBookings();
       } else {
         const errorData = await response.text();
@@ -1460,7 +1479,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                     return total + 1;
                   }, 0);
                   const isSelected = selectedDate === date.dateKey;
-                  const todayKey = formatDateKeyLegacy(new Date());
+                  const todayKey = formatDateKeyLegacy(getSkopjeTime());
                   const isToday = date.dateKey === todayKey;
                   const isWeekend = date.isWeekend;
 
@@ -1689,13 +1708,30 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                     </span>
                                     {/* Payment Badge */}
                                     {isPaid ? (
-                                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium text-green-700 bg-green-100">
-                                        <CheckCircle className="w-3.5 h-3.5" />
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); setPaymentUpdatingEmail(booking.email); updatePaymentStatus(booking.email, 'unpaid').finally(() => setPaymentUpdatingEmail(null)); }}
+                                        disabled={isUpdatingPayment}
+                                        className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium text-green-700 bg-green-100 border border-green-300 hover:bg-green-200 transition-colors disabled:opacity-50 cursor-pointer"
+                                      >
+                                        {isUpdatingPayment ? (
+                                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                        ) : (
+                                          <CheckCircle className="w-3.5 h-3.5" />
+                                        )}
                                         Paid
-                                      </span>
+                                      </button>
                                     ) : (
                                       <button
-                                        onClick={(e) => { e.stopPropagation(); handleActivateFromCalendar(booking.email, booking.name); }}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          const userRecord = users.find(u => u.email === booking.email);
+                                          if (userRecord && userRecord.status === 'confirmed') {
+                                            setPaymentUpdatingEmail(booking.email);
+                                            updatePaymentStatus(booking.email, 'paid').finally(() => setPaymentUpdatingEmail(null));
+                                          } else {
+                                            handleActivateFromCalendar(booking.email, booking.name);
+                                          }
+                                        }}
                                         disabled={isUpdatingPayment}
                                         className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium text-amber-700 bg-amber-100 border border-amber-300 hover:bg-amber-200 transition-colors disabled:opacity-50 cursor-pointer"
                                       >
@@ -1921,7 +1957,8 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                         </div>
                         <span className="text-xs text-[#8b7764] flex-shrink-0 whitespace-nowrap">
                           {new Date(change.createdAt).toLocaleString('en-GB', {
-                            day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
+                            day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
+                            timeZone: 'Europe/Skopje'
                           })}
                         </span>
                       </div>
@@ -2164,7 +2201,9 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                       // Show expiry from the most relevant active package
                                       const activePkg = activeOrPending.find(p => p.expiryDate && p.status === 'active');
                                       if (!activePkg?.expiryDate) return null;
-                                      const daysLeft = Math.ceil((new Date(activePkg.expiryDate).getTime() - getSkopjeTime().getTime()) / (24 * 60 * 60 * 1000));
+                                      const expiryParts = activePkg.expiryDate.split('-').map(Number);
+                                      const expiryInSkopje = new Date(expiryParts[0], expiryParts[1] - 1, expiryParts[2], 23, 59, 59);
+                                      const daysLeft = Math.ceil((expiryInSkopje.getTime() - getSkopjeTime().getTime()) / (24 * 60 * 60 * 1000));
                                       if (daysLeft <= 0) return (
                                         <span style={{ marginLeft: '6px' }}>
                                           · <span style={{ color: '#dc2626' }}>expired</span>
@@ -2289,13 +2328,13 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                   {/* Dates row */}
                                   <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-[11px] text-[#8b7764]">
                                     {pkg.purchaseDate && (
-                                      <span>Purchased: {new Date(pkg.purchaseDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
+                                      <span>Purchased: {new Date(pkg.purchaseDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'Europe/Skopje' })}</span>
                                     )}
                                     {pkg.activationDate && (
-                                      <span>Activated: {new Date(pkg.activationDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
+                                      <span>Activated: {new Date(pkg.activationDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'Europe/Skopje' })}</span>
                                     )}
                                     {pkg.expiryDate && (
-                                      <span>Expires: {new Date(pkg.expiryDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
+                                      <span>Expires: {new Date(pkg.expiryDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'Europe/Skopje' })}</span>
                                     )}
                                   </div>
 
