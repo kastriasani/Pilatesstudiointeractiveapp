@@ -188,7 +188,12 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
     // Check package first sessions
     packages.forEach(pkg => {
       if (pkg.firstSession) {
-        const sessionDateTime = new Date(`${pkg.firstSession.dateKey}T${pkg.firstSession.time}`);
+        // Parse date consistently using component constructor (same as standalone path)
+        const dk = pkg.firstSession.dateKey;
+        const dkParts = dk.split('-').map(Number);
+        const [y, mo, d] = dkParts.length === 3 ? dkParts : [now.getFullYear(), ...dkParts];
+        const [h, mi] = pkg.firstSession.time.split(':').map(Number);
+        const sessionDateTime = new Date(y, mo - 1, d, h, mi);
         if (sessionDateTime > now && (!nextSession || sessionDateTime < nextSession.dateTime)) {
           nextSession = {
             dateKey: pkg.firstSession.dateKey,
@@ -671,7 +676,8 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
     setSelectedSlotIndex(slotIndex);
     setInlineBookingPackageId(pkg.id);
 
-    // Load available slots for inline calendar
+    // Clear stale slots before loading fresh data
+    setAvailableSlots([]);
     await loadAvailableSlots();
   };
 
@@ -1452,13 +1458,28 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
           )}
 
           {/* Single Session Reservations (not linked to packages) */}
-          {reservations.filter(r => !r.packageId && r.reservationStatus !== 'cancelled' && r.reservationStatus !== 'no_show').length > 0 && (
+          {reservations.filter(r => {
+            if (r.packageId) return false;
+            if (r.reservationStatus === 'cancelled' || r.reservationStatus === 'no_show' || r.reservationStatus === 'attended') return false;
+            // Filter out past sessions
+            const parts = r.dateKey.split('-').map(Number);
+            const [year, month, day] = parts.length === 3 ? parts : [getSkopjeTime().getFullYear(), ...parts];
+            const [h, m] = r.timeSlot.split(':').map(Number);
+            return new Date(year, month - 1, day, h, m + 50) > getSkopjeTime();
+          }).length > 0 && (
             <div className="mt-6">
               <h3 className="text-sm font-semibold text-[#3d2f28] mb-3">
                 {t.yourNextClass || 'Your Next Class'}
               </h3>
               <div className="space-y-3">
-                {reservations.filter(r => !r.packageId && r.reservationStatus !== 'cancelled' && r.reservationStatus !== 'no_show').map((res) => (
+                {reservations.filter(r => {
+                  if (r.packageId) return false;
+                  if (r.reservationStatus === 'cancelled' || r.reservationStatus === 'no_show' || r.reservationStatus === 'attended') return false;
+                  const parts = r.dateKey.split('-').map(Number);
+                  const [year, month, day] = parts.length === 3 ? parts : [getSkopjeTime().getFullYear(), ...parts];
+                  const [h, m] = r.timeSlot.split(':').map(Number);
+                  return new Date(year, month - 1, day, h, m + 50) > getSkopjeTime();
+                }).map((res) => (
                   <div key={res.id} className="bg-white rounded-xl p-4 shadow-sm border border-[#e8e6e3]">
                     <div className="flex items-center gap-3 mb-3">
                       <div className="w-10 h-10 bg-[#e8dfd8] rounded-full flex items-center justify-center">
