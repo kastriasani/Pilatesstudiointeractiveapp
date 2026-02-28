@@ -335,7 +335,7 @@ async function verifyUserSession(c: any): Promise<{ valid: boolean; error?: stri
 
   if (userError || !user) {
     // User was deleted — clean up the orphaned session
-    await kv.delete(sessionKey);
+    await kv.del(sessionKey);
     return { valid: false, error: 'Session expired' };
   }
 
@@ -462,19 +462,21 @@ async function autoDeductMissedSessions(userEmail: string): Promise<{ deducted: 
       .update({ reservation_status: 'no_show', updated_at: now })
       .eq('id', reservation.id);
 
-    // Add to package sessions_attended (penalty - session consumed)
+    // Add to package sessions_attended (penalty - session consumed) and remove from sessions_booked
     if (reservation.package_id) {
       const { data: pkg } = await supabase
         .from('user_packages')
-        .select('sessions_attended')
+        .select('sessions_attended, sessions_booked')
         .eq('id', reservation.package_id)
         .single();
 
       if (pkg && !pkg.sessions_attended?.includes(reservation.id)) {
+        const updatedBooked = (pkg.sessions_booked || []).filter((id: string) => id !== reservation.id);
         await supabase
           .from('user_packages')
           .update({
             sessions_attended: [...(pkg.sessions_attended || []), reservation.id],
+            sessions_booked: updatedBooked,
             updated_at: now
           })
           .eq('id', reservation.package_id);
@@ -2211,18 +2213,21 @@ app.patch("/make-server-b87b0c07/reservations/:id/status", async (c) => {
       if (reservationStatus === 'no_show') {
         // No show - session is consumed as penalty, but mark it in attended array
         // so we know it was "used" (even though user didn't show)
+        // Also remove from sessions_booked to prevent duplicate display
         if (reservation.package_id) {
           const { data: pkg } = await supabase
             .from('user_packages')
-            .select('sessions_attended')
+            .select('sessions_attended, sessions_booked')
             .eq('id', reservation.package_id)
             .single();
 
           if (pkg && !pkg.sessions_attended?.includes(reservationId)) {
+            const updatedBooked = (pkg.sessions_booked || []).filter((id: string) => id !== reservationId);
             await supabase
               .from('user_packages')
               .update({
                 sessions_attended: [...(pkg.sessions_attended || []), reservationId],
+                sessions_booked: updatedBooked,
                 updated_at: new Date().toISOString()
               })
               .eq('id', reservation.package_id);
@@ -2898,6 +2903,9 @@ app.get("/make-server-b87b0c07/admin/users", async (c) => {
           packageId: res.package_id,
           createdAt: res.created_at,
         })),
+        activeReservationCount: userReservations.filter(
+          (res: any) => res.reservation_status !== 'cancelled'
+        ).length,
         totalSessions,
         usedSessions,
         remainingSessions,
@@ -2919,6 +2927,263 @@ app.get("/make-server-b87b0c07/admin/users", async (c) => {
   } catch (error) {
     console.error('Error fetching admin users:', error);
     return c.json({ error: 'Failed to fetch users', details: error.message }, 500);
+  }
+});
+
+// GET /admin/consistency-check - Per-user data consistency audit (admin only)
+app.get("/make-server-b87b0c07/admin/consistency-check", async (c) => {
+  try {
+    const adminAuth = await verifyAdminSession(c);
+    if (!adminAuth.valid) {
+      return c.json({ error: adminAuth.error }, 401);
+    }
+
+    const supabase = getSupabase();
+    const now = getSkopjeTime();
+    const todayDateKey = formatDateKey(now);
+
+    const { data: users, error: usersError } = await supabase
+      .from('users')
+      .select('id, email, payment_status, remaining_sessions, used_sessions, created_at');
+
+    if (usersError) {
+      return c.json({ error: 'Failed to fetch users', details: usersError.message }, 500);
+    }
+
+    const { data: userPackages, error: packagesError } = await supabase
+      .from('user_packages')
+      .select('id, user_email, total_sessions, remaining_sessions, sessions_booked, sessions_attended, payment_status, package_status, first_reservation_id, created_at');
+
+    if (packagesError) {
+      return c.json({ error: 'Failed to fetch user packages', details: packagesError.message }, 500);
+    }
+
+    const { data: reservations, error: reservationsError } = await supabase
+      .from('reservations')
+      .select('id, user_email, package_id, date_key, time_slot, reservation_status, payment_status, created_at');
+
+    if (reservationsError) {
+      return c.json({ error: 'Failed to fetch reservations', details: reservationsError.message }, 500);
+    }
+
+    const isIsoDateKey = (dateKey: string): boolean => /^\d{4}-\d{2}-\d{2}$/.test(dateKey || '');
+    const isLegacyDateKey = (dateKey: string): boolean => /^\d{1,2}-\d{1,2}$/.test(dateKey || '');
+
+    const parseFlexibleDateTime = (dateKey: string, timeSlot: string): Date | null => {
+      if (!dateKey || !timeSlot) return null;
+
+      let year: number;
+      let month: number;
+      let day: number;
+
+      if (isIsoDateKey(dateKey)) {
+        const parsed = parseDateKey(dateKey);
+        if (!parsed) return null;
+        year = parsed.getFullYear();
+        month = parsed.getMonth() + 1;
+        day = parsed.getDate();
+      } else if (isLegacyDateKey(dateKey)) {
+        const [m, d] = dateKey.split('-').map(Number);
+        year = now.getFullYear();
+        month = m;
+        day = d;
+      } else {
+        return null;
+      }
+
+      const [hours, minutes] = (timeSlot || '').split(':').map(Number);
+      if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
+      return new Date(year, month - 1, day, hours, minutes);
+    };
+
+    const reservationById = new Map<string, any>();
+    const reservationsByUser = new Map<string, any[]>();
+    const packagesByUser = new Map<string, any[]>();
+
+    for (const reservation of reservations || []) {
+      reservationById.set(reservation.id, reservation);
+      const key = normalizeEmail(reservation.user_email || '');
+      const bucket = reservationsByUser.get(key) || [];
+      bucket.push(reservation);
+      reservationsByUser.set(key, bucket);
+    }
+
+    for (const pkg of userPackages || []) {
+      const key = normalizeEmail(pkg.user_email || '');
+      const bucket = packagesByUser.get(key) || [];
+      bucket.push(pkg);
+      packagesByUser.set(key, bucket);
+    }
+
+    const reportUsers = (users || []).map((user: any) => {
+      const normalizedEmail = normalizeEmail(user.email || '');
+      const pkgs = packagesByUser.get(normalizedEmail) || [];
+      const userReservations = reservationsByUser.get(normalizedEmail) || [];
+      const issues: Array<{ code: string; details: string }> = [];
+
+      const nonIsoDateKeys = userReservations
+        .map((r: any) => r.date_key)
+        .filter((dk: string) => dk && !isIsoDateKey(dk));
+      if (nonIsoDateKeys.length > 0) {
+        const unique = Array.from(new Set(nonIsoDateKeys)).slice(0, 5);
+        issues.push({
+          code: 'legacy_or_invalid_date_key',
+          details: `Found non-ISO date_key values (sample: ${unique.join(', ')})`
+        });
+      }
+
+      const totalSessionsFromPackages = pkgs.reduce((sum: number, p: any) => sum + (p.total_sessions || 0), 0);
+      const remainingSessionsFromPackages = pkgs.reduce((sum: number, p: any) => sum + (p.remaining_sessions || 0), 0);
+      const usedSessionsFromPackages = totalSessionsFromPackages - remainingSessionsFromPackages;
+
+      if (
+        user.remaining_sessions !== null &&
+        user.remaining_sessions !== undefined &&
+        user.remaining_sessions !== remainingSessionsFromPackages
+      ) {
+        issues.push({
+          code: 'users_remaining_sessions_mismatch',
+          details: `users.remaining_sessions=${user.remaining_sessions}, aggregated_packages_remaining=${remainingSessionsFromPackages}`
+        });
+      }
+
+      if (
+        user.used_sessions !== null &&
+        user.used_sessions !== undefined &&
+        user.used_sessions !== usedSessionsFromPackages
+      ) {
+        issues.push({
+          code: 'users_used_sessions_mismatch',
+          details: `users.used_sessions=${user.used_sessions}, aggregated_packages_used=${usedSessionsFromPackages}`
+        });
+      }
+
+      const latestPkg = [...pkgs].sort((a: any, b: any) =>
+        new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
+      )[0];
+
+      if (latestPkg && user.payment_status && latestPkg.payment_status && user.payment_status !== latestPkg.payment_status) {
+        issues.push({
+          code: 'payment_status_mismatch_latest_package',
+          details: `users.payment_status=${user.payment_status}, latest_package.payment_status=${latestPkg.payment_status}`
+        });
+      }
+
+      for (const pkg of pkgs) {
+        const bookedIds = Array.isArray(pkg.sessions_booked) ? pkg.sessions_booked : [];
+        const attendedIds = Array.isArray(pkg.sessions_attended) ? pkg.sessions_attended : [];
+
+        for (const reservationId of [...bookedIds, ...attendedIds]) {
+          const ref = reservationById.get(reservationId);
+          if (!ref) {
+            issues.push({
+              code: 'dangling_reservation_reference',
+              details: `package_id=${pkg.id} references missing reservation_id=${reservationId}`
+            });
+            continue;
+          }
+
+          if (normalizeEmail(ref.user_email || '') !== normalizedEmail) {
+            issues.push({
+              code: 'reservation_user_mismatch',
+              details: `package_id=${pkg.id} references reservation_id=${reservationId} owned by ${ref.user_email}`
+            });
+          }
+
+          if (ref.package_id && ref.package_id !== pkg.id) {
+            issues.push({
+              code: 'reservation_package_mismatch',
+              details: `package_id=${pkg.id} references reservation_id=${reservationId} with package_id=${ref.package_id}`
+            });
+          }
+        }
+
+        const cancelledStillBooked = bookedIds.filter((reservationId: string) => {
+          const ref = reservationById.get(reservationId);
+          return ref && ref.reservation_status === 'cancelled';
+        });
+
+        if (cancelledStillBooked.length > 0) {
+          issues.push({
+            code: 'cancelled_reservation_still_in_sessions_booked',
+            details: `package_id=${pkg.id} has ${cancelledStillBooked.length} cancelled reservation(s) in sessions_booked`
+          });
+        }
+
+        const expectedRemaining = Math.max(0, (pkg.total_sessions || 0) - bookedIds.length - attendedIds.length);
+        if (pkg.remaining_sessions !== expectedRemaining) {
+          issues.push({
+            code: 'package_remaining_sessions_mismatch',
+            details: `package_id=${pkg.id}, remaining_sessions=${pkg.remaining_sessions}, expected=${expectedRemaining} (total - booked - attended)`
+          });
+        }
+
+        if (pkg.first_reservation_id) {
+          const firstRef = reservationById.get(pkg.first_reservation_id);
+          if (!firstRef) {
+            issues.push({
+              code: 'missing_first_reservation',
+              details: `package_id=${pkg.id} has first_reservation_id=${pkg.first_reservation_id} but reservation does not exist`
+            });
+          } else if (firstRef.reservation_status === 'cancelled') {
+            issues.push({
+              code: 'cancelled_first_reservation',
+              details: `package_id=${pkg.id} first_reservation_id=${pkg.first_reservation_id} is cancelled`
+            });
+          }
+        }
+
+        if (pkg.payment_status !== 'paid') {
+          const upcomingActiveCount = userReservations.filter((r: any) => {
+            if (r.package_id !== pkg.id) return false;
+            if (!(r.reservation_status === 'pending' || r.reservation_status === 'confirmed')) return false;
+
+            const dt = parseFlexibleDateTime(r.date_key, r.time_slot);
+            if (!dt) return false;
+            return formatDateKey(dt) >= todayDateKey;
+          }).length;
+
+          if (upcomingActiveCount > 2) {
+            issues.push({
+              code: 'unpaid_package_booking_limit_violation',
+              details: `package_id=${pkg.id} is unpaid and has ${upcomingActiveCount} upcoming pending/confirmed bookings`
+            });
+          }
+        }
+      }
+
+      return {
+        userId: user.id,
+        email: normalizedEmail,
+        issueCount: issues.length,
+        issues,
+        stats: {
+          packageCount: pkgs.length,
+          reservationCount: userReservations.length,
+          usersRemainingSessions: user.remaining_sessions,
+          usersUsedSessions: user.used_sessions,
+          aggregatedRemainingSessions: remainingSessionsFromPackages,
+          aggregatedUsedSessions: usedSessionsFromPackages
+        }
+      };
+    });
+
+    const usersWithIssues = reportUsers.filter((u: any) => u.issueCount > 0);
+    const totalIssues = usersWithIssues.reduce((sum: number, u: any) => sum + u.issueCount, 0);
+
+    return c.json({
+      success: true,
+      checkedAt: new Date().toISOString(),
+      summary: {
+        totalUsers: reportUsers.length,
+        usersWithIssues: usersWithIssues.length,
+        totalIssues
+      },
+      users: reportUsers
+    });
+  } catch (error) {
+    console.error('Error running consistency check:', error);
+    return c.json({ error: 'Failed consistency check', details: (error as Error).message }, 500);
   }
 });
 
@@ -2973,7 +3238,7 @@ app.patch("/make-server-b87b0c07/admin/users/:email/payment", async (c) => {
 
     if (pkgError) {
       console.error('Error updating user_packages payment status:', pkgError);
-      // Don't fail - user was updated successfully
+      return c.json({ error: 'Failed to update package payment status', details: pkgError.message }, 500);
     }
 
     // Update all reservations for this user
@@ -4335,7 +4600,7 @@ app.post("/make-server-b87b0c07/auth/register", async (c) => {
     // Check if user exists in Supabase
     const { data: existingUser, error: checkError } = await supabase
       .from('users')
-      .select('email, password_hash')
+      .select('email, password_hash, name, surname, mobile')
       .eq('email', normalizedEmail)
       .maybeSingle();
 
@@ -4567,10 +4832,14 @@ app.get("/make-server-b87b0c07/auth/verify", async (c) => {
     }
     const session = sessionAuth.session;
 
-    const userKey = `user:${session.email}`;
-    const user = await kv.get(userKey);
+    const supabase = getSupabase();
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('email, name, surname, mobile, blocked')
+      .eq('email', session.email)
+      .maybeSingle();
 
-    if (!user || user.blocked) {
+    if (userError || !user || user.blocked) {
       return c.json({ error: "User not found or blocked" }, 401);
     }
 
@@ -4780,7 +5049,7 @@ app.get("/make-server-b87b0c07/user/packages", async (c) => {
       // Booked sessions come after attended (slots continue from attendedCount)
       const bookedSessionsFromBooked = sessionsBookedIds.map((resId: string, index: number) => {
         const res = reservationMap.get(resId);
-        if (res && res.reservation_status !== 'cancelled') {
+        if (res && res.reservation_status !== 'cancelled' && res.reservation_status !== 'no_show') {
           return {
             id: res.id,
             date: formatDateString(res.date_key, userLang),
