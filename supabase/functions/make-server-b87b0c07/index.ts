@@ -6359,15 +6359,15 @@ app.post("/make-server-b87b0c07/waitlist/redeem", async (c) => {
 
     const reservationId = rpcResult.reservation_id;
 
-    // Update package with first_reservation_id + sessions_booked
+    // Set first_reservation_id if not already set (sessions_booked already updated atomically by RPC)
     await supabase
       .from('user_packages')
       .update({
         first_reservation_id: reservationId,
-        sessions_booked: [reservationId],
         updated_at: now
       })
-      .eq('id', packageId);
+      .eq('id', packageId)
+      .is('first_reservation_id', null);
 
     // Mark waitlist user as redeemed in Supabase (not KV)
     const { error: updateWlError } = await supabase

@@ -215,11 +215,11 @@ BEGIN
       updated_at = NOW()
   WHERE id = p_reservation_id;
 
-  -- Update package if linked
-  IF p_package_id IS NOT NULL THEN
+  -- Update package if linked (use reservation's actual package_id for safety, ignore caller's p_package_id)
+  IF v_reservation.package_id IS NOT NULL THEN
     SELECT * INTO v_package
     FROM user_packages
-    WHERE id = p_package_id
+    WHERE id = v_reservation.package_id
     FOR UPDATE;
 
     IF v_package IS NOT NULL THEN
@@ -247,7 +247,7 @@ BEGIN
             ELSE v_package.package_status
           END,
           updated_at = NOW()
-      WHERE id = p_package_id;
+      WHERE id = v_reservation.package_id;
     END IF;
   END IF;
 
