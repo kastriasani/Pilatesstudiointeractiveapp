@@ -1481,21 +1481,7 @@ app.post("/make-server-b87b0c07/packages/:id/first-session", async (c) => {
     const isFriendBooking = rpcResult.is_friend_booking || false;
     const newRemainingSessions = pkg.remaining_sessions - 1;
 
-    // Update sessions_booked array (RPC already set first_reservation_id and decremented remaining_sessions)
-    const currentSessionsBooked = pkg.sessions_booked || [];
-    const newSessionsBooked = [...currentSessionsBooked, reservationId];
-
-    const { error: updatePkgError } = await supabase
-      .from('user_packages')
-      .update({
-        sessions_booked: newSessionsBooked,
-        updated_at: now
-      })
-      .eq('id', packageId);
-
-    if (updatePkgError) {
-      console.error('Error updating sessions_booked in Supabase:', updatePkgError);
-    }
+    // sessions_booked is now updated atomically inside create_reservation RPC
 
     // Sync to users table for backwards compatibility (Admin Panel reads from here)
     const usedSessions = (pkg.total_sessions || 0) - newRemainingSessions;
@@ -2157,39 +2143,39 @@ app.patch("/make-server-b87b0c07/reservations/:id/status", async (c) => {
       }
 
       if (reservationStatus === 'cancelled') {
-        // Cancel - restore session to package if linked
-        if (reservation.package_id) {
-          const { data: pkg } = await supabase
+        // Atomic cancel: sets reservation_status + updates package (sessions_booked, remaining) in one transaction
+        const { data: cancelResult, error: cancelRpcError } = await supabase.rpc('cancel_reservation', {
+          p_reservation_id: reservationId,
+          p_package_id: reservation.package_id || null
+        });
+
+        if (cancelRpcError) {
+          console.error('RPC error cancelling reservation:', cancelRpcError);
+          return c.json({ error: 'Failed to cancel reservation', details: cancelRpcError.message }, 500);
+        }
+
+        if (cancelResult?.error) {
+          return c.json({ error: cancelResult.error }, 400);
+        }
+
+        // RPC already set reservation_status = 'cancelled', so remove from general updates
+        delete updates.reservation_status;
+
+        console.log(`🔄 Session restored for cancelled reservation ${reservationId}. Remaining: ${cancelResult?.new_remaining ?? 'n/a'}`);
+
+        // Sync users table for backwards compat
+        if (reservation.package_id && cancelResult?.new_remaining != null) {
+          const { data: updatedPkg } = await supabase
             .from('user_packages')
-            .select('*')
+            .select('total_sessions, remaining_sessions')
             .eq('id', reservation.package_id)
             .single();
-
-          if (pkg) {
-            // Remove from sessions_booked and sessions_attended
-            const newSessionsBooked = (pkg.sessions_booked || []).filter((id: string) => id !== reservationId);
-            const newSessionsAttended = (pkg.sessions_attended || []).filter((id: string) => id !== reservationId);
-            const newRemainingSessions = pkg.total_sessions - newSessionsBooked.length;
-
-            const adminCancelUpdate: Record<string, any> = {
-              sessions_booked: newSessionsBooked,
-              sessions_attended: newSessionsAttended,
-              remaining_sessions: newRemainingSessions,
-              updated_at: new Date().toISOString()
-            };
-
-            // Restore package_status to 'active' if it was 'fully_used' (sessions now available again)
-            if (pkg.package_status === 'fully_used' && pkg.activation_status === 'activated') {
-              adminCancelUpdate.package_status = 'active';
-              console.log(`🔧 Restoring package_status to 'active' for package ${reservation.package_id} (was fully_used)`);
-            }
-
+          if (updatedPkg) {
+            const usedSessions = (updatedPkg.total_sessions || 0) - (updatedPkg.remaining_sessions || 0);
             await supabase
-              .from('user_packages')
-              .update(adminCancelUpdate)
-              .eq('id', reservation.package_id);
-
-            console.log(`🔄 Session restored for cancelled reservation ${reservationId}. Remaining: ${newRemainingSessions}`);
+              .from('users')
+              .update({ remaining_sessions: updatedPkg.remaining_sessions, used_sessions: usedSessions, updated_at: new Date().toISOString() })
+              .eq('email', reservation.user_email);
           }
         }
 
@@ -2320,45 +2306,53 @@ app.delete("/make-server-b87b0c07/reservations/:id", async (c) => {
       return c.json({ error: 'Reservation not found' }, 404);
     }
 
-    // If linked to a package, restore the session
+    // If linked to a package, restore the session atomically via RPC
     if (reservation.package_id) {
+      const { data: cancelResult, error: cancelRpcError } = await supabase.rpc('cancel_reservation', {
+        p_reservation_id: reservationId,
+        p_package_id: reservation.package_id
+      });
+
+      if (cancelRpcError) {
+        console.error('RPC error in admin delete (cancel package):', cancelRpcError);
+        return c.json({ error: 'Failed to restore package session', details: cancelRpcError.message }, 500);
+      }
+
+      // Handle first_reservation_id cleanup (not in RPC)
       const { data: pkg } = await supabase
         .from('user_packages')
-        .select('*')
+        .select('first_reservation_id, activation_status')
         .eq('id', reservation.package_id)
         .single();
 
-      if (pkg) {
-        const newSessionsBooked = (pkg.sessions_booked || []).filter((id: string) => id !== reservationId);
-        const newSessionsAttended = (pkg.sessions_attended || []).filter((id: string) => id !== reservationId);
-        const newRemainingSessions = pkg.total_sessions - newSessionsBooked.length;
-
-        const packageUpdates: Record<string, any> = {
-          sessions_booked: newSessionsBooked,
-          sessions_attended: newSessionsAttended,
-          remaining_sessions: newRemainingSessions,
+      if (pkg && pkg.first_reservation_id === reservationId) {
+        const firstResUpdate: Record<string, any> = {
+          first_reservation_id: null,
           updated_at: new Date().toISOString()
         };
-
-        // If this was the first reservation, clear the link
-        if (pkg.first_reservation_id === reservationId) {
-          packageUpdates.first_reservation_id = null;
-          // Only reset to 'pending' if package was never activated
-          // (activated packages should stay 'active' so user can still book)
-          if (pkg.activation_status !== 'activated') {
-            packageUpdates.package_status = 'pending';
-          }
+        if (pkg.activation_status !== 'activated') {
+          firstResUpdate.package_status = 'pending';
         }
-
-        // Restore package_status to 'active' if it was 'fully_used' (sessions now available again)
-        if (pkg.package_status === 'fully_used' && pkg.activation_status === 'activated') {
-          packageUpdates.package_status = 'active';
-        }
-
         await supabase
           .from('user_packages')
-          .update(packageUpdates)
+          .update(firstResUpdate)
           .eq('id', reservation.package_id);
+      }
+
+      // Sync users table
+      if (cancelResult?.new_remaining != null) {
+        const { data: updatedPkg } = await supabase
+          .from('user_packages')
+          .select('total_sessions, remaining_sessions')
+          .eq('id', reservation.package_id)
+          .single();
+        if (updatedPkg) {
+          const usedSessions = (updatedPkg.total_sessions || 0) - (updatedPkg.remaining_sessions || 0);
+          await supabase
+            .from('users')
+            .update({ remaining_sessions: updatedPkg.remaining_sessions, used_sessions: usedSessions, updated_at: new Date().toISOString() })
+            .eq('email', reservation.user_email);
+        }
       }
     }
 
@@ -4292,41 +4286,34 @@ app.post("/make-server-b87b0c07/admin/cancel-class", async (c) => {
     let cancelledCount = 0;
 
     for (const reservation of reservations) {
-      // Restore session to package if linked
-      if (reservation.package_id) {
-        const { data: pkg } = await supabase
+      // Atomic cancel: sets reservation_status + updates package in one transaction
+      const { data: cancelResult, error: cancelRpcError } = await supabase.rpc('cancel_reservation', {
+        p_reservation_id: reservation.id,
+        p_package_id: reservation.package_id || null
+      });
+
+      if (cancelRpcError) {
+        console.error(`⚠️ Failed to cancel reservation ${reservation.id}:`, cancelRpcError);
+      } else {
+        cancelledCount++;
+        if (cancelResult?.new_remaining != null) {
+          console.log(`🔄 Session restored for ${reservation.user_email}. Remaining: ${cancelResult.new_remaining}`);
+        }
+      }
+
+      // Sync users table for backwards compat
+      if (reservation.package_id && cancelResult?.new_remaining != null) {
+        const { data: updatedPkg } = await supabase
           .from('user_packages')
-          .select('*')
+          .select('total_sessions, remaining_sessions')
           .eq('id', reservation.package_id)
           .single();
-
-        if (pkg) {
-          const newSessionsBooked = (pkg.sessions_booked || []).filter((id: string) => id !== reservation.id);
-          const newSessionsAttended = (pkg.sessions_attended || []).filter((id: string) => id !== reservation.id);
-          const newRemainingSessions = pkg.total_sessions - newSessionsBooked.length;
-
-          const pkgUpdate: Record<string, any> = {
-            sessions_booked: newSessionsBooked,
-            sessions_attended: newSessionsAttended,
-            remaining_sessions: newRemainingSessions,
-            updated_at: new Date().toISOString()
-          };
-
-          if (pkg.package_status === 'fully_used' && pkg.activation_status === 'activated') {
-            pkgUpdate.package_status = 'active';
-            console.log(`🔧 Restoring package_status to 'active' for package ${reservation.package_id}`);
-          }
-
-          const { error: pkgError } = await supabase
-            .from('user_packages')
-            .update(pkgUpdate)
-            .eq('id', reservation.package_id);
-
-          if (pkgError) {
-            console.error(`⚠️ Failed to restore session for ${reservation.user_email}:`, pkgError);
-          } else {
-            console.log(`🔄 Session restored for ${reservation.user_email}. Remaining: ${newRemainingSessions}`);
-          }
+        if (updatedPkg) {
+          const usedSessions = (updatedPkg.total_sessions || 0) - (updatedPkg.remaining_sessions || 0);
+          await supabase
+            .from('users')
+            .update({ remaining_sessions: updatedPkg.remaining_sessions, used_sessions: usedSessions, updated_at: new Date().toISOString() })
+            .eq('email', reservation.user_email);
         }
       }
 
@@ -4344,18 +4331,6 @@ app.post("/make-server-b87b0c07/admin/cancel-class", async (c) => {
         });
       } catch (auditErr) {
         console.error('Audit log error (cancel-class):', auditErr);
-      }
-
-      // Update reservation status to cancelled
-      const { error: cancelError } = await supabase
-        .from('reservations')
-        .update({ reservation_status: 'cancelled', updated_at: new Date().toISOString() })
-        .eq('id', reservation.id);
-
-      if (cancelError) {
-        console.error(`⚠️ Failed to cancel reservation ${reservation.id}:`, cancelError);
-      } else {
-        cancelledCount++;
       }
     }
 
@@ -5557,27 +5532,14 @@ app.post("/make-server-b87b0c07/user/packages/:id/book-session", async (c) => {
     const reservationId = rpcResult.reservation_id;
     const isFriendBooking = rpcResult.is_friend_booking || false;
 
-    // Update sessions_booked array + first_reservation_id if not set
-    // (RPC already decremented remaining_sessions)
-    const currentSessionsBooked = pkg.sessions_booked || [];
-    const newSessionsBooked = [...currentSessionsBooked, reservationId];
-    const updateData: any = {
-      sessions_booked: newSessionsBooked,
-      updated_at: now
-    };
+    // sessions_booked is now updated atomically inside create_reservation RPC
 
-    // Only set first_reservation_id if not already set
+    // Backfill first_reservation_id if somehow missing (edge case for old packages)
     if (!pkg.first_reservation_id) {
-      updateData.first_reservation_id = reservationId;
-    }
-
-    const { error: updatePkgError } = await supabase
-      .from('user_packages')
-      .update(updateData)
-      .eq('id', packageId);
-
-    if (updatePkgError) {
-      console.error('Error updating package:', updatePkgError);
+      await supabase
+        .from('user_packages')
+        .update({ first_reservation_id: reservationId, updated_at: now })
+        .eq('id', packageId);
     }
 
     // Sync to users table for backwards compatibility with GET /admin/users
@@ -5592,7 +5554,7 @@ app.post("/make-server-b87b0c07/user/packages/:id/book-session", async (c) => {
       })
       .eq('email', pkg.user_email);
 
-    console.log(`📅 Booked session for package ${packageId}: ${reservationId} (slot ${newSessionsBooked.length})`);
+    console.log(`📅 Booked session for package ${packageId}: ${reservationId}`);
 
     // Build response in camelCase for frontend
     const reservation = {
@@ -5686,82 +5648,35 @@ app.delete("/make-server-b87b0c07/user/packages/:id/reservations/:reservationId"
       console.log(`🕐 Grace period cancel: ${minutesSinceBooking.toFixed(1)} min since booking`);
     }
 
-    // Cancel the reservation
-    const { error: cancelError } = await supabase
-      .from('reservations')
-      .update({
-        reservation_status: 'cancelled',
-        updated_at: nowISO
-      })
-      .eq('id', reservationId);
+    // Atomic cancel: sets reservation_status + updates package in one transaction
+    const { data: cancelResult, error: cancelRpcError } = await supabase.rpc('cancel_reservation', {
+      p_reservation_id: reservationId,
+      p_package_id: packageId
+    });
 
-    if (cancelError) {
-      console.error('Error cancelling reservation:', cancelError);
-      return c.json({ error: 'Failed to cancel reservation' }, 500);
+    if (cancelRpcError) {
+      console.error('RPC error cancelling reservation:', cancelRpcError);
+      return c.json({ error: 'Failed to cancel reservation', details: cancelRpcError.message }, 500);
     }
 
-    // Get the package to update sessions
-    const { data: pkg, error: pkgError } = await supabase
-      .from('user_packages')
-      .select('*')
-      .eq('id', packageId)
-      .single();
+    if (cancelResult?.error) {
+      return c.json({ error: cancelResult.error }, 400);
+    }
 
-    if (pkg) {
-      // Remove reservation from sessions_booked and recalculate remaining (consistent with admin cancel paths)
-      const currentSessionsBooked = pkg.sessions_booked || [];
-      const newSessionsBooked = currentSessionsBooked.filter((id: string) => id !== reservationId);
-      const newRemaining = pkg.total_sessions - newSessionsBooked.length;
-
-      // Detect if session count was drifted (old +1 formula would give a different result)
-      const oldFormulaWouldGive = pkg.remaining_sessions + 1;
-      if (oldFormulaWouldGive !== newRemaining) {
-        console.log(`⚠️ Session correction for ${reservation.user_email}: old formula would give ${oldFormulaWouldGive}, corrected to ${newRemaining}`);
-        try {
-          await supabase.from('booking_changes').insert({
-            reservation_id: reservationId,
-            user_email: reservation.user_email,
-            change_type: 'session_correction',
-            old_date_key: reservation.date_key,
-            old_time_slot: reservation.time_slot,
-            new_date_key: String(oldFormulaWouldGive),
-            new_time_slot: String(newRemaining),
-            user_name: reservation.name,
-            user_surname: reservation.surname,
-            package_type: reservation.package_type,
-          });
-        } catch (corrErr) {
-          console.error('Failed to log session correction:', corrErr);
-        }
-      }
-
-      const cancelUpdate: Record<string, any> = {
-        sessions_booked: newSessionsBooked,
-        remaining_sessions: newRemaining,
-        updated_at: nowISO
-      };
-
-      // Restore package_status to 'active' if it was 'fully_used' (sessions now available again)
-      if (pkg.package_status === 'fully_used' && pkg.activation_status === 'activated') {
-        cancelUpdate.package_status = 'active';
-        console.log(`🔧 Restoring package_status to 'active' for package ${packageId} (was fully_used)`);
-      }
-
-      await supabase
+    // Sync to users table for backwards compat
+    if (cancelResult?.new_remaining != null) {
+      const { data: updatedPkg } = await supabase
         .from('user_packages')
-        .update(cancelUpdate)
-        .eq('id', packageId);
-
-      // Sync to users table
-      const usedSessions = (pkg.total_sessions || 0) - newRemaining;
-      await supabase
-        .from('users')
-        .update({
-          remaining_sessions: newRemaining,
-          used_sessions: usedSessions,
-          updated_at: nowISO
-        })
-        .eq('email', pkg.user_email);
+        .select('total_sessions, remaining_sessions')
+        .eq('id', packageId)
+        .single();
+      if (updatedPkg) {
+        const usedSessions = (updatedPkg.total_sessions || 0) - (updatedPkg.remaining_sessions || 0);
+        await supabase
+          .from('users')
+          .update({ remaining_sessions: updatedPkg.remaining_sessions, used_sessions: usedSessions, updated_at: nowISO })
+          .eq('email', session.email);
+      }
     }
 
     console.log(`🗑️ Cancelled reservation ${reservationId} for package ${packageId}`);
