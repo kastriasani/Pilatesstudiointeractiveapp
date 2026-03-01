@@ -296,12 +296,9 @@ async function verifyAdminSession(c: any): Promise<{ valid: boolean; error?: str
   }
 
   // Extend session expiry on each successful request (sliding expiration)
-  // This keeps active admins logged in
+  // Fire-and-forget: don't block the response on the KV write
   const newExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-  await kv.set(sessionKey, {
-    ...session,
-    expiresAt: newExpiry
-  });
+  kv.set(sessionKey, { ...session, expiresAt: newExpiry }).catch(console.error);
 
   return { valid: true };
 }
@@ -340,12 +337,9 @@ async function verifyUserSession(c: any): Promise<{ valid: boolean; error?: stri
   }
 
   // Extend session expiry on each successful request (sliding expiration)
-  // This keeps active users logged in - 30 day rolling window
+  // Fire-and-forget: don't block the response on the KV write
   const newExpiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-  await kv.set(sessionKey, {
-    ...session,
-    expiresAt: newExpiry
-  });
+  kv.set(sessionKey, { ...session, expiresAt: newExpiry }).catch(console.error);
 
   return { valid: true, session };
 }
@@ -2879,6 +2873,11 @@ app.get("/make-server-b87b0c07/admin/users", async (c) => {
       const totalSessions = packages.reduce((sum: number, p: any) => sum + p.totalSessions, 0);
       const remainingSessions = packages.reduce((sum: number, p: any) => sum + p.remainingSessions, 0);
       const usedSessions = totalSessions - remainingSessions;
+      const userPaymentStatus = user.payment_status === 'paid' ? 'paid' : 'unpaid';
+      const hasPaidOrActivatedPackage = packages.some((p: any) =>
+        p.paymentStatus === 'paid' || p.activationStatus === 'activated'
+      );
+      const effectivePaymentStatus = (userPaymentStatus === 'paid' || hasPaidOrActivatedPackage) ? 'paid' : 'unpaid';
 
       return {
         id: user.id,
@@ -2886,7 +2885,7 @@ app.get("/make-server-b87b0c07/admin/users", async (c) => {
         surname: user.surname,
         mobile: user.mobile,
         email: user.email,
-        paymentStatus: user.payment_status || 'unpaid',
+        paymentStatus: effectivePaymentStatus,
         packages,
         reservations: userReservations.map((res: any) => ({
           id: res.id,
@@ -3318,33 +3317,33 @@ app.patch("/make-server-b87b0c07/admin/users/:email/adjust-sessions", async (c) 
       return c.json({ error: 'Cannot exceed total sessions' }, 400);
     }
 
-    // Update the users table
+    // Run both updates in parallel
     const adjustedAt = new Date().toISOString();
-    const { error: userUpdateError } = await supabase
-      .from('users')
-      .update({
-        remaining_sessions: newRemaining,
-        used_sessions: totalSessions - newRemaining,
-        sessions_adjusted_at: adjustedAt,
-        updated_at: adjustedAt,
-      })
-      .eq('email', normalizedEmail);
+    const [{ error: userUpdateError }] = await Promise.all([
+      supabase
+        .from('users')
+        .update({
+          remaining_sessions: newRemaining,
+          used_sessions: totalSessions - newRemaining,
+          sessions_adjusted_at: adjustedAt,
+          updated_at: adjustedAt,
+        })
+        .eq('email', normalizedEmail),
+      supabase
+        .from('user_packages')
+        .update({
+          remaining_sessions: newRemaining,
+          sessions_adjusted_at: adjustedAt,
+          updated_at: adjustedAt,
+        })
+        .eq('user_email', normalizedEmail)
+        .in('package_status', ['active', 'pending']),
+    ]);
 
     if (userUpdateError) {
       console.error('Error updating user:', userUpdateError);
       return c.json({ error: 'Failed to update user' }, 500);
     }
-
-    // Also update user_packages if exists (only active/pending packages, not expired/cancelled)
-    await supabase
-      .from('user_packages')
-      .update({
-        remaining_sessions: newRemaining,
-        sessions_adjusted_at: adjustedAt,
-        updated_at: adjustedAt,
-      })
-      .eq('user_email', normalizedEmail)
-      .in('package_status', ['active', 'pending']);
 
     console.log(`📊 Sessions adjusted for ${normalizedEmail}: ${currentRemaining} → ${newRemaining} (${adjustment > 0 ? '+1' : '-1'})`);
 
