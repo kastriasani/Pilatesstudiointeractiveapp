@@ -5470,24 +5470,6 @@ app.post("/make-server-b87b0c07/user/packages/:id/book-session", async (c) => {
         .eq('id', packageId);
     }
 
-    // Unpaid package limit: max 2 upcoming bookings
-    if (pkg.payment_status !== 'paid') {
-      const today = formatDateKey(getSkopjeTime());
-      const { data: upcomingBookings } = await supabase
-        .from('reservations')
-        .select('id')
-        .eq('package_id', packageId)
-        .in('reservation_status', ['confirmed', 'pending'])
-        .gte('date_key', today);
-
-      if (upcomingBookings && upcomingBookings.length >= 2) {
-        return c.json({
-          error: 'You can only have 2 upcoming bookings while your package is unpaid. Please visit the studio to complete payment.',
-          errorType: 'UNPAID_BOOKING_LIMIT'
-        }, 400);
-      }
-    }
-
     const serviceType = extractServiceType(pkg.package_type);
 
     const dateString = formatDateString(dateKey, pkg.language || 'en');

@@ -1126,11 +1126,6 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
                     <p className="text-xs text-amber-800 font-medium">
                       {t.packageUnpaid || 'Package not yet paid. Please visit the studio to complete payment.'}
                     </p>
-                    {pkg.bookedSessions.some(s => !s.attended && new Date(s.dateKey + 'T23:59:59') >= new Date()) && (
-                      <p className="text-xs text-amber-700 mt-1">
-                        {t.unpaidBookingLimit || 'You can only have 2 upcoming bookings while your package is unpaid.'}
-                      </p>
-                    )}
                   </div>
                 )}
 
