@@ -884,8 +884,9 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
       console.log('✅ Session cancelled:', data);
       toast.success(t.sessionCancelledSuccess || 'Session cancelled successfully!');
 
-      // Reload packages
+      // Reload packages and refresh slot availability so freed capacity is visible
       await loadPackages();
+      await loadAvailableSlots();
       setIsRescheduling(false);
 
     } catch (error) {

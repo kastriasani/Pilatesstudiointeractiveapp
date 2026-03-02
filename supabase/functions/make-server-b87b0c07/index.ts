@@ -1266,7 +1266,8 @@ app.post("/make-server-b87b0c07/packages/:id/first-session", async (c) => {
       p_package_type: pkg.package_type,
       p_partner_name: partnerName || null,
       p_partner_surname: partnerSurname || null,
-      p_is_first_session: true
+      p_is_first_session: true,
+      p_slot_index: 0
     });
 
     if (rpcError) {
@@ -1278,7 +1279,6 @@ app.post("/make-server-b87b0c07/packages/:id/first-session", async (c) => {
       const errorMap: Record<string, string> = {
         'Slot blocked by private session': 'Slot not available for booking',
         'Insufficient capacity': 'Slot is full',
-        'Duplicate booking': 'You already have a booking for this time slot',
         'Package not found': 'Package not found',
         'No remaining sessions': 'No remaining sessions in package',
         'Package is not in pending state': 'Package is not in pending state',
@@ -4825,7 +4825,7 @@ app.get("/make-server-b87b0c07/user/packages", async (c) => {
             dateKey: res.date_key,
             time: res.time_slot,
             endTime: calculateEndTime(res.time_slot),
-            slotIndex: index,
+            slotIndex: res.slot_index ?? index,
             attended: true,
             createdAt: res.created_at
           };
@@ -4843,7 +4843,7 @@ app.get("/make-server-b87b0c07/user/packages", async (c) => {
             dateKey: res.date_key,
             time: res.time_slot,
             endTime: calculateEndTime(res.time_slot),
-            slotIndex: sessionsAttendedIds.length + index,
+            slotIndex: res.slot_index ?? (sessionsAttendedIds.length + index),
             attended: false,
             isFriendBooking: res.is_friend_booking || false,
             createdAt: res.created_at
@@ -5240,7 +5240,7 @@ app.post("/make-server-b87b0c07/user/packages/:id/book-session", async (c) => {
 
     const packageId = c.req.param('id');
     const body = await c.req.json();
-    const { dateKey, timeSlot } = body;
+    const { dateKey, timeSlot, slotIndex } = body;
 
     if (!dateKey || !timeSlot) {
       return c.json({ error: "Missing required fields" }, 400);
@@ -5302,7 +5302,8 @@ app.post("/make-server-b87b0c07/user/packages/:id/book-session", async (c) => {
       p_package_type: pkg.package_type,
       p_partner_name: null,
       p_partner_surname: null,
-      p_is_first_session: false
+      p_is_first_session: false,
+      p_slot_index: typeof slotIndex === 'number' ? slotIndex : null
     });
 
     if (rpcError) {
@@ -5314,7 +5315,6 @@ app.post("/make-server-b87b0c07/user/packages/:id/book-session", async (c) => {
       const errorMap: Record<string, string> = {
         'Slot blocked by private session': 'Slot not available for booking',
         'Insufficient capacity': 'Slot is full',
-        'Duplicate booking': 'You already have a booking for this time slot',
         'Package not found': 'Package not found',
         'No remaining sessions': 'No sessions remaining in this package',
         'Package not active': 'Package is not active'

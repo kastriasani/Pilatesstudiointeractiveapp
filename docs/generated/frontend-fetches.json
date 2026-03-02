@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-02T15:11:25.166Z",
+  "generatedAt": "2026-03-02T15:48:07.527Z",
   "sourceDir": "src",
   "occurrenceCount": 54,
   "uniquePathCount": 40,
@@ -308,7 +308,7 @@
       "method": "POST",
       "path": "/user/packages/purchase",
       "file": "src/app/components/UserDashboard.tsx",
-      "line": 916
+      "line": 917
     },
     {
       "method": "DELETE",
