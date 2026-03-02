@@ -9,6 +9,7 @@
     "api:docs": "node scripts/extract-doc-endpoints.mjs",
     "api:check": "npm run api:manifest && npm run api:fetches && npm run api:docs && node scripts/check-api-contracts.mjs",
     "api:check:strict": "npm run api:manifest && npm run api:fetches && npm run api:docs && node scripts/check-api-contracts.mjs --strict",
+    "smoke": "bash scripts/smoke-test.sh",
     "build": "vite build",
     "dev": "vite"
   },
