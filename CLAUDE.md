@@ -23,14 +23,26 @@ npm run build        # Production build (use to verify no TS/build errors)
 SUPABASE_ACCESS_TOKEN="..." npx supabase functions deploy make-server-b87b0c07 --project-ref azqkguctispoctvmpmci
 ```
 
-No test runner, linter, or formatter is configured.
-
 ## Hard Rules
 
 1. Do not deploy unless explicitly requested
 2. Never modify unrelated code outside current task
 3. Never output secrets - use env vars only
 4. Do not rename files or add config files unless requested
+
+## Post-Change Checklist (mandatory)
+
+After ANY backend or frontend code change, run all three checks **before** considering the task done:
+
+```bash
+npm run build        # 1. Must pass — no TS/build errors
+npm run api:check    # 2. Must pass — every frontend fetch has a matching backend route, docs in sync
+npm run smoke        # 3. Must pass (after deploy) — all 26 live endpoints respond correctly
+```
+
+- If `api:check` reports WARN or FAIL, fix the issue before proceeding.
+- If `smoke` fails, investigate and fix before declaring done.
+- Do NOT skip these steps. They exist to catch accidental route deletions, stale references, and broken endpoints.
 
 ## Architecture
 
