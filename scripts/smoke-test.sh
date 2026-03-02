@@ -117,12 +117,10 @@ test_endpoint       "DELETE /reservations/:id (no session)" 401 DELETE "/reserva
 
 # ── 6. Verify no waitlist routes exist ──────────────────────────
 echo ""
-echo "── Waitlist Routes (removed from source, not yet redeployed) ──"
-# NOTE: These routes still respond because the backend hasn't been redeployed.
-# After deploy, change these expectations to 404.
-test_endpoint       "POST /waitlist (still deployed)"           400 POST "/waitlist" '{"email":"test@test.com"}'
-test_endpoint       "GET /admin/waitlist (still deployed)"      401 GET "/admin/waitlist"
-test_endpoint       "GET /waitlist/verify/FAKE (still deployed)" 404 GET "/waitlist/verify/FAKE"
+echo "── Waitlist Routes (removed — must 404) ──"
+test_endpoint       "POST /waitlist (removed)"           404 POST "/waitlist" '{"email":"test@test.com"}'
+test_endpoint       "GET /admin/waitlist (removed)"      404 GET "/admin/waitlist"
+test_endpoint       "GET /waitlist/verify/FAKE (removed)" 404 GET "/waitlist/verify/FAKE"
 
 # ── Summary ─────────────────────────────────────────────────────
 echo ""
