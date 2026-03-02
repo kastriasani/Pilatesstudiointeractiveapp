@@ -111,6 +111,7 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
 
   // Buy new package state
   const [isBuyingPackage, setIsBuyingPackage] = useState(false);
+  const [showArchivedPackages, setShowArchivedPackages] = useState(false);
 
   // Get session token from prop or localStorage as fallback
   const activeSessionToken = sessionToken || localStorage.getItem('wellnest_session') || '';
@@ -1056,7 +1057,13 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
         </div>
       ) : (
         <div className="space-y-4">
-          {packages.map((pkg) => {
+          {(() => {
+            const terminalStatuses = ['fully_used', 'expired', 'cancelled'];
+            const activePackages = packages.filter(p => !terminalStatuses.includes(p.packageStatus));
+            const archivedPackages = packages.filter(p => terminalStatuses.includes(p.packageStatus));
+            return (
+              <>
+              {activePackages.map((pkg) => {
             // Calculate session details
             const baseSessionCount = pkg.packageType === 'package8' ? 8 : pkg.packageType === 'package10' ? 10 : pkg.packageType === 'package12' ? 12 : pkg.totalSessions;
             const bonusSessions = pkg.totalSessions > baseSessionCount ? pkg.totalSessions - baseSessionCount : 0;
@@ -1354,6 +1361,120 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
               </div>
             );
           })}
+
+              {/* Archived Packages Section */}
+              {archivedPackages.length > 0 && (
+                <div className="mt-4">
+                  <button
+                    onClick={() => setShowArchivedPackages(!showArchivedPackages)}
+                    className="flex items-center gap-2 w-full py-2 text-sm text-[#8b7764] hover:text-[#6b5949] transition-colors"
+                  >
+                    {showArchivedPackages ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                    <span className="font-medium">{t.archivedPackages || 'Archived Packages'} ({archivedPackages.length})</span>
+                  </button>
+                  {showArchivedPackages && (
+                    <div className="space-y-3 mt-2 opacity-70">
+                      {archivedPackages.map((pkg) => {
+                        const baseSessionCount = pkg.packageType === 'package8' ? 8 : pkg.packageType === 'package10' ? 10 : pkg.packageType === 'package12' ? 12 : pkg.totalSessions;
+                        const bonusSessions = pkg.totalSessions > baseSessionCount ? pkg.totalSessions - baseSessionCount : 0;
+
+                        return (
+                          <div
+                            key={pkg.id}
+                            className="bg-white/60 rounded-2xl p-5 shadow-sm border border-[#e8e6e3]"
+                          >
+                            {/* Package Header */}
+                            <div className="flex items-start justify-between mb-3">
+                              <div className="flex-1">
+                                <h3 className="text-base font-semibold text-[#3d2f28] mb-1">
+                                  {getPackageDisplayName(pkg.packageType)}
+                                </h3>
+                                <p className="text-xs text-[#6b5949]">
+                                  <span className="font-semibold">{pkg.remainingSessions}</span> / {pkg.totalSessions} {t.sessionsRemaining || 'sessions remaining'}
+                                </p>
+                              </div>
+
+                              {/* Status Badge */}
+                              <div className={`px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 ${
+                                pkg.packageStatus === 'fully_used'
+                                  ? 'bg-stone-100 text-stone-600'
+                                  : pkg.packageStatus === 'expired'
+                                  ? 'bg-red-50 text-red-600'
+                                  : 'bg-red-100 text-red-700'
+                              }`}>
+                                {pkg.packageStatus === 'fully_used' ? (
+                                  <>
+                                    <CheckCircle className="w-3.5 h-3.5" />
+                                    {t.completed || 'Completed'}
+                                  </>
+                                ) : pkg.packageStatus === 'expired' ? (
+                                  <>
+                                    <AlertCircle className="w-3.5 h-3.5" />
+                                    {t.expired || 'Expired'}
+                                  </>
+                                ) : (
+                                  <>
+                                    <AlertCircle className="w-3.5 h-3.5" />
+                                    {t.cancelled || 'Cancelled'}
+                                  </>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Session Slots Row (read-only) */}
+                            <div>
+                              <p className="text-xs text-[#6b5949] mb-2">{t.yourSessions || 'Your sessions'}:</p>
+                              <div className="flex flex-wrap gap-2">
+                                {Array.from({ length: pkg.totalSessions }).map((_, slotIndex) => {
+                                  const bookedSession = getBookedSessionForSlot(pkg, slotIndex);
+                                  const isBooked = !!bookedSession;
+                                  const isAttended = bookedSession?.attended === true;
+                                  const isBonus = slotIndex >= baseSessionCount;
+
+                                  return (
+                                    <div
+                                      key={slotIndex}
+                                      className={`relative flex flex-col items-center justify-center min-w-[48px] h-[52px] rounded-lg text-xs font-medium ${
+                                        isAttended
+                                          ? 'bg-[#6b5949] text-white/90'
+                                          : isBooked
+                                            ? isBonus ? 'bg-[#D8A93B] text-white' : 'bg-[#7A8F3A] text-white'
+                                            : 'bg-[#f5f3f0] border border-[#e8e6e3] text-[#8b7764]'
+                                      }`}
+                                    >
+                                      {isBooked ? (
+                                        <>
+                                          <span className="text-[10px] font-bold">✓</span>
+                                          <span className="text-[9px] opacity-90 leading-tight">
+                                            {formatShortDate(bookedSession.dateKey)}
+                                          </span>
+                                          <span className="text-[9px] opacity-90 leading-tight">
+                                            {bookedSession.time}
+                                          </span>
+                                        </>
+                                      ) : (
+                                        <span className="text-[9px]">{slotIndex + 1}</span>
+                                      )}
+                                      {isBonus && !isAttended && (
+                                        <span className="absolute -top-1 -right-1 w-3 h-3 bg-[#D8A93B] rounded-full flex items-center justify-center text-[8px] text-white font-bold">
+                                          B
+                                        </span>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+              </>
+            );
+          })()}
 
           {/* Buy New Package Section - Always visible */}
           {packages.length > 0 && (

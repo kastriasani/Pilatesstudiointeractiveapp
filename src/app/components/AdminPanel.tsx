@@ -971,14 +971,14 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
   };
 
   const isUserArchived = (user: User): boolean => {
-    // All sessions used up (and user actually had sessions)
-    if ((user.remainingSessions ?? 0) <= 0 && (user.totalSessions ?? 0) > 0) return true;
-    // Package expired (35-day validity passed)
-    const expiryDate = user.packages?.[0]?.expiryDate;
-    if (expiryDate && new Date(expiryDate).getTime() < getSkopjeTime().getTime()) return true;
-    // Paid users with no active package (completed their service)
-    if (user.status === 'confirmed' && (user.totalSessions ?? 0) === 0) return true;
-    return false;
+    const terminalStatuses = ['fully_used', 'expired', 'cancelled'];
+    const packages = user.packages || [];
+    if (packages.length === 0) {
+      // No packages: archive if user was confirmed (completed their service)
+      return user.status === 'confirmed';
+    }
+    // Archived if ALL packages are in a terminal state
+    return packages.every(p => terminalStatuses.includes(p.status));
   };
 
   const getStatusColor = (status: UserStatus) => {
