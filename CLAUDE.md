@@ -55,7 +55,7 @@ No test runner, linter, or formatter is configured.
 | File | Purpose |
 |------|---------|
 | `supabase/functions/make-server-b87b0c07/index.ts` | All API endpoints (monolithic Hono server, ~5000 lines) |
-| `src/app/components/AdminPanel.tsx` | Admin calendar, user management, waitlist (~2400 lines) |
+| `src/app/components/AdminPanel.tsx` | Admin calendar, user management (~2000 lines) |
 | `src/app/components/UserDashboard.tsx` | User booking interface (~1500 lines) |
 | `src/app/components/PackageOverview.tsx` | Package selection & 2-step booking flow |
 | `src/app/components/BookingScreen.tsx` | Date/time slot selection with live availability |
@@ -175,7 +175,7 @@ Three languages: **SQ** (Albanian, default), **MK** (Macedonian), **EN** (Englis
 
 - **Admin endpoints** (`/admin/*`): Require `verifyAdminSession(c)` check
 - **User endpoints** (`/user/*`): Require `verifyUserSession(c)` check
-- **Public endpoints**: `/health`, `/slots/*`, `/validate-coupon`, `/auth/*`, `/waitlist/*`
+- **Public endpoints**: `/health`, `/slots/*`, `/validate-coupon`, `/auth/*`
 - **Dev endpoints** (`/dev/*`, `/debug/*`): Protected by `ENABLE_DEV_ENDPOINTS` env var
 
 ## Environment Variables (Supabase Edge Functions)

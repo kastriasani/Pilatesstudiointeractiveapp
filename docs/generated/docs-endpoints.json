@@ -1,15 +1,9 @@
 {
-  "generatedAt": "2026-03-02T15:04:16.359Z",
+  "generatedAt": "2026-03-02T15:11:25.357Z",
   "fileCount": 5,
-  "occurrenceCount": 19,
-  "uniquePathCount": 13,
+  "occurrenceCount": 15,
+  "uniquePathCount": 12,
   "entries": [
-    {
-      "file": "docs/ARCHITECTURE.md",
-      "line": 125,
-      "path": "/activate",
-      "pattern": "method-route"
-    },
     {
       "file": "README.md",
       "line": 174,
@@ -41,22 +35,10 @@
       "pattern": "method-route"
     },
     {
-      "file": "CLAUDE.md",
-      "line": 93,
-      "path": "/endpoint",
-      "pattern": "prefixed"
-    },
-    {
       "file": "README.md",
       "line": 175,
       "path": "/health",
       "pattern": "method-route"
-    },
-    {
-      "file": "README.md",
-      "line": 199,
-      "path": "/health",
-      "pattern": "prefixed"
     },
     {
       "file": "README.md",
@@ -80,12 +62,6 @@
       "file": "README.md",
       "line": 167,
       "path": "/packages/:id/first-session",
-      "pattern": "method-route"
-    },
-    {
-      "file": "docs/ARCHITECTURE.md",
-      "line": 141,
-      "path": "/reservations",
       "pattern": "method-route"
     },
     {

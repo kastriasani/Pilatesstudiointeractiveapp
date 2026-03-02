@@ -57,8 +57,14 @@ for (const file of files) {
   const source = fs.readFileSync(file, 'utf8');
   const lines = source.split('\n');
 
+  let inCodeBlock = false;
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i];
+    if (/^```/.test(line.trim())) {
+      inCodeBlock = !inCodeBlock;
+      continue;
+    }
+    if (inCodeBlock) continue;
 
     prefixedRegex.lastIndex = 0;
     let match;

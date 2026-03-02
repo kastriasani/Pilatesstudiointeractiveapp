@@ -1,13 +1,13 @@
 # API Contract Report
 
-Generated: 2026-03-02T15:04:16.421Z
+Generated: 2026-03-02T15:11:25.417Z
 
 ## Summary
 
-- Status: WARN
+- Status: PASS
 - Backend unique paths: 49
 - Frontend unique paths: 40
-- Docs unique paths: 13
+- Docs unique paths: 12
 
 ## Frontend Paths Missing In Backend
 
@@ -15,7 +15,7 @@ Generated: 2026-03-02T15:04:16.421Z
 
 ## Docs Paths Missing In Backend
 
-- /endpoint
+- None
 
 ## Backend Paths Not Used By Frontend
 
