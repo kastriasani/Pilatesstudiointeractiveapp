@@ -1350,40 +1350,6 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
     );
   };
 
-  // Handle activation from calendar booking card (reuses same API as Users tab)
-  const handleActivateFromCalendar = async (email: string, name: string) => {
-    console.log('💰 Activating user from calendar:', email);
-    setPaymentUpdatingEmail(email);
-    try {
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/activate`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${publicAnonKey}`,
-            'X-Session-Token': getSessionToken(),
-          },
-          body: JSON.stringify({ email }),
-        }
-      );
-      if (response.ok) {
-        console.log('✅ User activated successfully');
-        toast.success(`${name} activated successfully`);
-        await fetchBookings();
-      } else {
-        const errorData = await response.text();
-        console.error('❌ Failed to activate user:', response.status, errorData);
-        toast.error(`Failed to activate ${name}. Check console for details.`);
-      }
-    } catch (error) {
-      console.error('❌ Error activating user:', error);
-      toast.error('Network error. Please check your connection.');
-    } finally {
-      setPaymentUpdatingEmail(null);
-    }
-  };
-
   return (
     <div className="h-full flex flex-col bg-[#f5f0ed]">
       {/* Header */}
@@ -1724,13 +1690,8 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                       <button
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          const userRecord = users.find(u => u.email === booking.email);
-                                          if (userRecord && userRecord.status === 'confirmed') {
-                                            setPaymentUpdatingEmail(booking.email);
-                                            updatePaymentStatus(booking.email, 'paid').finally(() => setPaymentUpdatingEmail(null));
-                                          } else {
-                                            handleActivateFromCalendar(booking.email, booking.name);
-                                          }
+                                          setPaymentUpdatingEmail(booking.email);
+                                          updatePaymentStatus(booking.email, 'paid').finally(() => setPaymentUpdatingEmail(null));
                                         }}
                                         disabled={isUpdatingPayment}
                                         className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium text-amber-700 bg-amber-100 border border-amber-300 hover:bg-amber-200 transition-colors disabled:opacity-50 cursor-pointer"
@@ -2201,8 +2162,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                       // Show expiry from the most relevant active package
                                       const activePkg = activeOrPending.find(p => p.expiryDate && p.status === 'active');
                                       if (!activePkg?.expiryDate) return null;
-                                      const expiryParts = activePkg.expiryDate.split('-').map(Number);
-                                      const expiryInSkopje = new Date(expiryParts[0], expiryParts[1] - 1, expiryParts[2], 23, 59, 59);
+                                      const expiryInSkopje = new Date(activePkg.expiryDate);
                                       const daysLeft = Math.ceil((expiryInSkopje.getTime() - getSkopjeTime().getTime()) / (24 * 60 * 60 * 1000));
                                       if (daysLeft <= 0) return (
                                         <span style={{ marginLeft: '6px' }}>

@@ -427,6 +427,35 @@ async function calculateSlotCapacity(dateKey: string, timeSlot: string): Promise
   };
 }
 
+// ============ PACKAGE FULLY-USED CHECK ============
+
+// Mark a package as fully_used only when all sessions are truly consumed:
+// remaining_sessions = 0 AND no pending/confirmed reservations remain.
+async function maybeMarkPackageFullyUsed(supabase: ReturnType<typeof getSupabase>, packageId: string): Promise<void> {
+  const { data: pkg } = await supabase
+    .from('user_packages')
+    .select('remaining_sessions, package_status')
+    .eq('id', packageId)
+    .single();
+
+  if (!pkg || pkg.remaining_sessions > 0 || pkg.package_status === 'fully_used') return;
+
+  // Check if any active (non-terminal) reservations remain for this package
+  const { count } = await supabase
+    .from('reservations')
+    .select('id', { count: 'exact', head: true })
+    .eq('package_id', packageId)
+    .in('reservation_status', ['pending', 'confirmed']);
+
+  if (count === 0) {
+    await supabase
+      .from('user_packages')
+      .update({ package_status: 'fully_used', updated_at: new Date().toISOString() })
+      .eq('id', packageId);
+    console.log(`✅ Package ${packageId} marked as fully_used (all sessions consumed)`);
+  }
+}
+
 // ============ AUTO-DEDUCT MISSED SESSIONS ============
 
 // Check for past confirmed reservations that were never attended and mark as no_show
@@ -475,6 +504,9 @@ async function autoDeductMissedSessions(userEmail: string): Promise<{ deducted: 
           })
           .eq('id', reservation.package_id);
       }
+
+      // Check if all sessions are now consumed → mark fully_used
+      await maybeMarkPackageFullyUsed(supabase, reservation.package_id);
     }
 
     deducted++;
@@ -2133,6 +2165,9 @@ app.patch("/make-server-b87b0c07/reservations/:id/status", async (c) => {
               })
               .eq('id', reservation.package_id);
           }
+
+          // Check if all sessions are now consumed (attended/no-show) → mark fully_used
+          await maybeMarkPackageFullyUsed(supabase, reservation.package_id);
         }
       }
 
@@ -2212,6 +2247,9 @@ app.patch("/make-server-b87b0c07/reservations/:id/status", async (c) => {
               })
               .eq('id', reservation.package_id);
           }
+
+          // Check if all sessions are now consumed (attended/no-show) → mark fully_used
+          await maybeMarkPackageFullyUsed(supabase, reservation.package_id);
         }
         console.log(`⚠️ No-show recorded for reservation ${reservationId}. Session consumed as penalty.`);
       }
