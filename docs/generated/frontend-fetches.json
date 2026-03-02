@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-03-02T15:48:07.527Z",
+  "generatedAt": "2026-03-02T16:29:20.414Z",
   "sourceDir": "src",
-  "occurrenceCount": 54,
-  "uniquePathCount": 40,
+  "occurrenceCount": 52,
+  "uniquePathCount": 41,
   "entries": [
     {
       "method": "POST",
@@ -216,12 +216,6 @@
     },
     {
       "method": "GET",
-      "path": "/slots",
-      "file": "src/app/components/UserDashboard.tsx",
-      "line": 417
-    },
-    {
-      "method": "GET",
       "path": "/slots/availability",
       "file": "src/app/components/BookingScreen.tsx",
       "line": 72
@@ -231,12 +225,6 @@
       "path": "/slots/availability",
       "file": "src/app/components/PackageOverview.tsx",
       "line": 249
-    },
-    {
-      "method": "GET",
-      "path": "/slots/availability",
-      "file": "src/app/components/UserDashboard.tsx",
-      "line": 390
     },
     {
       "method": "GET",
@@ -258,9 +246,9 @@
     },
     {
       "method": "GET",
-      "path": "/slots/live-days",
+      "path": "/slots/user-calendar",
       "file": "src/app/components/UserDashboard.tsx",
-      "line": 384
+      "line": 382
     },
     {
       "method": "POST",
@@ -284,31 +272,31 @@
       "method": "POST",
       "path": "/user/packages/:param/book-session",
       "file": "src/app/components/UserDashboard.tsx",
-      "line": 609
+      "line": 584
     },
     {
       "method": "POST",
       "path": "/user/packages/:param/book-session",
       "file": "src/app/components/UserDashboard.tsx",
-      "line": 710
+      "line": 676
     },
     {
       "method": "POST",
       "path": "/user/packages/:param/reschedule",
       "file": "src/app/components/UserDashboard.tsx",
-      "line": 553
+      "line": 528
     },
     {
       "method": "DELETE",
       "path": "/user/packages/:param/reservations/:param",
       "file": "src/app/components/UserDashboard.tsx",
-      "line": 863
+      "line": 830
     },
     {
       "method": "POST",
       "path": "/user/packages/purchase",
       "file": "src/app/components/UserDashboard.tsx",
-      "line": 917
+      "line": 884
     },
     {
       "method": "DELETE",

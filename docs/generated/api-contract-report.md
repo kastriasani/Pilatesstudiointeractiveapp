@@ -1,12 +1,12 @@
 # API Contract Report
 
-Generated: 2026-03-02T15:48:07.815Z
+Generated: 2026-03-02T16:29:20.707Z
 
 ## Summary
 
 - Status: PASS
-- Backend unique paths: 49
-- Frontend unique paths: 40
+- Backend unique paths: 50
+- Frontend unique paths: 41
 - Docs unique paths: 12
 
 ## Frontend Paths Missing In Backend
@@ -59,6 +59,7 @@ Generated: 2026-03-02T15:48:07.815Z
 - /slots
 - /slots/availability
 - /slots/live-days
+- /slots/user-calendar
 - /upload-logo
 - /user/language
 - /user/packages

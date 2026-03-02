@@ -3697,6 +3697,95 @@ app.get("/make-server-b87b0c07/slots/availability", async (c) => {
   }
 });
 
+// GET /slots/user-calendar - Combined endpoint: live dates + slot configs + bookings in one call
+app.get("/make-server-b87b0c07/slots/user-calendar", async (c) => {
+  try {
+    const supabase = getSupabase();
+    const todayStr = getSkopjeTime().toISOString().split('T')[0];
+
+    // 1. Fetch live dates
+    const { data: liveDays, error: liveDaysError } = await supabase
+      .from('day_schedules')
+      .select('date')
+      .eq('status', 'live')
+      .gte('date', todayStr)
+      .order('date', { ascending: true });
+
+    if (liveDaysError) {
+      console.error('Error fetching live days:', liveDaysError);
+      return c.json({ error: 'Failed to fetch calendar data' }, 500);
+    }
+
+    const liveDates = (liveDays || []).map(d => d.date);
+
+    if (liveDates.length === 0) {
+      return c.json({ success: true, dates: [], slotConfigs: {}, bookings: [] });
+    }
+
+    // 2. Fetch slot configs and reservations in parallel
+    // Build date key variants for reservation query (ISO + short format)
+    const allDateKeys: string[] = [];
+    liveDates.forEach(isoDate => {
+      allDateKeys.push(isoDate);
+      const [, month, day] = isoDate.split('-');
+      allDateKeys.push(`${parseInt(month)}-${parseInt(day)}`);
+    });
+
+    const [slotsResult, reservationsResult] = await Promise.all([
+      supabase
+        .from('time_slots')
+        .select('date, start_time, max_capacity')
+        .in('date', liveDates)
+        .order('start_time', { ascending: true }),
+      supabase
+        .from('reservations')
+        .select('date_key, time_slot, reservation_status, service_type, user_email')
+        .in('date_key', allDateKeys)
+        .in('reservation_status', ['pending', 'confirmed', 'attended']),
+    ]);
+
+    if (slotsResult.error) {
+      console.error('Error fetching time slots:', slotsResult.error);
+      return c.json({ error: 'Failed to fetch calendar data' }, 500);
+    }
+    if (reservationsResult.error) {
+      console.error('Error fetching reservations:', reservationsResult.error);
+      return c.json({ error: 'Failed to fetch calendar data' }, 500);
+    }
+
+    // 3. Build slotConfigs grouped by date
+    const slotConfigs: Record<string, { start_time: string; max_capacity: number }[]> = {};
+    for (const slot of slotsResult.data || []) {
+      const st = slot.start_time.length > 5 ? slot.start_time.substring(0, 5) : slot.start_time;
+      if (!slotConfigs[slot.date]) slotConfigs[slot.date] = [];
+      slotConfigs[slot.date].push({ start_time: st, max_capacity: slot.max_capacity });
+    }
+
+    // 4. Normalize bookings — keep ISO dateKey, include lowercased email
+    const bookings = (reservationsResult.data || []).map(r => {
+      let dateKey = r.date_key;
+      // Normalize short format to ISO for consistent frontend handling
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) {
+        const [m, d] = dateKey.split('-');
+        const year = todayStr.substring(0, 4);
+        dateKey = `${year}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+      }
+      return {
+        dateKey,
+        timeSlot: r.time_slot,
+        status: r.reservation_status,
+        serviceType: r.service_type,
+        email: (r.user_email || '').toLowerCase(),
+      };
+    });
+
+    return c.json({ success: true, dates: liveDates, slotConfigs, bookings });
+  } catch (error) {
+    console.error('Error fetching user calendar:', error);
+    return c.json({ error: 'Failed to fetch calendar data', details: (error as Error).message }, 500);
+  }
+});
+
 // GET /admin/slots - Get time slots for a specific date (admin)
 app.get("/make-server-b87b0c07/admin/slots", async (c) => {
   try {

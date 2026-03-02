@@ -378,68 +378,43 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
   // Load available slots for rescheduling - fetches ONLY live days from API
   const loadAvailableSlots = async (): Promise<DateSlot[]> => {
     try {
-      // Fetch live days and bookings in parallel
-      const [liveDaysResponse, bookingsResponse] = await Promise.all([
-        fetch(
-          `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/slots/live-days`,
-          {
-            headers: { 'Authorization': `Bearer ${publicAnonKey}` },
-          }
-        ),
-        fetch(
-          `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/slots/availability`,
-          {
-            headers: { 'Authorization': `Bearer ${publicAnonKey}` },
-          }
-        ),
-      ]);
+      const response = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/slots/user-calendar`,
+        { headers: { 'Authorization': `Bearer ${publicAnonKey}` } }
+      );
 
-      if (!liveDaysResponse.ok) {
-        console.error('Failed to load live days');
+      if (!response.ok) {
+        console.error('Failed to load user calendar');
         return [];
       }
 
-      const liveDaysData = await liveDaysResponse.json();
-      const liveDays: string[] = liveDaysData.dates || [];
+      const data = await response.json();
+      const liveDays: string[] = data.dates || [];
+      const slotConfigs: Record<string, { start_time: string; max_capacity: number }[]> = data.slotConfigs || {};
+      const existingBookings: any[] = data.bookings || [];
 
       if (liveDays.length === 0) {
-        console.log('📅 No live days available');
         setAvailableSlots([]);
         return [];
       }
-
-      const bookingsData = bookingsResponse.ok ? await bookingsResponse.json() : { bookings: [] };
-      const existingBookings = bookingsData.bookings || [];
-
-      // Fetch time slots for each live day
-      const slotsPromises = liveDays.map(dateKey =>
-        fetch(
-          `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/slots?date=${dateKey}`,
-          { headers: { 'Authorization': `Bearer ${publicAnonKey}` } }
-        ).then(res => res.json())
-      );
-
-      const slotsResults = await Promise.all(slotsPromises);
 
       const slots: DateSlot[] = [];
       const today = getSkopjeTime();
       today.setHours(0, 0, 0, 0);
 
-      liveDays.forEach((dateKey, index) => {
+      liveDays.forEach((dateKey) => {
         const [year, month, day] = dateKey.split('-').map(Number);
         const date = new Date(year, month - 1, day);
-        const isToday = date.getTime() === today.getTime();
 
-        // Get time slots from API response (or use defaults)
-        const daySlots = slotsResults[index]?.slots || [];
-        const timeSlotList = daySlots.length > 0
-          ? daySlots.map((s: any) => s.start_time)
+        // Get time slots from configs or use defaults
+        const daySlotConfigs = slotConfigs[dateKey] || [];
+        const timeSlotList = daySlotConfigs.length > 0
+          ? daySlotConfigs.map(s => s.start_time)
           : ['09:00', '10:00', '11:00', '17:00', '18:00', '19:00', '20:00'];
 
-        // Get bookings for this date (convert ISO to short format for comparison)
-        const shortDateKey = `${month}-${day}`; // e.g., "2-5" from "2026-02-05"
+        // Get bookings for this date (backend normalizes to ISO format)
         const dayBookings = existingBookings.filter((b: any) =>
-          (b.dateKey === dateKey || b.dateKey === shortDateKey) &&
+          b.dateKey === dateKey &&
           (b.status === 'confirmed' || b.status === 'attended' || b.status === 'pending')
         );
 
@@ -454,7 +429,7 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
           const hasPrivateSession = slotBookings.some((b: any) =>
             b.serviceType === 'individual' || b.serviceType === 'duo'
           );
-          const maxCapacity = daySlots.find((s: any) => s.start_time === time)?.max_capacity || 4;
+          const maxCapacity = daySlotConfigs.find(s => s.start_time === time)?.max_capacity || 4;
           const available = hasPrivateSession ? 0 : Math.max(0, maxCapacity - seatsOccupied);
 
           // Count how many bookings the current user has on this slot
@@ -694,18 +669,9 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
 
     setIsRescheduling(true);
 
-    // Refresh availability to prevent booking a full slot
-    const freshSlots = await loadAvailableSlots();
-    const freshSlot = freshSlots
-      .find(d => d.dateKey === dateKey)
-      ?.timeSlots.find(s => s.time === timeSlot);
-    if (!freshSlot || freshSlot.available <= 0) {
-      toast.error(t.slotFull || 'This slot is no longer available');
-      setIsRescheduling(false);
-      return;
-    }
-
     try {
+      // The create_reservation RPC validates capacity atomically with row locking,
+      // so a preflight availability check is unnecessary.
       const response = await fetch(
         `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/user/packages/${pkg.id}/book-session`,
         {
@@ -736,8 +702,9 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
       console.log('✅ Session booked via inline calendar:', data);
       toast.success(t.sessionBookedSuccess || 'Session booked successfully!');
 
-      // Reload packages and use fresh data for auto-advance
+      // Reload packages (blocking — needed for auto-advance) and slots (non-blocking background refresh)
       const freshPackages = await loadPackages();
+      loadAvailableSlots();
       const freshPkg = freshPackages.find(p => p.id === pkg.id) || pkg;
 
       // Auto-advance to next empty slot using fresh data
@@ -884,9 +851,9 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
       console.log('✅ Session cancelled:', data);
       toast.success(t.sessionCancelledSuccess || 'Session cancelled successfully!');
 
-      // Reload packages and refresh slot availability so freed capacity is visible
+      // Reload packages (blocking) and refresh slot availability (non-blocking background)
       await loadPackages();
-      await loadAvailableSlots();
+      loadAvailableSlots();
       setIsRescheduling(false);
 
     } catch (error) {
