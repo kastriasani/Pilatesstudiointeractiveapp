@@ -1,134 +1,110 @@
 {
-  "generatedAt": "2026-03-02T13:06:08.188Z",
+  "generatedAt": "2026-03-02T14:58:40.029Z",
   "sourceDir": "src",
-  "occurrenceCount": 62,
-  "uniquePathCount": 45,
+  "occurrenceCount": 54,
+  "uniquePathCount": 40,
   "entries": [
     {
       "method": "POST",
       "path": "/activate",
       "file": "src/app/components/AdminPanel.tsx",
-      "line": 1069
+      "line": 889
     },
     {
       "method": "POST",
       "path": "/admin/archived-users/send-email",
       "file": "src/app/components/AdminPanel.tsx",
-      "line": 807
+      "line": 687
     },
     {
       "method": "GET",
       "path": "/admin/booking-changes",
       "file": "src/app/components/AdminPanel.tsx",
-      "line": 408
+      "line": 382
     },
     {
       "method": "POST",
       "path": "/admin/booking-changes/archive",
       "file": "src/app/components/AdminPanel.tsx",
-      "line": 428
+      "line": 402
     },
     {
       "method": "POST",
       "path": "/admin/cancel-class",
       "file": "src/app/components/AdminPanel.tsx",
-      "line": 675
+      "line": 621
     },
     {
       "method": "PATCH",
       "path": "/admin/days/:param/status",
       "file": "src/app/components/AdminPanel.tsx",
-      "line": 547
+      "line": 493
     },
     {
       "method": "GET",
       "path": "/admin/login-requests",
       "file": "src/app/components/AdminPanel.tsx",
-      "line": 326
+      "line": 300
     },
     {
       "method": "POST",
       "path": "/admin/login-requests/:param/approve",
       "file": "src/app/components/AdminPanel.tsx",
-      "line": 352
+      "line": 326
     },
     {
       "method": "POST",
       "path": "/admin/login-requests/:param/dismiss",
       "file": "src/app/components/AdminPanel.tsx",
-      "line": 382
+      "line": 356
     },
     {
       "method": "GET",
       "path": "/admin/slots",
       "file": "src/app/components/AdminPanel.tsx",
-      "line": 488
+      "line": 434
     },
     {
       "method": "POST",
       "path": "/admin/slots",
       "file": "src/app/components/AdminPanel.tsx",
-      "line": 710
+      "line": 656
     },
     {
       "method": "DELETE",
       "path": "/admin/slots/:param",
       "file": "src/app/components/AdminPanel.tsx",
-      "line": 640
+      "line": 586
     },
     {
       "method": "PATCH",
       "path": "/admin/slots/:param",
       "file": "src/app/components/AdminPanel.tsx",
-      "line": 607
+      "line": 553
     },
     {
       "method": "GET",
       "path": "/admin/users",
       "file": "src/app/components/AdminPanel.tsx",
-      "line": 279
+      "line": 253
     },
     {
       "method": "PATCH",
       "path": "/admin/users/:param/adjust-sessions",
       "file": "src/app/components/AdminPanel.tsx",
-      "line": 1184
+      "line": 1004
     },
     {
       "method": "PATCH",
       "path": "/admin/users/:param/payment",
       "file": "src/app/components/AdminPanel.tsx",
-      "line": 1030
+      "line": 850
     },
     {
       "method": "POST",
       "path": "/admin/users/:param/resend-login-email",
       "file": "src/app/components/AdminPanel.tsx",
-      "line": 1251
-    },
-    {
-      "method": "GET",
-      "path": "/admin/waitlist",
-      "file": "src/app/components/AdminPanel.tsx",
-      "line": 451
-    },
-    {
-      "method": "DELETE",
-      "path": "/admin/waitlist/:param",
-      "file": "src/app/components/AdminPanel.tsx",
-      "line": 850
-    },
-    {
-      "method": "DELETE",
-      "path": "/admin/waitlist/:param",
-      "file": "src/app/components/BulkWaitlistUpload.tsx",
-      "line": 59
-    },
-    {
-      "method": "POST",
-      "path": "/admin/waitlist/send-invite",
-      "file": "src/app/components/AdminPanel.tsx",
-      "line": 743
+      "line": 1071
     },
     {
       "method": "POST",
@@ -164,31 +140,25 @@
       "method": "GET",
       "path": "/bookings",
       "file": "src/app/components/AdminPanel.tsx",
-      "line": 259
+      "line": 233
     },
     {
       "method": "GET",
       "path": "/debug/check-users",
       "file": "src/app/components/DevTools.tsx",
-      "line": 70
-    },
-    {
-      "method": "GET",
-      "path": "/debug/coupons",
-      "file": "src/app/components/CouponDebugPanel.tsx",
-      "line": 12
+      "line": 69
     },
     {
       "method": "POST",
       "path": "/dev/clear-all-data",
       "file": "src/app/components/DevTools.tsx",
-      "line": 115
+      "line": 114
     },
     {
       "method": "POST",
       "path": "/dev/generate-mock-data",
       "file": "src/app/components/DevTools.tsx",
-      "line": 22
+      "line": 21
     },
     {
       "method": "POST",
@@ -224,13 +194,13 @@
       "method": "DELETE",
       "path": "/reservations/:param",
       "file": "src/app/components/AdminPanel.tsx",
-      "line": 1324
+      "line": 1144
     },
     {
       "method": "PATCH",
       "path": "/reservations/:param/status",
       "file": "src/app/components/AdminPanel.tsx",
-      "line": 1289
+      "line": 1109
     },
     {
       "method": "GET",
@@ -272,7 +242,7 @@
       "method": "GET",
       "path": "/slots/live-days",
       "file": "src/app/components/AdminPanel.tsx",
-      "line": 511
+      "line": 457
     },
     {
       "method": "GET",
@@ -344,7 +314,7 @@
       "method": "DELETE",
       "path": "/users/:param",
       "file": "src/app/components/AdminPanel.tsx",
-      "line": 1119
+      "line": 939
     },
     {
       "method": "POST",
@@ -357,24 +327,6 @@
       "path": "/validate-coupon",
       "file": "src/app/components/PackageOverview.tsx",
       "line": 123
-    },
-    {
-      "method": "POST",
-      "path": "/waitlist",
-      "file": "src/app/components/AdminPanel.tsx",
-      "line": 876
-    },
-    {
-      "method": "POST",
-      "path": "/waitlist",
-      "file": "src/app/components/BulkWaitlistUpload.tsx",
-      "line": 110
-    },
-    {
-      "method": "POST",
-      "path": "/waitlist",
-      "file": "src/app/components/DevTools.tsx",
-      "line": 174
     }
   ]
 }

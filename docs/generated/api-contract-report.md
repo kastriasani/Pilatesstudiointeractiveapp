@@ -1,44 +1,23 @@
 # API Contract Report
 
-Generated: 2026-03-02T13:06:08.525Z
+Generated: 2026-03-02T14:58:40.330Z
 
 ## Summary
 
 - Status: WARN
-- Backend unique paths: 55
-- Frontend unique paths: 45
-- Docs unique paths: 55
+- Backend unique paths: 49
+- Frontend unique paths: 40
+- Docs unique paths: 15
 
 ## Frontend Paths Missing In Backend
 
-- /debug/coupons
+- None
 
 ## Docs Paths Missing In Backend
 
 - /activate-member
-- /admin/clear-packages
-- /admin/clear-reservations
-- /admin/complete-orphaned-package
-- /admin/export-data
 - /admin/orphaned-packages
-- /admin/recalculate-package-sessions
-- /admin/resend-activation-code
-- /admin/resend-activation-email
-- /admin/send-activation-code
-- /bookings/:id
-- /bookings/:id/status
-- /clear-data
-- /debug/coupons
 - /endpoint
-- /mock-data/gen
-- /mock-data/generate
-- /packages/:id/activate
-- /packages/:id/first
-- /payments
-- /payments/:id
-- /reservations/:id/cancel
-- /reservations/:id/reschedule
-- /webhooks/resend
 
 ## Backend Paths Not Used By Frontend
 
@@ -51,8 +30,6 @@ Generated: 2026-03-02T13:06:08.525Z
 - /health
 - /migrate-bookings
 - /packages/:id
-- /waitlist/redeem
-- /waitlist/verify/:code
 
 ## Backend Paths Missing In Docs
 
@@ -68,18 +45,30 @@ Generated: 2026-03-02T13:06:08.525Z
 - /admin/slots
 - /admin/slots/:id
 - /admin/sync-user-sessions
+- /admin/users
 - /admin/users/:email/adjust-sessions
+- /admin/users/:email/payment
 - /admin/users/:email/resend-login-email
 - /auth/admin/login
+- /auth/login
+- /auth/logout
+- /auth/register
 - /auth/request-login
+- /auth/setup-password
+- /auth/verify
+- /debug/check-users
+- /packages/:id
 - /slots
 - /slots/availability
 - /slots/live-days
 - /upload-logo
 - /user/language
+- /user/packages
 - /user/packages/:id/book-session
+- /user/packages/:id/reschedule
 - /user/packages/:id/reservations/:reservationId
 - /user/packages/purchase
 - /users/:email
+- /validate-coupon
 
 > This check is non-blocking by default. Use `--strict` to exit with code 1 on WARN.

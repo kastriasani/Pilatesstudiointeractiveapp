@@ -83,8 +83,7 @@ PACKAGE_VALIDITY_DAYS = 35
 | `users` | User accounts | email, name, activation_status, payment_status, password_hash |
 | `user_packages` | Purchased packages | user_email, package_type, remaining_sessions, status |
 | `reservations` | Booked sessions | user_email, date_key, time_slot, reservation_status |
-| `waitlist_members` | Waitlist signups | email, code, status |
-| `redemption_codes` | Bonus codes | code, email, used, expires_at |
+| `redemption_codes` | Promo/bonus codes | code, email, used, expires_at |
 
 ### Legacy Table
 
@@ -99,8 +98,7 @@ users
   └── user_packages (1:many via user_email)
         └── reservations (1:many via package_id)
 
-waitlist_members
-  └── redemption_codes (1:1 via email)
+redemption_codes (standalone promo codes)
 ```
 
 ---
@@ -200,7 +198,8 @@ Lines 1200-1700:  Reservation endpoints
 Lines 1700-2000:  Admin endpoints
 Lines 2000-2500:  Auth endpoints
 Lines 2500-3000:  User endpoints
-Lines 3000-3800:  Waitlist & utility endpoints
+Lines 3000-3500:  Slots & utility endpoints
+Lines 5500-5800:  Booking changes, re-engagement, logo upload
 ```
 
 ### Key Helpers
@@ -224,7 +223,7 @@ Supported languages: EN, SQ (Albanian), MK (Macedonian)
 |-------|---------|
 | Booking Confirmation | After package purchase |
 | Activation/Login | After admin activates user |
-| Waitlist Invite | Admin sends redemption code |
+| Re-engagement | Admin sends offer to archived users |
 | Password Reset | User requests reset |
 
 ---
@@ -248,4 +247,4 @@ Supported languages: EN, SQ (Albanian), MK (Macedonian)
 
 - All `/admin/*` routes require admin auth
 - All `/user/*` routes require user session
-- Public routes: `/health`, `/waitlist`, `/validate-coupon`, `/packages` (GET)
+- Public routes: `/health`, `/validate-coupon`, `/packages` (GET), `/slots/*`, `/auth/*`
