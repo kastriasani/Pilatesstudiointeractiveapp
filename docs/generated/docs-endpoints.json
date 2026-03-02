@@ -1,0 +1,134 @@
+{
+  "generatedAt": "2026-03-02T14:58:40.276Z",
+  "fileCount": 5,
+  "occurrenceCount": 21,
+  "uniquePathCount": 15,
+  "entries": [
+    {
+      "file": "docs/ARCHITECTURE.md",
+      "line": 125,
+      "path": "/activate",
+      "pattern": "method-route"
+    },
+    {
+      "file": "README.md",
+      "line": 174,
+      "path": "/activate",
+      "pattern": "method-route"
+    },
+    {
+      "file": "README.md",
+      "line": 188,
+      "path": "/activate-member",
+      "pattern": "method-route"
+    },
+    {
+      "file": "README.md",
+      "line": 177,
+      "path": "/admin/calendar",
+      "pattern": "method-route"
+    },
+    {
+      "file": "README.md",
+      "line": 176,
+      "path": "/admin/orphaned-packages",
+      "pattern": "method-route"
+    },
+    {
+      "file": "README.md",
+      "line": 187,
+      "path": "/bookings",
+      "pattern": "method-route"
+    },
+    {
+      "file": "README.md",
+      "line": 180,
+      "path": "/dev/clear-all-data",
+      "pattern": "method-route"
+    },
+    {
+      "file": "README.md",
+      "line": 181,
+      "path": "/dev/generate-mock-data",
+      "pattern": "method-route"
+    },
+    {
+      "file": "CLAUDE.md",
+      "line": 93,
+      "path": "/endpoint",
+      "pattern": "prefixed"
+    },
+    {
+      "file": "README.md",
+      "line": 175,
+      "path": "/health",
+      "pattern": "method-route"
+    },
+    {
+      "file": "README.md",
+      "line": 201,
+      "path": "/health",
+      "pattern": "prefixed"
+    },
+    {
+      "file": "README.md",
+      "line": 184,
+      "path": "/migrate-bookings",
+      "pattern": "method-route"
+    },
+    {
+      "file": "README.md",
+      "line": 166,
+      "path": "/packages",
+      "pattern": "method-route"
+    },
+    {
+      "file": "README.md",
+      "line": 168,
+      "path": "/packages",
+      "pattern": "method-route"
+    },
+    {
+      "file": "README.md",
+      "line": 167,
+      "path": "/packages/:id/first-session",
+      "pattern": "method-route"
+    },
+    {
+      "file": "docs/ARCHITECTURE.md",
+      "line": 141,
+      "path": "/reservations",
+      "pattern": "method-route"
+    },
+    {
+      "file": "README.md",
+      "line": 169,
+      "path": "/reservations",
+      "pattern": "method-route"
+    },
+    {
+      "file": "README.md",
+      "line": 170,
+      "path": "/reservations",
+      "pattern": "method-route"
+    },
+    {
+      "file": "README.md",
+      "line": 171,
+      "path": "/reservations/:id",
+      "pattern": "method-route"
+    },
+    {
+      "file": "README.md",
+      "line": 173,
+      "path": "/reservations/:id",
+      "pattern": "method-route"
+    },
+    {
+      "file": "README.md",
+      "line": 172,
+      "path": "/reservations/:id/status",
+      "pattern": "method-route"
+    }
+  ]
+}

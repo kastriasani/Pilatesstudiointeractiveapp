@@ -4,6 +4,11 @@
   "version": "0.0.1",
   "type": "module",
   "scripts": {
+    "api:manifest": "node scripts/generate-api-manifest.mjs",
+    "api:fetches": "node scripts/extract-frontend-fetches.mjs",
+    "api:docs": "node scripts/extract-doc-endpoints.mjs",
+    "api:check": "npm run api:manifest && npm run api:fetches && npm run api:docs && node scripts/check-api-contracts.mjs",
+    "api:check:strict": "npm run api:manifest && npm run api:fetches && npm run api:docs && node scripts/check-api-contracts.mjs --strict",
     "build": "vite build",
     "dev": "vite"
   },

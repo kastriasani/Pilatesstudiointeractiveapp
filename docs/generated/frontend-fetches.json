@@ -1,0 +1,332 @@
+{
+  "generatedAt": "2026-03-02T14:58:40.029Z",
+  "sourceDir": "src",
+  "occurrenceCount": 54,
+  "uniquePathCount": 40,
+  "entries": [
+    {
+      "method": "POST",
+      "path": "/activate",
+      "file": "src/app/components/AdminPanel.tsx",
+      "line": 889
+    },
+    {
+      "method": "POST",
+      "path": "/admin/archived-users/send-email",
+      "file": "src/app/components/AdminPanel.tsx",
+      "line": 687
+    },
+    {
+      "method": "GET",
+      "path": "/admin/booking-changes",
+      "file": "src/app/components/AdminPanel.tsx",
+      "line": 382
+    },
+    {
+      "method": "POST",
+      "path": "/admin/booking-changes/archive",
+      "file": "src/app/components/AdminPanel.tsx",
+      "line": 402
+    },
+    {
+      "method": "POST",
+      "path": "/admin/cancel-class",
+      "file": "src/app/components/AdminPanel.tsx",
+      "line": 621
+    },
+    {
+      "method": "PATCH",
+      "path": "/admin/days/:param/status",
+      "file": "src/app/components/AdminPanel.tsx",
+      "line": 493
+    },
+    {
+      "method": "GET",
+      "path": "/admin/login-requests",
+      "file": "src/app/components/AdminPanel.tsx",
+      "line": 300
+    },
+    {
+      "method": "POST",
+      "path": "/admin/login-requests/:param/approve",
+      "file": "src/app/components/AdminPanel.tsx",
+      "line": 326
+    },
+    {
+      "method": "POST",
+      "path": "/admin/login-requests/:param/dismiss",
+      "file": "src/app/components/AdminPanel.tsx",
+      "line": 356
+    },
+    {
+      "method": "GET",
+      "path": "/admin/slots",
+      "file": "src/app/components/AdminPanel.tsx",
+      "line": 434
+    },
+    {
+      "method": "POST",
+      "path": "/admin/slots",
+      "file": "src/app/components/AdminPanel.tsx",
+      "line": 656
+    },
+    {
+      "method": "DELETE",
+      "path": "/admin/slots/:param",
+      "file": "src/app/components/AdminPanel.tsx",
+      "line": 586
+    },
+    {
+      "method": "PATCH",
+      "path": "/admin/slots/:param",
+      "file": "src/app/components/AdminPanel.tsx",
+      "line": 553
+    },
+    {
+      "method": "GET",
+      "path": "/admin/users",
+      "file": "src/app/components/AdminPanel.tsx",
+      "line": 253
+    },
+    {
+      "method": "PATCH",
+      "path": "/admin/users/:param/adjust-sessions",
+      "file": "src/app/components/AdminPanel.tsx",
+      "line": 1004
+    },
+    {
+      "method": "PATCH",
+      "path": "/admin/users/:param/payment",
+      "file": "src/app/components/AdminPanel.tsx",
+      "line": 850
+    },
+    {
+      "method": "POST",
+      "path": "/admin/users/:param/resend-login-email",
+      "file": "src/app/components/AdminPanel.tsx",
+      "line": 1071
+    },
+    {
+      "method": "POST",
+      "path": "/auth/admin/login",
+      "file": "src/app/components/AdminLogin.tsx",
+      "line": 29
+    },
+    {
+      "method": "POST",
+      "path": "/auth/login",
+      "file": "src/app/components/LoginPage.tsx",
+      "line": 60
+    },
+    {
+      "method": "POST",
+      "path": "/auth/login",
+      "file": "src/app/components/LoginRegisterModal.tsx",
+      "line": 34
+    },
+    {
+      "method": "POST",
+      "path": "/auth/request-login",
+      "file": "src/app/components/LoginPage.tsx",
+      "line": 120
+    },
+    {
+      "method": "POST",
+      "path": "/auth/setup-password",
+      "file": "src/app/components/PasswordSetupPage.tsx",
+      "line": 58
+    },
+    {
+      "method": "GET",
+      "path": "/bookings",
+      "file": "src/app/components/AdminPanel.tsx",
+      "line": 233
+    },
+    {
+      "method": "GET",
+      "path": "/debug/check-users",
+      "file": "src/app/components/DevTools.tsx",
+      "line": 69
+    },
+    {
+      "method": "POST",
+      "path": "/dev/clear-all-data",
+      "file": "src/app/components/DevTools.tsx",
+      "line": 114
+    },
+    {
+      "method": "POST",
+      "path": "/dev/generate-mock-data",
+      "file": "src/app/components/DevTools.tsx",
+      "line": 21
+    },
+    {
+      "method": "POST",
+      "path": "/packages",
+      "file": "src/app/components/DuoTraining.tsx",
+      "line": 91
+    },
+    {
+      "method": "POST",
+      "path": "/packages",
+      "file": "src/app/components/IndividualTraining.tsx",
+      "line": 91
+    },
+    {
+      "method": "POST",
+      "path": "/packages",
+      "file": "src/app/components/PackageOverview.tsx",
+      "line": 189
+    },
+    {
+      "method": "POST",
+      "path": "/packages/:param/first-session",
+      "file": "src/app/components/PackageOverview.tsx",
+      "line": 364
+    },
+    {
+      "method": "POST",
+      "path": "/reservations",
+      "file": "src/app/components/ConfirmationScreen.tsx",
+      "line": 45
+    },
+    {
+      "method": "DELETE",
+      "path": "/reservations/:param",
+      "file": "src/app/components/AdminPanel.tsx",
+      "line": 1144
+    },
+    {
+      "method": "PATCH",
+      "path": "/reservations/:param/status",
+      "file": "src/app/components/AdminPanel.tsx",
+      "line": 1109
+    },
+    {
+      "method": "GET",
+      "path": "/slots",
+      "file": "src/app/components/BookingScreen.tsx",
+      "line": 94
+    },
+    {
+      "method": "GET",
+      "path": "/slots",
+      "file": "src/app/components/PackageOverview.tsx",
+      "line": 267
+    },
+    {
+      "method": "GET",
+      "path": "/slots",
+      "file": "src/app/components/UserDashboard.tsx",
+      "line": 417
+    },
+    {
+      "method": "GET",
+      "path": "/slots/availability",
+      "file": "src/app/components/BookingScreen.tsx",
+      "line": 72
+    },
+    {
+      "method": "GET",
+      "path": "/slots/availability",
+      "file": "src/app/components/PackageOverview.tsx",
+      "line": 249
+    },
+    {
+      "method": "GET",
+      "path": "/slots/availability",
+      "file": "src/app/components/UserDashboard.tsx",
+      "line": 390
+    },
+    {
+      "method": "GET",
+      "path": "/slots/live-days",
+      "file": "src/app/components/AdminPanel.tsx",
+      "line": 457
+    },
+    {
+      "method": "GET",
+      "path": "/slots/live-days",
+      "file": "src/app/components/BookingScreen.tsx",
+      "line": 76
+    },
+    {
+      "method": "GET",
+      "path": "/slots/live-days",
+      "file": "src/app/components/PackageOverview.tsx",
+      "line": 253
+    },
+    {
+      "method": "GET",
+      "path": "/slots/live-days",
+      "file": "src/app/components/UserDashboard.tsx",
+      "line": 384
+    },
+    {
+      "method": "POST",
+      "path": "/upload-logo",
+      "file": "src/app/components/LogoUploader.tsx",
+      "line": 20
+    },
+    {
+      "method": "PATCH",
+      "path": "/user/language",
+      "file": "src/contexts/LanguageContext.tsx",
+      "line": 34
+    },
+    {
+      "method": "GET",
+      "path": "/user/packages",
+      "file": "src/app/components/UserDashboard.tsx",
+      "line": 296
+    },
+    {
+      "method": "POST",
+      "path": "/user/packages/:param/book-session",
+      "file": "src/app/components/UserDashboard.tsx",
+      "line": 609
+    },
+    {
+      "method": "POST",
+      "path": "/user/packages/:param/book-session",
+      "file": "src/app/components/UserDashboard.tsx",
+      "line": 710
+    },
+    {
+      "method": "POST",
+      "path": "/user/packages/:param/reschedule",
+      "file": "src/app/components/UserDashboard.tsx",
+      "line": 553
+    },
+    {
+      "method": "DELETE",
+      "path": "/user/packages/:param/reservations/:param",
+      "file": "src/app/components/UserDashboard.tsx",
+      "line": 863
+    },
+    {
+      "method": "POST",
+      "path": "/user/packages/purchase",
+      "file": "src/app/components/UserDashboard.tsx",
+      "line": 916
+    },
+    {
+      "method": "DELETE",
+      "path": "/users/:param",
+      "file": "src/app/components/AdminPanel.tsx",
+      "line": 939
+    },
+    {
+      "method": "POST",
+      "path": "/validate-coupon",
+      "file": "src/app/components/PackageOverview.tsx",
+      "line": 120
+    },
+    {
+      "method": "POST",
+      "path": "/validate-coupon",
+      "file": "src/app/components/PackageOverview.tsx",
+      "line": 123
+    }
+  ]
+}

@@ -117,18 +117,18 @@ Lines 1200-1700:  Reservation endpoints
 Lines 1700-2000:  Admin endpoints
 Lines 2000-2500:  Auth endpoints (login, register, password setup)
 Lines 2500-3000:  User endpoints
-Lines 3000-3800:  Waitlist & utility endpoints
+Lines 3000-3500:  Slots & utility endpoints
+Lines 5500-5800:  Booking changes, re-engagement, logo upload
 ```
 
-See `docs/ROUTE_INVENTORY.md` for the complete list of 35 endpoints with line numbers.
+See `docs/ROUTE_INVENTORY.md` for the complete list of 54 routes with line numbers.
 
 ### Database Tables
 
 - `users` - User accounts (email, name, activation_status, payment_status, password_hash)
 - `user_packages` - Purchased packages (user_email, package_type, remaining_sessions, status)
 - `reservations` - Booked sessions (user_email, date_key, time_slot, reservation_status)
-- `waitlist_members` - Waitlist signups
-- `redemption_codes` - Bonus/invite codes
+- `redemption_codes` - Bonus/promo codes
 - `kv_store_b87b0c07` - KV store (**sessions only** - all domain data migrated to Postgres)
 
 ### Session Management
@@ -207,6 +207,5 @@ Reservations use a Postgres atomic RPC with `FOR UPDATE` lock to prevent overboo
 
 Additional docs in `/docs/` directory:
 - `ARCHITECTURE.md` - Detailed system design, database schema, key flows
-- `ROUTE_INVENTORY.md` - All 35 API endpoints with line numbers
-- `MIGRATION_MASTERPLAN.md` - KV→Postgres migration history (complete)
-- `FULL_REVIEW.md` - System audit
+- `ROUTE_INVENTORY.md` - All 54 API routes with line numbers and auth levels
+- `generated/` - Auto-generated SSOT artifacts (`npm run api:check`)

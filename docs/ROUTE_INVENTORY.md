@@ -1,96 +1,73 @@
 # Route Inventory
 
-> **Purpose:** Authoritative list of endpoints and counts.
-> **Read when:** Checking if masterplan is complete, or before changing routes.
+> **Purpose:** Authoritative list of all backend endpoints.
+> **Read when:** Checking endpoint coverage or before adding/changing routes.
+> **Auto-regenerate:** `npm run api:manifest` updates `docs/generated/api-manifest.json`.
 
-Generated: 2026-02-10
+Last updated: 2026-03-02 (post waitlist removal)
 
-```bash
-rg -n 'app\.(get|post|patch|delete)\(' supabase/functions/make-server-b87b0c07/index.ts
-```
+## All Routes (54 registrations, 49 unique paths)
 
-## All Routes (51 registrations)
+| Line | Method | Path | Auth |
+|-----:|--------|------|------|
+| 2220 | POST | `/activate` | Public |
+| 5676 | POST | `/admin/archived-users/send-email` | Admin |
+| 5595 | GET | `/admin/booking-changes` | Admin |
+| 5649 | POST | `/admin/booking-changes/archive` | Admin |
+| 3472 | GET | `/admin/calendar` | Admin |
+| 4065 | POST | `/admin/cancel-class` | Admin |
+| 2750 | GET | `/admin/consistency-check` | Admin |
+| 3755 | PATCH | `/admin/days/:date/status` | Admin |
+| 2447 | GET | `/admin/login-requests` | Admin |
+| 2504 | POST | `/admin/login-requests/:id/approve` | Admin |
+| 2595 | POST | `/admin/login-requests/:id/dismiss` | Admin |
+| 3701 | GET | `/admin/slots` | Admin |
+| 3829 | POST | `/admin/slots` | Admin |
+| 3967 | DELETE | `/admin/slots/:id` | Admin |
+| 3889 | PATCH | `/admin/slots/:id` | Admin |
+| 5534 | POST | `/admin/sync-user-sessions` | Admin |
+| 2624 | GET | `/admin/users` | Admin |
+| 3091 | PATCH | `/admin/users/:email/adjust-sessions` | Admin |
+| 3008 | PATCH | `/admin/users/:email/payment` | Admin |
+| 2359 | POST | `/admin/users/:email/resend-login-email` | Admin |
+| 4670 | POST | `/auth/admin/login` | Public |
+| 4538 | POST | `/auth/login` | Public |
+| 4649 | POST | `/auth/logout` | Public |
+| 4371 | POST | `/auth/register` | Public |
+| 4471 | POST | `/auth/request-login` | Public |
+| 4263 | POST | `/auth/setup-password` | Public |
+| 4613 | GET | `/auth/verify` | Public |
+| 3272 | GET | `/bookings` | Admin |
+| 5508 | GET | `/debug/check-users` | Dev |
+| 4187 | POST | `/dev/clear-all-data` | Dev |
+| 4216 | POST | `/dev/generate-mock-data` | Dev |
+| 861 | GET | `/health` | Public |
+| 3336 | POST | `/migrate-bookings` | Admin |
+| 1403 | GET | `/packages` | Public |
+| 946 | POST | `/packages` | Public |
+| 1462 | GET | `/packages/:id` | Public |
+| 1209 | POST | `/packages/:id/first-session` | Public |
+| 1744 | GET | `/reservations` | Public |
+| 1520 | POST | `/reservations` | Public |
+| 2105 | DELETE | `/reservations/:id` | Public |
+| 1811 | GET | `/reservations/:id` | Public |
+| 1858 | PATCH | `/reservations/:id/status` | Public |
+| 3552 | GET | `/slots` | Public |
+| 3632 | GET | `/slots/availability` | Public |
+| 3608 | GET | `/slots/live-days` | Public |
+| 5746 | POST | `/upload-logo` | Public |
+| 4716 | PATCH | `/user/language` | User |
+| 4756 | GET | `/user/packages` | User |
+| 5233 | POST | `/user/packages/:id/book-session` | User |
+| 4917 | POST | `/user/packages/:id/reschedule` | User |
+| 5379 | DELETE | `/user/packages/:id/reservations/:reservationId` | User |
+| 5068 | POST | `/user/packages/purchase` | User |
+| 3188 | DELETE | `/users/:email` | Admin |
+| 867 | POST | `/validate-coupon` | Public |
 
-| Line | Method | Route | Status |
-|-----:|--------|-------|--------|
-| 877 | GET | /health | N/A |
-| 883 | POST | /validate-coupon | ✅ Supabase |
-| 1000 | POST | /packages | ✅ Supabase |
-| 1266 | POST | /packages/:id/first-session | ✅ Supabase |
-| 1466 | GET | /packages | ✅ Supabase |
-| 1525 | GET | /packages/:id | ✅ Supabase |
-| 1583 | POST | /reservations | ✅ Supabase |
-| 1797 | GET | /reservations | ✅ Supabase |
-| 1859 | GET | /reservations/:id | ✅ Supabase |
-| 1901 | PATCH | /reservations/:id/status | ✅ Supabase |
-| 2071 | DELETE | /reservations/:id | ✅ Supabase |
-| 2148 | POST | /activate | ✅ Supabase |
-| 2272 | POST | /admin/users/:email/resend-login-email | ✅ Supabase |
-| 2362 | GET | /admin/users | ✅ Supabase |
-| 2472 | PATCH | /admin/users/:email/payment | ✅ Supabase |
-| 2555 | PATCH | /admin/users/:email/adjust-sessions | ✅ Supabase |
-| 2651 | DELETE | /users/:email | ✅ Supabase |
-| 2745 | GET | /bookings | ✅ Supabase |
-| 2808 | POST | /migrate-bookings | N/A (tool) |
-| 2944 | GET | /admin/calendar | ✅ Supabase |
-| 3024 | GET | /slots | ✅ Supabase |
-| 3080 | GET | /slots/live-days | ✅ Supabase |
-| 3104 | GET | /slots/availability | ✅ Supabase |
-| 3173 | GET | /admin/slots | ✅ Supabase |
-| 3227 | PATCH | /admin/days/:date/status | ✅ Supabase |
-| 3301 | POST | /admin/slots | ✅ Supabase |
-| 3361 | PATCH | /admin/slots/:id | ✅ Supabase |
-| 3439 | DELETE | /admin/slots/:id | ✅ Supabase |
-| 3538 | POST | /dev/clear-all-data | N/A (dev) |
-| 3567 | POST | /dev/generate-mock-data | N/A (dev) |
-| 3614 | POST | /auth/setup-password | ✅ Supabase |
-| 3716 | POST | /auth/register | ✅ Supabase |
-| 3816 | POST | /auth/login | ✅ Supabase |
-| 3885 | GET | /auth/verify | ✅ KV (sessions) |
-| 3917 | POST | /auth/logout | ✅ KV (sessions) |
-| 3938 | POST | /auth/admin/login | ✅ Supabase |
-| 3984 | PATCH | /user/language | ✅ Supabase |
-| 4024 | GET | /user/packages | ✅ Supabase |
-| 4185 | POST | /user/packages/:id/reschedule | ✅ Supabase |
-| 4310 | POST | /user/packages/:id/book-session | ✅ Supabase |
-| 4446 | DELETE | /user/packages/:id/reservations/:reservationId | ✅ Supabase |
-| 4575 | GET | /debug/check-users | N/A (debug) |
-| 4601 | POST | /admin/sync-user-sessions | ✅ Supabase |
-| 4663 | POST | /waitlist | ✅ Supabase |
-| 4726 | GET | /admin/waitlist | ✅ Supabase |
-| 4767 | POST | /admin/waitlist/send-invite | ✅ Supabase |
-| 4895 | POST | /admin/archived-users/send-email | ✅ Supabase |
-| 4965 | GET | /waitlist/verify/:code | ✅ Supabase |
-| 5007 | POST | /waitlist/redeem | ✅ Supabase |
-| 5213 | DELETE | /admin/waitlist/:email | ✅ Supabase |
-| 5283 | POST | /upload-logo | N/A (file) |
+## Auth Legend
 
-## Summary
-
-| Status | Count |
-|--------|------:|
-| ✅ Migrated to Supabase | 43 |
-| ✅ KV acceptable (sessions) | 2 |
-| N/A (dev/debug/utility) | 6 |
-| **Total** | **51** |
-
-## Removed Endpoints
-
-The following obsolete endpoints were removed:
-- `POST /admin/resend-activation-code` - Used KV, obsolete activation flow
-- `POST /activate-member` - Just redirected to /activate
-- `POST /bookings` - Duplicated /reservations, used KV
-- `GET /admin/orphaned-packages` - Cleanup tool, used KV
-
-## Status Legend
-
-- ✅ Supabase = Uses Supabase for all domain data
-- ✅ KV = KV usage acceptable (sessions/tokens only)
-- N/A = Dev/debug/utility route (not production)
-
-## Notes
-
-1. All 27 production endpoints now use Supabase for domain data
-2. KV is only used for ephemeral session tokens (acceptable)
-3. Dev endpoints protected by ENABLE_DEV_ENDPOINTS env var
-4. Migration complete - no further work needed
+- **Admin** = Requires `verifyAdminSession(c)`
+- **User** = Requires `verifyUserSession(c)`
+- **Public** = No auth required (uses anon key)
+- **Dev** = Protected by `ENABLE_DEV_ENDPOINTS` env var

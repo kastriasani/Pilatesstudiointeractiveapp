@@ -11,7 +11,6 @@ export function DevTools({ onClose }: DevToolsProps) {
   const [message, setMessage] = useState('');
   const [isClearing, setIsClearing] = useState(false);
   const [isChecking, setIsChecking] = useState(false);
-  const [isAddingWaitlist, setIsAddingWaitlist] = useState(false);
 
   const generateMockData = async () => {
     setIsGenerating(true);
@@ -165,75 +164,12 @@ export function DevTools({ onClose }: DevToolsProps) {
     }
   };
 
-  const addWaitlistUser = async () => {
-    setIsAddingWaitlist(true);
-    setMessage('');
-
-    try {
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/waitlist`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${publicAnonKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            name: 'Besa',
-            surname: 'Ibrahimi',
-            mobile: '70810726',
-            email: 'asani.kastri@gmail.com'
-          })
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        console.error('❌ Failed to add waitlist user:', data);
-        setMessage(`❌ Error ${response.status}: ${data.error || 'Unknown error'}`);
-        return;
-      }
-
-      if (data.success) {
-        setMessage(`✅ Successfully added Besa Ibrahimi to waitlist!\nEmail: asani.kastri@gmail.com\nRedemption Code: ${data.waitlistUser.redemptionCode}`);
-      } else {
-        setMessage(`❌ Error: ${data.error || 'Unknown error'}`);
-      }
-    } catch (error) {
-      setMessage(`❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      setIsAddingWaitlist(false);
-    }
-  };
-
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
         <h2 className="text-2xl font-bold text-[#3d2f28] mb-4">Developer Tools</h2>
         
         <div className="space-y-4">
-          <div className="bg-[#f5f0ed] rounded-lg p-4">
-            <h3 className="text-sm font-semibold text-[#3d2f28] mb-2">Add Waitlist User</h3>
-            <p className="text-xs text-[#8b7764] mb-3">
-              Add Besa Ibrahimi (asani.kastri@gmail.com) to the waitlist.
-            </p>
-            <button
-              onClick={addWaitlistUser}
-              disabled={isAddingWaitlist}
-              className="w-full bg-[#9ca571] text-white py-2.5 rounded-xl text-sm font-medium hover:bg-[#8a9463] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-            >
-              {isAddingWaitlist ? (
-                <>
-                  <Loader className="w-4 h-4 animate-spin" />
-                  Adding...
-                </>
-              ) : (
-                'Add to Waitlist'
-              )}
-            </button>
-          </div>
-
           <div className="bg-[#f5f0ed] rounded-lg p-4">
             <h3 className="text-sm font-semibold text-[#3d2f28] mb-2">Check Users</h3>
             <p className="text-xs text-[#8b7764] mb-3">

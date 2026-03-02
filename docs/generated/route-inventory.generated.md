@@ -1,0 +1,66 @@
+# Generated Route Inventory
+
+Generated: 2026-03-02T12:40:54.968Z
+
+| Method | Path | Line |
+|---|---|---:|
+| POST | /activate | 2435 |
+| POST | /admin/archived-users/send-email | 6134 |
+| GET | /admin/booking-changes | 5884 |
+| POST | /admin/booking-changes/archive | 5938 |
+| GET | /admin/calendar | 3697 |
+| POST | /admin/cancel-class | 4290 |
+| GET | /admin/consistency-check | 2965 |
+| PATCH | /admin/days/:date/status | 3980 |
+| GET | /admin/login-requests | 2662 |
+| POST | /admin/login-requests/:id/approve | 2719 |
+| POST | /admin/login-requests/:id/dismiss | 2810 |
+| GET | /admin/slots | 3926 |
+| POST | /admin/slots | 4054 |
+| DELETE | /admin/slots/:id | 4192 |
+| PATCH | /admin/slots/:id | 4114 |
+| POST | /admin/sync-user-sessions | 5759 |
+| GET | /admin/users | 2839 |
+| PATCH | /admin/users/:email/adjust-sessions | 3306 |
+| PATCH | /admin/users/:email/payment | 3223 |
+| POST | /admin/users/:email/resend-login-email | 2574 |
+| GET | /admin/waitlist | 5965 |
+| DELETE | /admin/waitlist/:email | 6459 |
+| POST | /admin/waitlist/send-invite | 6006 |
+| POST | /auth/admin/login | 4895 |
+| POST | /auth/login | 4763 |
+| POST | /auth/logout | 4874 |
+| POST | /auth/register | 4596 |
+| POST | /auth/request-login | 4696 |
+| POST | /auth/setup-password | 4488 |
+| GET | /auth/verify | 4838 |
+| GET | /bookings | 3497 |
+| GET | /debug/check-users | 5733 |
+| POST | /dev/clear-all-data | 4412 |
+| POST | /dev/generate-mock-data | 4441 |
+| GET | /health | 1003 |
+| POST | /migrate-bookings | 3561 |
+| GET | /packages | 1618 |
+| POST | /packages | 1126 |
+| GET | /packages/:id | 1677 |
+| POST | /packages/:id/first-session | 1424 |
+| GET | /reservations | 1959 |
+| POST | /reservations | 1735 |
+| DELETE | /reservations/:id | 2320 |
+| GET | /reservations/:id | 2026 |
+| PATCH | /reservations/:id/status | 2073 |
+| GET | /slots | 3777 |
+| GET | /slots/availability | 3857 |
+| GET | /slots/live-days | 3833 |
+| POST | /upload-logo | 6529 |
+| PATCH | /user/language | 4941 |
+| GET | /user/packages | 4981 |
+| POST | /user/packages/:id/book-session | 5458 |
+| POST | /user/packages/:id/reschedule | 5142 |
+| DELETE | /user/packages/:id/reservations/:reservationId | 5604 |
+| POST | /user/packages/purchase | 5293 |
+| DELETE | /users/:email | 3403 |
+| POST | /validate-coupon | 1009 |
+| POST | /waitlist | 5821 |
+| POST | /waitlist/redeem | 6246 |
+| GET | /waitlist/verify/:code | 6204 |
