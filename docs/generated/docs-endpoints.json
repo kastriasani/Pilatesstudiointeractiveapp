@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-03-02T14:58:40.276Z",
+  "generatedAt": "2026-03-02T15:04:16.359Z",
   "fileCount": 5,
-  "occurrenceCount": 21,
-  "uniquePathCount": 15,
+  "occurrenceCount": 19,
+  "uniquePathCount": 13,
   "entries": [
     {
       "file": "docs/ARCHITECTURE.md",
@@ -18,37 +18,25 @@
     },
     {
       "file": "README.md",
-      "line": 188,
-      "path": "/activate-member",
-      "pattern": "method-route"
-    },
-    {
-      "file": "README.md",
-      "line": 177,
+      "line": 176,
       "path": "/admin/calendar",
       "pattern": "method-route"
     },
     {
       "file": "README.md",
-      "line": 176,
-      "path": "/admin/orphaned-packages",
-      "pattern": "method-route"
-    },
-    {
-      "file": "README.md",
-      "line": 187,
+      "line": 186,
       "path": "/bookings",
       "pattern": "method-route"
     },
     {
       "file": "README.md",
-      "line": 180,
+      "line": 179,
       "path": "/dev/clear-all-data",
       "pattern": "method-route"
     },
     {
       "file": "README.md",
-      "line": 181,
+      "line": 180,
       "path": "/dev/generate-mock-data",
       "pattern": "method-route"
     },
@@ -66,13 +54,13 @@
     },
     {
       "file": "README.md",
-      "line": 201,
+      "line": 199,
       "path": "/health",
       "pattern": "prefixed"
     },
     {
       "file": "README.md",
-      "line": 184,
+      "line": 183,
       "path": "/migrate-bookings",
       "pattern": "method-route"
     },

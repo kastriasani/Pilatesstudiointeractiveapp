@@ -173,7 +173,6 @@
 - `DELETE /reservations/:id` - Delete reservation
 - `POST /activate` - Activate code
 - `GET /health` - Health check
-- `GET /admin/orphaned-packages` - Admin view
 - `GET /admin/calendar` - Calendar view
 
 ### Dev Tools (2 endpoints)
@@ -185,7 +184,6 @@
 
 ### Legacy (2 endpoints)
 - `GET /bookings` - Legacy compatibility
-- `POST /activate-member` - Legacy activation
 
 **Total**: **17 endpoints** all operational ✅
 
