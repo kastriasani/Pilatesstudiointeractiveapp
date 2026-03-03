@@ -1189,54 +1189,29 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
 
   return (
     <div className="h-full overflow-y-auto px-4 py-4 pb-20">
-      {/* Compact Next-Class Timer Bar */}
-      {nextSession && countdown && (
-        <motion.div
-          className="bg-[#3d2f28] rounded-xl px-3 py-2 mt-8 mb-4 flex items-center gap-2"
-          initial={{ opacity: 0, y: -8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35 }}
-        >
-          <span className="text-[9px] font-semibold uppercase tracking-wider text-white/50 shrink-0">
-            {t.nextClassLabel || 'NEXT CLASS'}
-          </span>
-          <span className="text-[11px] text-white/80 truncate">
-            {nextSessionDay}, {formatShortDate(nextSession.dateKey)} · {nextSession.time}
-          </span>
-          <span className="text-[12px] font-bold text-[#9ca571] tabular-nums ml-auto shrink-0">
-            {countdown}
-          </span>
-        </motion.div>
-      )}
-      {/* Spacer when no next session */}
-      {(!nextSession || !countdown) && <div className="pt-8" />}
-
-      {/* Profile Header: Avatar + Greeting + Level */}
+      {/* Header Row: Avatar + Name/Email + Logout */}
       <motion.div
-        className="flex flex-col items-center text-center mb-5"
+        className="flex items-center gap-3 px-4 py-3 mt-8 mb-3"
         initial={{ opacity: 0, y: -12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
       >
-        {/* Avatar with level badge */}
-        <div className="relative group cursor-pointer mb-3" onClick={() => avatarInputRef.current?.click()}>
-          <Avatar
-            className="size-24 bg-gradient-to-br from-[#9ca571] to-[#7A8F3A] shadow-lg"
-            style={{ border: `3px solid ${currentLevel.color}` }}
-          >
+        {/* Avatar with star badge */}
+        <div className="relative group cursor-pointer shrink-0" onClick={() => avatarInputRef.current?.click()}>
+          <Avatar className="size-9 bg-gradient-to-br from-[#9ca571] to-[#7A8F3A] shadow-md">
             {profileImageUrl && (
               <AvatarImage src={profileImageUrl} alt={displayName} />
             )}
-            <AvatarFallback className="bg-transparent text-white font-bold text-2xl">
+            <AvatarFallback className="bg-transparent text-white font-bold text-xs">
               {initials}
             </AvatarFallback>
           </Avatar>
           {/* Camera overlay */}
           <div className="absolute inset-0 rounded-full bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
             {uploadingAvatar ? (
-              <div className="w-5 h-5 border-2 border-white/80 border-t-transparent rounded-full animate-spin" />
+              <div className="w-3.5 h-3.5 border-2 border-white/80 border-t-transparent rounded-full animate-spin" />
             ) : (
-              <Camera className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+              <Camera className="w-3.5 h-3.5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
             )}
           </div>
           <input
@@ -1246,45 +1221,64 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
             className="hidden"
             onChange={handleAvatarUpload}
           />
-          {/* Level badge */}
-          <div
-            className="absolute -bottom-1 -right-1 flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold shadow-md"
-            style={{ backgroundColor: currentLevel.color, color: currentLevel.textColor }}
-          >
-            <Star className="w-2.5 h-2.5 fill-current" />
-            <span>{currentLevel.level}</span>
+          {/* Star badge with number inside */}
+          <div className="absolute -bottom-0.5 -right-0.5" style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.25))' }}>
+            <div className="relative">
+              <Star
+                className="fill-current"
+                style={{ color: currentLevel.color, width: 20, height: 20 }}
+              />
+              <span
+                className="absolute inset-0 flex items-center justify-center text-[10px] font-bold leading-none"
+                style={{ color: currentLevel.textColor, paddingTop: 1 }}
+              >
+                {currentLevel.level}
+              </span>
+            </div>
           </div>
         </div>
 
-        {/* Greeting + logout */}
-        <div className="flex items-center gap-2 mb-0.5">
-          <h1 className="text-lg font-bold text-[#3d2f28] truncate">
+        {/* Name + Email stack */}
+        <div className="min-w-0 flex-1">
+          <h1 className="text-[15px] font-bold text-[#3d2f28] truncate leading-snug">
             {t.greeting || 'Hello'}, {displayName}!
           </h1>
-          <button
-            onClick={onLogout}
-            className="hover:bg-[#e8dfd8] rounded-lg p-1.5 transition-colors shrink-0"
-            title={t.logout}
-          >
-            <LogOut className="w-4 h-4 text-[#6b5949]" />
-          </button>
+          <p className="text-[11px] text-[#8b7764] truncate leading-tight">{userEmail}</p>
         </div>
 
-        {/* Email */}
-        <p className="text-xs text-[#8b7764] truncate mb-1.5">{userEmail}</p>
-
-        {/* Level pill */}
-        <div
-          className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold"
-          style={{
-            backgroundColor: currentLevel.color + '22',
-            color: currentLevel.color === '#B9F2FF' ? '#1a3a4a' : currentLevel.color === '#D4AF37' ? '#8B7500' : currentLevel.color,
-          }}
+        {/* Logout */}
+        <button
+          onClick={onLogout}
+          className="hover:bg-[#e8dfd8] rounded-lg p-2 transition-colors shrink-0"
+          title={t.logout}
         >
-          <Star className="w-3 h-3 fill-current" />
-          {t[currentLevel.labelKey] || currentLevel.labelKey.replace('level', '')} · {totalSessionsAttended} {t.sessionsLabel || 'sessions'}
-        </div>
+          <LogOut className="w-[18px] h-[18px] text-[#6b5949]" />
+        </button>
       </motion.div>
+
+      {/* Next Class Green Banner */}
+      {nextSession && countdown && (
+        <motion.div
+          className="bg-gradient-to-br from-[#9ca571] to-[#7A8F3A] rounded-2xl px-4 py-3 mb-5 text-white shadow-md"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, delay: 0.15 }}
+        >
+          <div className="flex items-center justify-between">
+            <div className="min-w-0">
+              <p className="text-[9px] font-semibold uppercase tracking-wider opacity-70 mb-0.5">
+                {t.nextClassLabel || 'NEXT CLASS'}
+              </p>
+              <p className="text-[13px] font-medium opacity-95 truncate">
+                {nextSessionDay}, {formatShortDate(nextSession.dateKey)} · {nextSession.time}
+              </p>
+            </div>
+            <p className="text-xl font-bold tracking-tight leading-none tabular-nums shrink-0 ml-3">
+              {countdown}
+            </p>
+          </div>
+        </motion.div>
+      )}
 
       {/* Content: Packages + Reservations */}
       {packages.length === 0 && reservations.filter(r => !r.packageId).length === 0 ? (
