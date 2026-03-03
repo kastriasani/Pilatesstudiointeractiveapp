@@ -460,6 +460,46 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
     return alerts.filter(a => a.severity === alertSeverityFilter);
   }, [alerts, alertSeverityFilter]);
 
+  // Group filtered alerts by category for the simplified list view
+  const groupedAlerts = useMemo(() => {
+    const groups: Array<{
+      category: string;
+      severity: AlertSeverity;
+      description: string;
+      alerts: Alert[];
+    }> = [];
+    const map = new Map<string, typeof groups[number]>();
+
+    // Each alert type gets a fixed description explaining what it means
+    const categoryDescriptions: Record<string, string> = {
+      'Expired': 'Package passed its expiry date but is still active — client can still book when they shouldn\'t.',
+      'Over limit': 'Client attended or booked more classes than they paid for.',
+      'Session count': 'The number of remaining classes doesn\'t match between admin view and client view.',
+      'Expiring soon': 'Package is about to expire within 5 days — remind them to renew.',
+      'Not activated': 'Client signed up more than 7 days ago but was never activated — did they pay?',
+      'Payment': 'Client\'s payment status and their package payment status don\'t match.',
+      'Cancelled class': 'A cancelled class was never returned to the package — client has fewer classes than they should.',
+      'Unpaid': 'Unpaid client booked more than 2 upcoming classes — consider restricting until payment.',
+    };
+
+    for (const alert of filteredAlerts) {
+      const key = alert.category;
+      if (!map.has(key)) {
+        const group = {
+          category: alert.category,
+          severity: alert.severity,
+          description: categoryDescriptions[alert.category] || '',
+          alerts: [],
+        };
+        map.set(key, group);
+        groups.push(group);
+      }
+      map.get(key)!.alerts.push(alert);
+    }
+
+    return groups;
+  }, [filteredAlerts]);
+
   // Fetch all bookings on component mount
   useEffect(() => {
     fetchBookings();
@@ -2586,54 +2626,57 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
               </div>
             )}
 
-            {/* Alert cards */}
-            {filteredAlerts.length > 0 ? (
-              <div className="space-y-2">
-                {filteredAlerts.map((alert, index) => (
+            {/* Grouped alert list */}
+            {groupedAlerts.length > 0 ? (
+              <div className="space-y-3">
+                {groupedAlerts.map((group, gi) => (
                   <motion.div
-                    key={alert.id}
+                    key={group.category}
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.2, delay: Math.min(index * 0.03, 0.3) }}
-                    className={`bg-white rounded-xl p-4 shadow-sm border-l-4 ${
-                      alert.severity === 'critical' ? 'border-l-red-500' :
-                      alert.severity === 'warning' ? 'border-l-amber-500' : 'border-l-blue-400'
+                    transition={{ duration: 0.2, delay: Math.min(gi * 0.05, 0.3) }}
+                    className={`bg-white rounded-xl shadow-sm border-l-4 overflow-hidden ${
+                      group.severity === 'critical' ? 'border-l-red-500' : 'border-l-amber-500'
                     }`}
                   >
-                    <div className="flex items-start gap-3">
-                      <div className={`mt-0.5 ${
-                        alert.severity === 'critical' ? 'text-red-500' :
-                        alert.severity === 'warning' ? 'text-amber-500' : 'text-blue-400'
-                      }`}>
-                        {alert.severity === 'critical' ? (
-                          <ShieldAlert className="w-5 h-5" />
-                        ) : (
-                          <AlertCircle className="w-5 h-5" />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className={`text-xs px-2 py-0.5 rounded-full ${
-                            alert.severity === 'critical' ? 'bg-red-100 text-red-700' :
-                            alert.severity === 'warning' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'
-                          }`}>
-                            {alert.category}
-                          </span>
-                          <span className="text-sm font-medium text-[#3d2f28]">{alert.title}</span>
+                    {/* Group header */}
+                    <div className="px-4 pt-4 pb-2">
+                      <div className="flex items-center gap-2">
+                        <div className={group.severity === 'critical' ? 'text-red-500' : 'text-amber-500'}>
+                          {group.severity === 'critical' ? (
+                            <ShieldAlert className="w-5 h-5" />
+                          ) : (
+                            <AlertCircle className="w-5 h-5" />
+                          )}
                         </div>
-                        <p className="text-xs text-[#8b7764] mt-1 break-all">{alert.description}</p>
-                        {alert.userName && alert.userEmail && (
-                          <button
-                            onClick={() => {
-                              if (alert.userSubTab) setUserSubTab(alert.userSubTab);
-                              if (alert.userId) setExpandedUserId(alert.userId);
-                              setActiveTab('users');
-                            }}
-                            className="mt-2 text-xs text-[#6b5949] hover:underline"
-                          >
-                            {alert.userName} ({alert.userEmail})
-                          </button>
-                        )}
+                        <span className="text-sm font-semibold text-[#3d2f28]">{group.category}</span>
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${
+                          group.severity === 'critical' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
+                        }`}>
+                          {group.alerts.length}
+                        </span>
+                      </div>
+                      <p className="text-xs text-[#8b7764] mt-1 ml-7">{group.description}</p>
+                    </div>
+
+                    {/* User list */}
+                    <div className="px-4 pb-3">
+                      <div className="ml-7 space-y-1">
+                        {group.alerts.map(alert => (
+                          <div key={alert.id} className="flex items-baseline justify-between gap-2">
+                            <button
+                              onClick={() => {
+                                if (alert.userSubTab) setUserSubTab(alert.userSubTab);
+                                if (alert.userId) setExpandedUserId(alert.userId);
+                                setActiveTab('users');
+                              }}
+                              className="text-sm text-[#6b5949] hover:underline truncate"
+                            >
+                              {alert.userName}
+                            </button>
+                            <span className="text-xs text-[#8b7764] shrink-0">{alert.title}</span>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   </motion.div>
@@ -2643,7 +2686,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
               <div className="flex flex-col items-center justify-center py-12 text-[#8b7764]">
                 <CheckCircle2 className="w-12 h-12 text-green-500 mb-3" />
                 <p className="text-sm font-medium">No alerts found</p>
-                <p className="text-xs mt-1">All systems look healthy</p>
+                <p className="text-xs mt-1">Everything looks good</p>
               </div>
             ) : null}
           </div>
