@@ -341,13 +341,14 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
 
         for (const issue of cu.issues) {
           if (issue.code === 'users_remaining_sessions_mismatch') {
-            result.push({ id: `sessions-${cu.userId}`, severity: 'critical', category: 'Session count', title: `Admin sees: ${cu.stats.aggregatedRemainingSessions} classes left\nUser sees: ${cu.stats.usersRemainingSessions ?? '?'} classes left`, ...base });
+            // Legacy users table field vs aggregated packages — not visible in UI, internal DB inconsistency
+            result.push({ id: `sessions-${cu.userId}`, severity: 'warning', category: 'Session count', title: `Legacy DB field: ${cu.stats.usersRemainingSessions ?? '?'} classes left\nActual (packages): ${cu.stats.aggregatedRemainingSessions} classes left`, ...base });
           }
 
           if (issue.code === 'package_remaining_sessions_mismatch') {
             const match = issue.details.match(/remaining_sessions=(\d+), expected=(\d+)/);
-            if (match) {
-              result.push({ id: `pkg-count-${cu.userId}-${issue.details.slice(0, 15)}`, severity: 'critical', category: 'Session count', title: `Admin sees: ${match[1]} classes left\nUser sees: ${match[2]} classes left`, ...base });
+            if (match && match[1] !== match[2]) {
+              result.push({ id: `pkg-count-${cu.userId}-${issue.details.slice(0, 15)}`, severity: 'critical', category: 'Session count', title: `Admin + Dashboard show: ${match[1]} classes left\nShould be: ${match[2]} based on bookings`, ...base });
             }
           }
 
