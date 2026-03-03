@@ -989,11 +989,14 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
   // Cancel a booked session
   const handleCancelSession = async (pkg: PackageDetails, bookedSession: BookedSession) => {
     // Optimistic update BEFORE API call — UI updates instantly on click
+    const remainingBooked = pkg.bookedSessions.filter(bs => bs.id !== bookedSession.id);
     const cancelledPkg = {
       ...pkg,
       remainingSessions: pkg.remainingSessions + 1,
       sessionsBooked: pkg.sessionsBooked.filter(id => id !== bookedSession.id),
-      bookedSessions: pkg.bookedSessions.filter(bs => bs.id !== bookedSession.id),
+      bookedSessions: remainingBooked,
+      // Clear firstSession if it matches the cancelled one so countdown disappears
+      firstSession: pkg.firstSession?.id === bookedSession.id ? null : pkg.firstSession,
     };
 
     setPackages(prev => prev.map(p => p.id === pkg.id ? cancelledPkg : p));
