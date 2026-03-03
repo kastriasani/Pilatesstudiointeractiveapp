@@ -1130,6 +1130,10 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
     (acc, pkg) => acc + pkg.bookedSessions.filter(s => s.attended).length, 0
   );
   const currentLevel = LEVEL_CONFIG.find(l => totalSessionsAttended >= l.minSessions) || LEVEL_CONFIG[LEVEL_CONFIG.length - 1];
+  const nextLevel = LEVEL_CONFIG.find(l => l.level === currentLevel.level + 1);
+  const levelProgress = nextLevel
+    ? (totalSessionsAttended - currentLevel.minSessions) / (nextLevel.minSessions - currentLevel.minSessions)
+    : 1; // Diamond = full ring
 
   if (loading) {
     return (
@@ -1174,18 +1178,35 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
       >
-        {/* Avatar with star badge */}
-        <div className="relative group cursor-pointer shrink-0" onClick={() => avatarInputRef.current?.click()}>
-          <Avatar className="size-14 bg-gradient-to-br from-[#9ca571] to-[#7A8F3A] shadow-md">
+        {/* Avatar with progress ring + star badge */}
+        <div className="relative group cursor-pointer shrink-0" onClick={() => avatarInputRef.current?.click()} style={{ width: 64, height: 64 }}>
+          {/* SVG progress ring */}
+          <svg className="absolute inset-0" width={64} height={64} viewBox="0 0 64 64">
+            {/* Background track */}
+            <circle cx={32} cy={32} r={29} fill="none" stroke={currentLevel.color} strokeOpacity={0.2} strokeWidth={3} />
+            {/* Filled arc */}
+            <circle
+              cx={32} cy={32} r={29}
+              fill="none"
+              stroke={currentLevel.color}
+              strokeWidth={3}
+              strokeLinecap="round"
+              strokeDasharray={Math.PI * 2 * 29}
+              strokeDashoffset={Math.PI * 2 * 29 * (1 - levelProgress)}
+              style={{ transform: 'rotate(-90deg)', transformOrigin: '50% 50%', transition: 'stroke-dashoffset 0.6s ease' }}
+            />
+          </svg>
+          {/* Avatar centered inside ring */}
+          <Avatar className="absolute bg-gradient-to-br from-[#9ca571] to-[#7A8F3A] shadow-md" style={{ top: 5, left: 5, width: 54, height: 54 }}>
             {profileImageUrl && (
               <AvatarImage src={profileImageUrl} alt={displayName} />
             )}
-            <AvatarFallback className="bg-transparent text-white font-bold text-xs">
+            <AvatarFallback className="bg-transparent text-white font-bold text-sm">
               {initials}
             </AvatarFallback>
           </Avatar>
           {/* Camera overlay */}
-          <div className="absolute inset-0 rounded-full bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+          <div className="absolute rounded-full bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center" style={{ top: 5, left: 5, width: 54, height: 54 }}>
             {uploadingAvatar ? (
               <div className="w-3.5 h-3.5 border-2 border-white/80 border-t-transparent rounded-full animate-spin" />
             ) : (
@@ -1200,7 +1221,7 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
             onChange={handleAvatarUpload}
           />
           {/* Star badge with number inside */}
-          <div className="absolute -bottom-0.5 -right-0.5" style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.25))' }}>
+          <div className="absolute" style={{ bottom: -2, right: -2, filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.25))' }}>
             <div className="relative">
               <Star
                 className="fill-current"
