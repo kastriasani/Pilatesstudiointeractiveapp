@@ -391,13 +391,12 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
               id: `sessions-${cu.userId}`,
               severity: 'critical',
               category: 'Session count',
-              title: 'You and the client see different remaining classes',
-              description: `Admin panel shows ${cu.stats.aggregatedRemainingSessions} remaining, but the client's dashboard shows ${cu.stats.usersRemainingSessions ?? '?'}. One of them is wrong.`,
+              title: `You see ${cu.stats.aggregatedRemainingSessions} classes — client sees ${cu.stats.usersRemainingSessions ?? '?'}`,
               userEmail: cu.email, userName: fullName, userSubTab: subTab, userId: localUser?.id || cu.userId,
             });
           }
 
-          // Package class count doesn't add up
+          // Package class count doesn't add up — show actual vs expected
           if (issue.code === 'package_remaining_sessions_mismatch') {
             const match = issue.details.match(/remaining_sessions=(\d+), expected=(\d+)/);
             if (match) {
@@ -405,8 +404,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                 id: `pkg-count-${cu.userId}-${issue.details.slice(0, 15)}`,
                 severity: 'critical',
                 category: 'Session count',
-                title: 'Package class count doesn\'t add up',
-                description: `Package says ${match[1]} classes left, but based on bookings it should be ${match[2]}. The client may be able to book more or fewer classes than expected.`,
+                title: `Shows ${match[1]} classes left — should be ${match[2]}`,
                 userEmail: cu.email, userName: fullName, userSubTab: subTab, userId: localUser?.id || cu.userId,
               });
             }
