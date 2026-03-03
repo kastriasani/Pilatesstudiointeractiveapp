@@ -473,6 +473,29 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
       console.log('✅ Session token available, loading packages...');
       loadPackages();
       loadAvailableSlots(); // Pre-fetch so inline calendar opens instantly
+
+      // Fetch latest profile image from backend (syncs across devices)
+      fetch(`https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/auth/verify`, {
+        headers: {
+          'Authorization': `Bearer ${publicAnonKey}`,
+          'X-Session-Token': activeSessionToken,
+        },
+      })
+        .then(r => r.json())
+        .then(data => {
+          if (data.user?.profileImageUrl) {
+            setProfileImageUrl(data.user.profileImageUrl);
+            try {
+              const stored = localStorage.getItem('wellnest_user');
+              if (stored) {
+                const parsed = JSON.parse(stored);
+                parsed.profileImageUrl = data.user.profileImageUrl;
+                localStorage.setItem('wellnest_user', JSON.stringify(parsed));
+              }
+            } catch { /* ignore */ }
+          }
+        })
+        .catch(() => { /* non-critical */ });
     } else {
       console.warn('⚠️ No session token available - user may need to login');
       setLoading(false);
