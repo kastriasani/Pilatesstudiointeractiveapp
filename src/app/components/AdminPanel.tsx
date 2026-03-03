@@ -204,9 +204,11 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
     severity: AlertSeverity;
     category: string;
     title: string;
-    description: string;
+    description?: string;
     userEmail?: string;
     userName?: string;
+    firstName?: string;
+    lastName?: string;
     userSubTab?: 'confirmed' | 'pending' | 'archived';
     userId?: string;
   };
@@ -233,7 +235,19 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
   const [consistencyData, setConsistencyData] = useState<ConsistencyCheckResult | null>(null);
   const [isLoadingConsistency, setIsLoadingConsistency] = useState(false);
   const [consistencyError, setConsistencyError] = useState<string | null>(null);
-  // alertSeverityFilter removed — no filter pills
+  const [dismissedAlerts, setDismissedAlerts] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('wellnest_dismissed_alerts') || '[]');
+    } catch { return []; }
+  });
+
+  const dismissAlert = (alertId: string) => {
+    setDismissedAlerts(prev => {
+      const next = [...prev, alertId];
+      localStorage.setItem('wellnest_dismissed_alerts', JSON.stringify(next));
+      return next;
+    });
+  };
 
   const fetchConsistencyCheck = async () => {
     setIsLoadingConsistency(true);
@@ -294,111 +308,60 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
       if (u.blocked || u.status !== 'confirmed') continue;
 
       const pkgs = u.packages || [];
-      const fullName = `${u.name} ${u.surname}`;
-      const subTab = getSubTab(u);
+      const base = { userEmail: u.email, userName: `${u.name} ${u.surname}`, firstName: u.name, lastName: u.surname, userSubTab: getSubTab(u) as 'confirmed' | 'pending' | 'archived', userId: u.id };
 
       for (const pkg of pkgs) {
-        // Package expired but still marked active
         if (pkg.status === 'active' && pkg.expiryDate) {
           const expiry = new Date(pkg.expiryDate);
           const daysLeft = Math.ceil((expiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
           if (daysLeft <= 0) {
-            result.push({
-              id: `expired-${pkg.id}`,
-              severity: 'critical',
-              category: 'Expired',
-              title: `Package expired ${Math.abs(daysLeft)} day(s) ago but is still active`,
-              description: `${pkgLabel(pkg.type)} package — expired ${pkg.expiryDate}. This client can still book classes.`,
-              userEmail: u.email, userName: fullName, userSubTab: subTab, userId: u.id,
-            });
+            result.push({ id: `expired-${pkg.id}`, severity: 'critical', category: 'Expired', title: `Expired ${Math.abs(daysLeft)} day(s) ago — ${pkgLabel(pkg.type)}`, ...base });
           } else if (daysLeft <= 5) {
-            result.push({
-              id: `expiring-${pkg.id}`,
-              severity: 'warning',
-              category: 'Expiring soon',
-              title: `Package expires in ${daysLeft} day(s)`,
-              description: `${pkgLabel(pkg.type)} package — expires ${pkg.expiryDate}. Remind them to renew.`,
-              userEmail: u.email, userName: fullName, userSubTab: subTab, userId: u.id,
-            });
+            result.push({ id: `expiring-${pkg.id}`, severity: 'warning', category: 'Expiring soon', title: `Expires in ${daysLeft} day(s) — ${pkgLabel(pkg.type)}`, ...base });
           }
         }
 
-        // More classes used than purchased (negative remaining)
         if (pkg.remainingSessions < 0) {
-          result.push({
-            id: `overshoot-${pkg.id}`,
-            severity: 'critical',
-            category: 'Over limit',
-            title: `Used more classes than purchased`,
-            description: `${pkgLabel(pkg.type)} package shows ${Math.abs(pkg.remainingSessions)} extra class(es) used beyond what was paid for.`,
-            userEmail: u.email, userName: fullName, userSubTab: subTab, userId: u.id,
-          });
+          result.push({ id: `overshoot-${pkg.id}`, severity: 'critical', category: 'Over limit', title: `${Math.abs(pkg.remainingSessions)} extra class(es) used — ${pkgLabel(pkg.type)}`, ...base });
         }
-
       }
     }
 
-    // Server-side: session count mismatches the client can see
+    // Server-side consistency
     if (consistencyData) {
       for (const cu of consistencyData.users) {
         if (cu.issueCount === 0) continue;
         const localUser = users.find(u => u.email.toLowerCase() === cu.email.toLowerCase());
-        // Only active (confirmed, non-blocked) users
         if (!localUser || localUser.blocked || localUser.status !== 'confirmed') continue;
-        const fullName = localUser ? `${localUser.name} ${localUser.surname}` : cu.email;
-        const subTab: 'confirmed' | 'pending' = !localUser ? 'confirmed'
-          : localUser.status === 'confirmed' ? 'confirmed' : 'pending';
+        const base = { userEmail: cu.email, userName: `${localUser.name} ${localUser.surname}`, firstName: localUser.name, lastName: localUser.surname, userSubTab: 'confirmed' as const, userId: localUser.id };
 
         for (const issue of cu.issues) {
-          // Session count: what admin sees vs what client sees on their dashboard
           if (issue.code === 'users_remaining_sessions_mismatch') {
-            result.push({
-              id: `sessions-${cu.userId}`,
-              severity: 'critical',
-              category: 'Session count',
-              title: `You see ${cu.stats.aggregatedRemainingSessions} classes — client sees ${cu.stats.usersRemainingSessions ?? '?'}`,
-              userEmail: cu.email, userName: fullName, userSubTab: subTab, userId: localUser?.id || cu.userId,
-            });
+            result.push({ id: `sessions-${cu.userId}`, severity: 'critical', category: 'Session count', title: `Admin sees: ${cu.stats.aggregatedRemainingSessions} classes left\nUser sees: ${cu.stats.usersRemainingSessions ?? '?'} classes left`, ...base });
           }
 
-          // Package class count doesn't add up — show actual vs expected
           if (issue.code === 'package_remaining_sessions_mismatch') {
             const match = issue.details.match(/remaining_sessions=(\d+), expected=(\d+)/);
             if (match) {
-              result.push({
-                id: `pkg-count-${cu.userId}-${issue.details.slice(0, 15)}`,
-                severity: 'critical',
-                category: 'Session count',
-                title: `Shows ${match[1]} classes left — should be ${match[2]}`,
-                userEmail: cu.email, userName: fullName, userSubTab: subTab, userId: localUser?.id || cu.userId,
-              });
+              result.push({ id: `pkg-count-${cu.userId}-${issue.details.slice(0, 15)}`, severity: 'critical', category: 'Session count', title: `Admin sees: ${match[1]} classes left\nShould be: ${match[2]} classes left`, ...base });
             }
           }
 
-          // Cancelled class still counted as used
           if (issue.code === 'cancelled_reservation_still_in_sessions_booked') {
             const countMatch = issue.details.match(/(\d+) cancelled/);
             const count = countMatch ? countMatch[1] : '?';
-            result.push({
-              id: `cancelled-counted-${cu.userId}-${issue.details.slice(0, 15)}`,
-              severity: 'warning',
-              category: 'Cancelled class',
-              title: `${count} cancelled class(es) still counted as used`,
-              description: 'A class was cancelled but the session was not returned to the package. The client has fewer classes than they should.',
-              userEmail: cu.email, userName: fullName, userSubTab: subTab, userId: localUser?.id || cu.userId,
-            });
+            result.push({ id: `cancelled-counted-${cu.userId}-${issue.details.slice(0, 15)}`, severity: 'warning', category: 'Cancelled class', title: `${count} cancelled class(es) still counted`, ...base });
           }
-
         }
       }
     }
 
-    // Sort: critical first, then warning
     const order: Record<AlertSeverity, number> = { critical: 0, warning: 1, info: 2 };
     result.sort((a, b) => order[a.severity] - order[b.severity]);
 
-    return result;
-  }, [users, consistencyData]);
+    // Filter out dismissed alerts
+    return result.filter(a => !dismissedAlerts.includes(a.id));
+  }, [users, consistencyData, dismissedAlerts]);
 
   // Group alerts by category
   const groupedAlerts = useMemo(() => {
@@ -2539,13 +2502,28 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                         <tr className="border-t border-[#f0ebe7]">
                           <th className="px-4 py-1.5 text-left text-xs font-medium text-[#8b7764]">Name</th>
                           <th className="px-4 py-1.5 text-left text-xs font-medium text-[#8b7764]">Detail</th>
+                          <th className="w-10"></th>
                         </tr>
                       </thead>
                       <tbody>
                         {group.alerts.map(alert => (
                           <tr key={alert.id} className="border-t border-[#f5f0ee]">
-                            <td className="px-4 py-2 text-[#3d2f28] whitespace-nowrap">{alert.userName}</td>
-                            <td className="px-4 py-2 text-[#8b7764]">{alert.title}</td>
+                            <td className="px-4 py-2 text-[#3d2f28] whitespace-nowrap align-top">
+                              <div className="leading-tight">
+                                <div className="font-medium">{alert.firstName}</div>
+                                <div className="text-xs text-[#8b7764]">{alert.lastName}</div>
+                              </div>
+                            </td>
+                            <td className="px-4 py-2 text-[#8b7764] whitespace-pre-line align-top">{alert.title}</td>
+                            <td className="pr-3 align-top pt-2">
+                              <button
+                                onClick={() => dismissAlert(alert.id)}
+                                className="text-[#c4b5a8] hover:text-red-400 transition-colors"
+                                title="Remove"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </td>
                           </tr>
                         ))}
                       </tbody>
