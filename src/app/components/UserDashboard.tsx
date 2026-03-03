@@ -249,15 +249,13 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
       }
     };
 
-    // Check ALL booked sessions inside each package (not just firstSession)
+    // Check ALL booked sessions inside each package
+    // We only use bookedSessions (not firstSession) because firstSession
+    // can be stale after cancellation — bookedSessions is the source of truth
     packages.forEach(pkg => {
       pkg.bookedSessions.forEach(bs => {
         consider(bs.dateKey, bs.time, formatDateKey(bs.dateKey));
       });
-      // Also check firstSession in case it's not yet in bookedSessions
-      if (pkg.firstSession) {
-        consider(pkg.firstSession.dateKey, pkg.firstSession.time, pkg.firstSession.date);
-      }
     });
 
     // Check standalone reservations
