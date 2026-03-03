@@ -1198,7 +1198,7 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
       >
         {/* Avatar with star badge */}
         <div className="relative group cursor-pointer shrink-0" onClick={() => avatarInputRef.current?.click()}>
-          <Avatar className="size-9 bg-gradient-to-br from-[#9ca571] to-[#7A8F3A] shadow-md">
+          <Avatar className="size-12 bg-gradient-to-br from-[#9ca571] to-[#7A8F3A] shadow-md">
             {profileImageUrl && (
               <AvatarImage src={profileImageUrl} alt={displayName} />
             )}
