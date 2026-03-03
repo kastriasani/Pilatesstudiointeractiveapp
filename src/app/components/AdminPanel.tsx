@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { motion } from 'motion/react';
-import { Calendar, Users, LogOut, Mail, X, CheckCircle, Trash2, Ban, ShieldAlert, Settings, UserMinus, Send, AlertCircle, Loader2, Pencil, Plus, ChevronDown, ChevronUp, Clock, XCircle } from 'lucide-react';
+import { Calendar, Users, LogOut, Mail, X, CheckCircle, Trash2, Ban, ShieldAlert, Settings, UserMinus, Send, AlertCircle, Loader2, Pencil, Plus, ChevronDown, ChevronUp, Clock, XCircle, Bell, RefreshCw, CheckCircle2 } from 'lucide-react';
 import { logo } from '../../assets/images';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { DevTools } from './DevTools';
@@ -53,6 +53,7 @@ export type User = {
     activationDate?: string;
     expiryDate?: string;
   }>;
+  blocked?: boolean;
   // Note: activation is now admin-triggered, no activation codes needed
 };
 
@@ -117,7 +118,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
   };
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const [activeTab, setActiveTab] = useState<'calendar' | 'users'>('calendar');
+  const [activeTab, setActiveTab] = useState<'calendar' | 'users' | 'alerts'>('calendar');
   const [userSubTab, setUserSubTab] = useState<'confirmed' | 'pending' | 'archived'>('confirmed');
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<string | null>(null);
@@ -195,6 +196,292 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
   const [isEditMode, setIsEditMode] = useState(false);
   const [dayStatus, setDayStatus] = useState<'live' | 'draft'>('draft');
   const [liveDays, setLiveDays] = useState<string[]>([]);
+
+  // Alerts tab state
+  type AlertSeverity = 'critical' | 'warning' | 'info';
+  type Alert = {
+    id: string;
+    severity: AlertSeverity;
+    category: string;
+    title: string;
+    description: string;
+    userEmail?: string;
+    userName?: string;
+    userSubTab?: 'confirmed' | 'pending' | 'archived';
+    userId?: string;
+  };
+  type ConsistencyCheckResult = {
+    success: boolean;
+    checkedAt: string;
+    summary: { totalUsers: number; usersWithIssues: number; totalIssues: number };
+    users: Array<{
+      userId: string;
+      email: string;
+      issueCount: number;
+      issues: Array<{ code: string; details: string }>;
+      stats: {
+        packageCount: number;
+        reservationCount: number;
+        usersRemainingSessions: number | null;
+        usersUsedSessions: number | null;
+        aggregatedRemainingSessions: number;
+        aggregatedUsedSessions: number;
+      };
+    }>;
+  };
+
+  const [consistencyData, setConsistencyData] = useState<ConsistencyCheckResult | null>(null);
+  const [isLoadingConsistency, setIsLoadingConsistency] = useState(false);
+  const [consistencyError, setConsistencyError] = useState<string | null>(null);
+  const [alertSeverityFilter, setAlertSeverityFilter] = useState<'all' | AlertSeverity>('all');
+
+  const fetchConsistencyCheck = async () => {
+    setIsLoadingConsistency(true);
+    setConsistencyError(null);
+    try {
+      const response = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/admin/consistency-check`,
+        {
+          headers: {
+            'Authorization': `Bearer ${publicAnonKey}`,
+            'X-Session-Token': getSessionToken(),
+          },
+        }
+      );
+      if (!response.ok) {
+        const data = await response.json();
+        if (handleSessionError(data.error)) return;
+        setConsistencyError(data.error || 'Failed to run consistency check');
+        return;
+      }
+      const data = await response.json();
+      setConsistencyData(data);
+    } catch (error) {
+      setConsistencyError('Network error running consistency check');
+    } finally {
+      setIsLoadingConsistency(false);
+    }
+  };
+
+  // Lazy-load consistency check when alerts tab is first opened
+  useEffect(() => {
+    if (activeTab === 'alerts' && !consistencyData && !isLoadingConsistency) {
+      fetchConsistencyCheck();
+    }
+  }, [activeTab]);
+
+  // Core alert computation from users + consistency data
+  const alerts = useMemo<Alert[]>(() => {
+    const result: Alert[] = [];
+    const now = getSkopjeTime();
+
+    // Helper: find which sub-tab a user belongs to
+    const getUserSubTab = (u: User): 'confirmed' | 'pending' | 'archived' => {
+      if (u.blocked) return 'archived';
+      return u.status === 'confirmed' ? 'confirmed' : 'pending';
+    };
+
+    for (const u of users) {
+      const pkgs = u.packages || [];
+
+      for (const pkg of pkgs) {
+        // 1. Expiring Soon (active package, expiry ≤5 days away)
+        if (pkg.status === 'active' && pkg.expiryDate) {
+          const expiry = new Date(pkg.expiryDate);
+          const daysLeft = Math.ceil((expiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+          if (daysLeft <= 0) {
+            result.push({
+              id: `expired-${pkg.id}`,
+              severity: 'critical',
+              category: 'Expired Package',
+              title: `Active package expired ${Math.abs(daysLeft)} day(s) ago`,
+              description: `${pkg.type} package (ID: ${pkg.id.slice(0, 8)}…) expired on ${pkg.expiryDate}`,
+              userEmail: u.email,
+              userName: `${u.name} ${u.surname}`,
+              userSubTab: getUserSubTab(u),
+              userId: u.id,
+            });
+          } else if (daysLeft <= 5) {
+            result.push({
+              id: `expiring-${pkg.id}`,
+              severity: 'warning',
+              category: 'Expiring Soon',
+              title: `Package expires in ${daysLeft} day(s)`,
+              description: `${pkg.type} package (ID: ${pkg.id.slice(0, 8)}…) expires on ${pkg.expiryDate}`,
+              userEmail: u.email,
+              userName: `${u.name} ${u.surname}`,
+              userSubTab: getUserSubTab(u),
+              userId: u.id,
+            });
+          }
+        }
+
+        // 3. Session Overshoot
+        if (pkg.remainingSessions < 0) {
+          result.push({
+            id: `overshoot-${pkg.id}`,
+            severity: 'critical',
+            category: 'Session Overshoot',
+            title: `Negative remaining sessions (${pkg.remainingSessions})`,
+            description: `${pkg.type} package has ${pkg.remainingSessions} remaining sessions`,
+            userEmail: u.email,
+            userName: `${u.name} ${u.surname}`,
+            userSubTab: getUserSubTab(u),
+            userId: u.id,
+          });
+        }
+
+        // 5. Stale Pending (pending package created >7 days ago)
+        if (pkg.status === 'pending' && pkg.createdAt) {
+          const created = new Date(pkg.createdAt);
+          const daysSinceCreation = Math.floor((now.getTime() - created.getTime()) / (1000 * 60 * 60 * 24));
+          if (daysSinceCreation > 7) {
+            result.push({
+              id: `stale-pending-${pkg.id}`,
+              severity: 'warning',
+              category: 'Stale Pending',
+              title: `Pending package for ${daysSinceCreation} days`,
+              description: `${pkg.type} package created on ${pkg.createdAt.slice(0, 10)}, never activated`,
+              userEmail: u.email,
+              userName: `${u.name} ${u.surname}`,
+              userSubTab: getUserSubTab(u),
+              userId: u.id,
+            });
+          }
+        }
+      }
+
+      // 4. Payment Mismatch (user confirmed but has unpaid package, or vice versa)
+      if (pkgs.length > 0) {
+        const latestPkg = [...pkgs].sort((a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        )[0];
+        const userPaid = u.status === 'confirmed'; // mapped from paymentStatus === 'paid'
+        const pkgPaid = latestPkg.paymentStatus === 'paid';
+        if (userPaid !== pkgPaid) {
+          result.push({
+            id: `payment-mismatch-${u.id}`,
+            severity: 'warning',
+            category: 'Payment Mismatch',
+            title: `User ${userPaid ? 'paid' : 'unpaid'} but latest package ${pkgPaid ? 'paid' : 'unpaid'}`,
+            description: `Latest package: ${latestPkg.type} (${latestPkg.paymentStatus})`,
+            userEmail: u.email,
+            userName: `${u.name} ${u.surname}`,
+            userSubTab: getUserSubTab(u),
+            userId: u.id,
+          });
+        }
+      }
+
+      // 6. No Package (confirmed user with zero packages)
+      if (u.status === 'confirmed' && pkgs.length === 0) {
+        result.push({
+          id: `no-package-${u.id}`,
+          severity: 'info',
+          category: 'No Package',
+          title: 'Confirmed user with no packages',
+          description: `${u.email} has no packages on record`,
+          userEmail: u.email,
+          userName: `${u.name} ${u.surname}`,
+          userSubTab: getUserSubTab(u),
+          userId: u.id,
+        });
+      }
+
+      // 7. Blocked User
+      if (u.blocked) {
+        result.push({
+          id: `blocked-${u.id}`,
+          severity: 'info',
+          category: 'Blocked User',
+          title: 'User is blocked',
+          description: `${u.email} is currently blocked from the system`,
+          userEmail: u.email,
+          userName: `${u.name} ${u.surname}`,
+          userSubTab: 'archived',
+          userId: u.id,
+        });
+      }
+    }
+
+    // Server-side alerts from consistency check
+    if (consistencyData) {
+      const issueCodeToSeverity: Record<string, AlertSeverity> = {
+        users_remaining_sessions_mismatch: 'critical',
+        users_used_sessions_mismatch: 'critical',
+        dangling_reservation_reference: 'critical',
+        reservation_user_mismatch: 'critical',
+        reservation_package_mismatch: 'critical',
+        missing_first_reservation: 'critical',
+        cancelled_first_reservation: 'warning',
+        cancelled_reservation_still_in_sessions_booked: 'warning',
+        package_remaining_sessions_mismatch: 'warning',
+        payment_status_mismatch_latest_package: 'warning',
+        unpaid_package_booking_limit_violation: 'warning',
+        legacy_or_invalid_date_key: 'info',
+      };
+
+      const issueCodeToTitle: Record<string, string> = {
+        users_remaining_sessions_mismatch: 'Remaining sessions mismatch',
+        users_used_sessions_mismatch: 'Used sessions mismatch',
+        dangling_reservation_reference: 'Dangling reservation reference',
+        reservation_user_mismatch: 'Reservation belongs to different user',
+        reservation_package_mismatch: 'Reservation linked to wrong package',
+        missing_first_reservation: 'Missing first reservation',
+        cancelled_first_reservation: 'Cancelled first reservation',
+        cancelled_reservation_still_in_sessions_booked: 'Cancelled reservation in sessions_booked',
+        package_remaining_sessions_mismatch: 'Package remaining sessions mismatch',
+        payment_status_mismatch_latest_package: 'Payment status mismatch',
+        unpaid_package_booking_limit_violation: 'Unpaid package booking limit exceeded',
+        legacy_or_invalid_date_key: 'Legacy date key format',
+      };
+
+      for (const user of consistencyData.users) {
+        if (user.issueCount === 0) continue;
+        // Find matching local user for navigation
+        const localUser = users.find(u => u.email.toLowerCase() === user.email.toLowerCase());
+        const getUserSubTabForConsistency = (): 'confirmed' | 'pending' | 'archived' => {
+          if (!localUser) return 'confirmed';
+          if (localUser.blocked) return 'archived';
+          return localUser.status === 'confirmed' ? 'confirmed' : 'pending';
+        };
+
+        for (const issue of user.issues) {
+          // Skip payment mismatch from server if already generated client-side
+          if (issue.code === 'payment_status_mismatch_latest_package') continue;
+
+          result.push({
+            id: `consistency-${user.userId}-${issue.code}-${issue.details.slice(0, 20)}`,
+            severity: issueCodeToSeverity[issue.code] || 'warning',
+            category: 'Data Consistency',
+            title: issueCodeToTitle[issue.code] || issue.code,
+            description: issue.details,
+            userEmail: user.email,
+            userName: localUser ? `${localUser.name} ${localUser.surname}` : user.email,
+            userSubTab: getUserSubTabForConsistency(),
+            userId: localUser?.id || user.userId,
+          });
+        }
+      }
+    }
+
+    // Sort: critical first, then warning, then info
+    const severityOrder: Record<AlertSeverity, number> = { critical: 0, warning: 1, info: 2 };
+    result.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
+
+    return result;
+  }, [users, consistencyData]);
+
+  const alertCounts = useMemo(() => {
+    const counts = { all: alerts.length, critical: 0, warning: 0, info: 0 };
+    for (const a of alerts) counts[a.severity]++;
+    return counts;
+  }, [alerts]);
+
+  const filteredAlerts = useMemo(() => {
+    if (alertSeverityFilter === 'all') return alerts;
+    return alerts.filter(a => a.severity === alertSeverityFilter);
+  }, [alerts, alertSeverityFilter]);
 
   // Fetch all bookings on component mount
   useEffect(() => {
@@ -282,6 +569,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
           remainingSessions: user.remainingSessions,
           sessionsAdjustedAt: user.sessionsAdjustedAt,
           packages: user.packages,
+          blocked: user.blocked || false,
         };
       });
 
@@ -1245,6 +1533,25 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
             {loginRequests.length > 0 && (
               <span className="bg-amber-500 text-white text-xs px-2 py-0.5 rounded-full">
                 {loginRequests.length}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => setActiveTab('alerts')}
+            className={`flex items-center gap-2 px-4 py-3 text-sm transition-colors ${
+              activeTab === 'alerts'
+                ? 'text-[#6b5949] border-b-2 border-[#6b5949] font-medium'
+                : 'text-[#8b7764] hover:text-[#6b5949]'
+            }`}
+          >
+            <Bell className="w-4 h-4" />
+            Alerts
+            {alertCounts.all > 0 && (
+              <span className={`text-white text-xs px-2 py-0.5 rounded-full ${
+                alertCounts.critical > 0 ? 'bg-red-500' :
+                alertCounts.warning > 0 ? 'bg-amber-500' : 'bg-blue-500'
+              }`}>
+                {alertCounts.all}
               </span>
             )}
           </button>
@@ -2243,6 +2550,125 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                 )}
               </div>
             </div>
+          </div>
+        ) : activeTab === 'alerts' ? (
+          <div className="space-y-4">
+            {/* Header */}
+            <div className="bg-[#F5F0EE] rounded-xl p-4 shadow-sm">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-base font-medium text-[#3d2f28]">System Alerts</h2>
+                  {consistencyData && (
+                    <p className="text-xs text-[#8b7764] mt-1">
+                      Last checked: {new Date(consistencyData.checkedAt).toLocaleString('en-GB', { timeZone: 'Europe/Skopje' })}
+                    </p>
+                  )}
+                </div>
+                <button
+                  onClick={() => fetchConsistencyCheck()}
+                  disabled={isLoadingConsistency}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm bg-white border border-[#e8dfd8] rounded-lg hover:bg-[#f5f0ee] transition-colors disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-4 h-4 ${isLoadingConsistency ? 'animate-spin' : ''}`} />
+                  Re-check
+                </button>
+              </div>
+
+              {consistencyError && (
+                <div className="mt-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                  {consistencyError}
+                </div>
+              )}
+
+              {/* Severity filter pills */}
+              <div className="flex gap-2 mt-3">
+                {(['all', 'critical', 'warning', 'info'] as const).map(sev => (
+                  <button
+                    key={sev}
+                    onClick={() => setAlertSeverityFilter(sev)}
+                    className={`px-3 py-1 text-xs rounded-full transition-colors ${
+                      alertSeverityFilter === sev
+                        ? sev === 'critical' ? 'bg-red-500 text-white'
+                        : sev === 'warning' ? 'bg-amber-500 text-white'
+                        : sev === 'info' ? 'bg-blue-500 text-white'
+                        : 'bg-[#6b5949] text-white'
+                        : 'bg-white border border-[#e8dfd8] text-[#8b7764] hover:bg-[#f5f0ee]'
+                    }`}
+                  >
+                    {sev === 'all' ? 'All' : sev.charAt(0).toUpperCase() + sev.slice(1)} ({alertCounts[sev]})
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Loading state */}
+            {isLoadingConsistency && !consistencyData && (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-6 h-6 animate-spin text-[#8b7764]" />
+                <span className="ml-2 text-sm text-[#8b7764]">Running consistency check…</span>
+              </div>
+            )}
+
+            {/* Alert cards */}
+            {filteredAlerts.length > 0 ? (
+              <div className="space-y-2">
+                {filteredAlerts.map((alert, index) => (
+                  <motion.div
+                    key={alert.id}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.2, delay: Math.min(index * 0.03, 0.3) }}
+                    className={`bg-white rounded-xl p-4 shadow-sm border-l-4 ${
+                      alert.severity === 'critical' ? 'border-l-red-500' :
+                      alert.severity === 'warning' ? 'border-l-amber-500' : 'border-l-blue-400'
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className={`mt-0.5 ${
+                        alert.severity === 'critical' ? 'text-red-500' :
+                        alert.severity === 'warning' ? 'text-amber-500' : 'text-blue-400'
+                      }`}>
+                        {alert.severity === 'critical' ? (
+                          <ShieldAlert className="w-5 h-5" />
+                        ) : (
+                          <AlertCircle className="w-5 h-5" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${
+                            alert.severity === 'critical' ? 'bg-red-100 text-red-700' :
+                            alert.severity === 'warning' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'
+                          }`}>
+                            {alert.category}
+                          </span>
+                          <span className="text-sm font-medium text-[#3d2f28]">{alert.title}</span>
+                        </div>
+                        <p className="text-xs text-[#8b7764] mt-1 break-all">{alert.description}</p>
+                        {alert.userName && alert.userEmail && (
+                          <button
+                            onClick={() => {
+                              if (alert.userSubTab) setUserSubTab(alert.userSubTab);
+                              if (alert.userId) setExpandedUserId(alert.userId);
+                              setActiveTab('users');
+                            }}
+                            className="mt-2 text-xs text-[#6b5949] hover:underline"
+                          >
+                            {alert.userName} ({alert.userEmail})
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            ) : !isLoadingConsistency ? (
+              <div className="flex flex-col items-center justify-center py-12 text-[#8b7764]">
+                <CheckCircle2 className="w-12 h-12 text-green-500 mb-3" />
+                <p className="text-sm font-medium">No alerts found</p>
+                <p className="text-xs mt-1">All systems look healthy</p>
+              </div>
+            ) : null}
           </div>
         ) : null}
       </motion.div>
