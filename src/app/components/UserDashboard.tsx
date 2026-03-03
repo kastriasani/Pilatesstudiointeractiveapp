@@ -1172,76 +1172,46 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
 
   return (
     <div className="h-full overflow-y-auto px-4 py-4 pb-20">
-      {/* Compact dark timer bar */}
-      {nextSession && countdown && (
-        <motion.div
-          className="bg-[#3d2f28] rounded-xl px-3 py-2 mt-8 mb-4 flex items-center gap-2"
-          initial={{ opacity: 0, y: -8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35 }}
-        >
-          <span className="text-[9px] font-semibold uppercase tracking-wider text-white/50 shrink-0">
-            {t.nextClassLabel || 'NEXT CLASS'}
-          </span>
-          <span className="text-[11px] text-white/80 truncate min-w-0">
-            {nextSessionDay}, {formatShortDate(nextSession.dateKey)} · {nextSession.time}
-          </span>
-          <span className="text-[12px] font-bold text-[#9ca571] tabular-nums shrink-0 ml-auto">
-            {countdown}
-          </span>
-        </motion.div>
-      )}
-
-      {/* Profile section — centered avatar + info */}
+      {/* Header Row: Avatar + Name/Email + Logout */}
       <motion.div
-        className="flex flex-col items-center text-center mb-5 relative"
+        className="flex items-center gap-3 px-4 py-3 mt-8 mb-3"
         initial={{ opacity: 0, y: -12 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: nextSession ? 0.1 : 0 }}
-        style={{ marginTop: nextSession ? 0 : 32 }}
+        transition={{ duration: 0.4 }}
       >
-        {/* Logout — top right */}
-        <button
-          onClick={onLogout}
-          className="absolute top-0 right-0 hover:bg-[#e8dfd8] rounded-lg p-2 transition-colors"
-          title={t.logout}
-        >
-          <LogOut className="w-[18px] h-[18px] text-[#6b5949]" />
-        </button>
-
         {/* Avatar with progress ring + star badge */}
-        <div className="relative group cursor-pointer" onClick={() => avatarInputRef.current?.click()} style={{ width: 96, height: 96 }}>
+        <div className="relative group cursor-pointer shrink-0" onClick={() => avatarInputRef.current?.click()} style={{ width: 64, height: 64 }}>
           {/* SVG progress ring */}
-          <svg className="absolute inset-0" width={96} height={96} viewBox="0 0 96 96">
+          <svg className="absolute inset-0" width={64} height={64} viewBox="0 0 64 64">
             {/* Background track */}
-            <circle cx={48} cy={48} r={44} fill="none" stroke={currentLevel.color} strokeOpacity={0.2} strokeWidth={3} />
+            <circle cx={32} cy={32} r={29} fill="none" stroke={currentLevel.color} strokeOpacity={0.2} strokeWidth={3} />
             {/* Filled arc */}
             <circle
-              cx={48} cy={48} r={44}
+              cx={32} cy={32} r={29}
               fill="none"
               stroke={currentLevel.color}
               strokeWidth={3}
               strokeLinecap="round"
-              strokeDasharray={Math.PI * 2 * 44}
-              strokeDashoffset={Math.PI * 2 * 44 * (1 - levelProgress)}
+              strokeDasharray={Math.PI * 2 * 29}
+              strokeDashoffset={Math.PI * 2 * 29 * (1 - levelProgress)}
               style={{ transform: 'rotate(-90deg)', transformOrigin: '50% 50%', transition: 'stroke-dashoffset 0.6s ease' }}
             />
           </svg>
           {/* Avatar centered inside ring */}
-          <Avatar className="absolute bg-gradient-to-br from-[#9ca571] to-[#7A8F3A] shadow-md" style={{ top: 5, left: 5, width: 86, height: 86 }}>
+          <Avatar className="absolute bg-gradient-to-br from-[#9ca571] to-[#7A8F3A] shadow-md" style={{ top: 5, left: 5, width: 54, height: 54 }}>
             {profileImageUrl && (
               <AvatarImage src={profileImageUrl} alt={displayName} />
             )}
-            <AvatarFallback className="bg-transparent text-white font-bold text-xl">
+            <AvatarFallback className="bg-transparent text-white font-bold text-sm">
               {initials}
             </AvatarFallback>
           </Avatar>
           {/* Camera overlay */}
-          <div className="absolute rounded-full bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center" style={{ top: 5, left: 5, width: 86, height: 86 }}>
+          <div className="absolute rounded-full bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center" style={{ top: 5, left: 5, width: 54, height: 54 }}>
             {uploadingAvatar ? (
-              <div className="w-5 h-5 border-2 border-white/80 border-t-transparent rounded-full animate-spin" />
+              <div className="w-3.5 h-3.5 border-2 border-white/80 border-t-transparent rounded-full animate-spin" />
             ) : (
-              <Camera className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+              <Camera className="w-3.5 h-3.5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
             )}
           </div>
           <input
@@ -1252,14 +1222,14 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
             onChange={handleAvatarUpload}
           />
           {/* Star badge with number inside */}
-          <div className="absolute" style={{ bottom: 0, right: 0, filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.25))' }}>
+          <div className="absolute" style={{ bottom: -2, right: -2, filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.25))' }}>
             <div className="relative">
               <Star
                 className="fill-current"
-                style={{ color: currentLevel.color, width: 24, height: 24 }}
+                style={{ color: currentLevel.color, width: 20, height: 20 }}
               />
               <span
-                className="absolute inset-0 flex items-center justify-center text-[11px] font-bold leading-none"
+                className="absolute inset-0 flex items-center justify-center text-[10px] font-bold leading-none"
                 style={{ color: currentLevel.textColor, paddingTop: 1 }}
               >
                 {currentLevel.level}
@@ -1268,21 +1238,47 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
           </div>
         </div>
 
-        {/* Greeting */}
-        <h1 className="text-xl font-bold text-[#3d2f28] mt-3 leading-snug">
-          {t.greeting || 'Hello'}, {displayName}!
-        </h1>
-        <p className="text-[11px] text-[#8b7764] mt-0.5">{userEmail}</p>
-
-        {/* Level pill */}
-        <div
-          className="inline-flex items-center gap-1 mt-2 px-3 py-1 rounded-full text-[11px] font-semibold"
-          style={{ backgroundColor: currentLevel.color + '22', color: currentLevel.color }}
-        >
-          <Star className="w-3 h-3 fill-current" />
-          {t[currentLevel.labelKey] || currentLevel.labelKey} · {totalSessionsAttended} {t.sessionsLabel || 'sessions'}
+        {/* Name + Email stack */}
+        <div className="min-w-0 flex-1">
+          <h1 className="text-xl font-bold text-[#3d2f28] truncate leading-snug">
+            {t.greeting || 'Hello'}, {displayName}!
+          </h1>
+          <p className="text-[11px] text-[#8b7764] truncate leading-tight">{userEmail}</p>
         </div>
+
+        {/* Logout */}
+        <button
+          onClick={onLogout}
+          className="hover:bg-[#e8dfd8] rounded-lg p-2 transition-colors shrink-0"
+          title={t.logout}
+        >
+          <LogOut className="w-[18px] h-[18px] text-[#6b5949]" />
+        </button>
       </motion.div>
+
+      {/* Next Class Green Banner */}
+      {nextSession && countdown && (
+        <motion.div
+          className="bg-gradient-to-br from-[#9ca571] to-[#7A8F3A] rounded-2xl px-4 py-3 mb-5 text-white shadow-md"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, delay: 0.15 }}
+        >
+          <div className="flex items-center justify-between">
+            <div className="min-w-0">
+              <p className="text-[9px] font-semibold uppercase tracking-wider opacity-70 mb-0.5">
+                {t.nextClassLabel || 'NEXT CLASS'}
+              </p>
+              <p className="text-[13px] font-medium opacity-95 truncate">
+                {nextSessionDay}, {formatShortDate(nextSession.dateKey)} · {nextSession.time}
+              </p>
+            </div>
+            <p className="text-xl font-bold tracking-tight leading-none tabular-nums shrink-0 ml-3">
+              {countdown}
+            </p>
+          </div>
+        </motion.div>
+      )}
 
       {/* Content: Packages + Reservations */}
       {packages.length === 0 && reservations.filter(r => !r.packageId).length === 0 ? (
