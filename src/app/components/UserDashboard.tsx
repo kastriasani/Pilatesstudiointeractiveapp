@@ -5,6 +5,7 @@ import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { toast } from 'sonner';
 import { getSkopjeTime, isTimeSlotPast } from '../../utils/dateUtils';
+import { useRealtimeAvailability } from '@/hooks/useRealtimeAvailability';
 
 type UserDashboardProps = {
   onBack: () => void;
@@ -288,7 +289,8 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
   // Load user's packages. Returns fresh packages array for callers that need it immediately.
   const loadPackages = async (): Promise<PackageDetails[]> => {
     try {
-      setLoading(true);
+      // Only show full-page spinner on initial load (when no packages loaded yet)
+      if (packages.length === 0) setLoading(true);
 
       console.log('🔐 Loading packages...');
 
@@ -472,6 +474,9 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
     }
   };
 
+  // Live availability: re-fetch when any reservation changes
+  useRealtimeAvailability(loadAvailableSlots);
+
   const handleRescheduleClick = async (pkg: PackageDetails) => {
     if (!pkg.firstSession) {
       toast.error('No first session booked yet');
@@ -652,8 +657,6 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
     setSelectedSlotIndex(slotIndex);
     setInlineBookingPackageId(pkg.id);
 
-    // Clear stale slots before loading fresh data
-    setAvailableSlots([]);
     await loadAvailableSlots();
   };
 
@@ -667,11 +670,46 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
       return;
     }
 
-    setIsRescheduling(true);
+    // Optimistic update BEFORE API call — UI updates instantly on click
+    const tempId = `temp-${Date.now()}`;
+    const newSession: BookedSession = {
+      id: tempId,
+      date: dateKey,
+      dateKey,
+      time: timeSlot,
+      endTime: '',
+      slotIndex: selectedSlotIndex!,
+      createdAt: new Date().toISOString(),
+    };
+
+    const optimisticPkg = {
+      ...pkg,
+      remainingSessions: pkg.remainingSessions - 1,
+      sessionsBooked: [...pkg.sessionsBooked, tempId],
+      bookedSessions: [...pkg.bookedSessions, newSession],
+    };
+
+    setPackages(prev => prev.map(p => p.id === pkg.id ? optimisticPkg : p));
+
+    setAvailableSlots(prev => prev.map(ds =>
+      ds.dateKey === dateKey ? {
+        ...ds,
+        timeSlots: ds.timeSlots.map(ts =>
+          ts.time === timeSlot ? { ...ts, available: Math.max(0, ts.available - 1), isBooked: true, userBookings: ts.userBookings + 1 } : ts
+        ),
+      } : ds
+    ));
+
+    // Auto-advance to next empty slot immediately
+    const nextEmptySlot = findNextEmptySlot(optimisticPkg, selectedSlotIndex);
+    if (nextEmptySlot !== null && nextEmptySlot < optimisticPkg.totalSessions) {
+      setSelectedSlotIndex(nextEmptySlot);
+    } else {
+      setInlineBookingPackageId(null);
+      setSelectedSlotIndex(null);
+    }
 
     try {
-      // The create_reservation RPC validates capacity atomically with row locking,
-      // so a preflight availability check is unnecessary.
       const response = await fetch(
         `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/user/packages/${pkg.id}/book-session`,
         {
@@ -692,37 +730,37 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
       const data = await response.json();
 
       if (!response.ok) {
+        // Roll back optimistic update
+        setPackages(prev => prev.map(p => p.id === pkg.id ? pkg : p));
+        loadAvailableSlots();
         if (handleSessionError(data.error)) return;
         toast.error(data.error || 'Failed to book session');
-        setIsRescheduling(false);
         return;
       }
 
       refreshSessionExpiry();
-      console.log('✅ Session booked via inline calendar:', data);
       toast.success(t.sessionBookedSuccess || 'Session booked successfully!');
 
-      // Reload packages (blocking — needed for auto-advance) and slots (non-blocking background refresh)
-      const freshPackages = await loadPackages();
-      loadAvailableSlots();
-      const freshPkg = freshPackages.find(p => p.id === pkg.id) || pkg;
-
-      // Auto-advance to next empty slot using fresh data
-      const nextEmptySlot = findNextEmptySlot(freshPkg, selectedSlotIndex);
-      if (nextEmptySlot !== null && nextEmptySlot < freshPkg.totalSessions) {
-        setSelectedSlotIndex(nextEmptySlot);
-      } else {
-        // Close inline calendar if all slots are filled
-        setInlineBookingPackageId(null);
-        setSelectedSlotIndex(null);
+      // Replace temp ID with real server ID (no full refetch needed)
+      const realId = data.reservation?.id;
+      if (realId && realId !== tempId) {
+        setPackages(prev => prev.map(p => {
+          if (p.id !== pkg.id) return p;
+          return {
+            ...p,
+            sessionsBooked: p.sessionsBooked.map(id => id === tempId ? realId : id),
+            bookedSessions: p.bookedSessions.map(bs => bs.id === tempId ? { ...bs, id: realId, createdAt: data.reservation?.createdAt || bs.createdAt } : bs),
+          };
+        }));
       }
-
-      setIsRescheduling(false);
+      // Slots reconcile automatically via useRealtimeAvailability (1.5s debounce)
 
     } catch (error) {
+      // Roll back optimistic update
+      setPackages(prev => prev.map(p => p.id === pkg.id ? pkg : p));
+      loadAvailableSlots();
       console.error('Error booking session:', error);
       toast.error('An error occurred. Please try again.');
-      setIsRescheduling(false);
     }
   };
 
@@ -823,7 +861,24 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
       return;
     }
 
-    setIsRescheduling(true);
+    // Optimistic update BEFORE API call — UI updates instantly on click
+    const cancelledPkg = {
+      ...pkg,
+      remainingSessions: pkg.remainingSessions + 1,
+      sessionsBooked: pkg.sessionsBooked.filter(id => id !== bookedSession.id),
+      bookedSessions: pkg.bookedSessions.filter(bs => bs.id !== bookedSession.id),
+    };
+
+    setPackages(prev => prev.map(p => p.id === pkg.id ? cancelledPkg : p));
+
+    setAvailableSlots(prev => prev.map(ds =>
+      ds.dateKey === bookedSession.dateKey ? {
+        ...ds,
+        timeSlots: ds.timeSlots.map(ts =>
+          ts.time === bookedSession.time ? { ...ts, available: ts.available + 1, isBooked: false, userBookings: Math.max(0, ts.userBookings - 1) } : ts
+        ),
+      } : ds
+    ));
 
     try {
       const response = await fetch(
@@ -841,25 +896,24 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
       const data = await response.json();
 
       if (!response.ok) {
+        // Roll back optimistic update
+        setPackages(prev => prev.map(p => p.id === pkg.id ? pkg : p));
+        loadAvailableSlots();
         if (handleSessionError(data.error)) return;
         toast.error(data.error || 'Failed to cancel session');
-        setIsRescheduling(false);
         return;
       }
 
       refreshSessionExpiry();
-      console.log('✅ Session cancelled:', data);
       toast.success(t.sessionCancelledSuccess || 'Session cancelled successfully!');
-
-      // Reload packages (blocking) and refresh slot availability (non-blocking background)
-      await loadPackages();
-      loadAvailableSlots();
-      setIsRescheduling(false);
+      // Slots reconcile automatically via useRealtimeAvailability (1.5s debounce)
 
     } catch (error) {
+      // Roll back optimistic update
+      setPackages(prev => prev.map(p => p.id === pkg.id ? pkg : p));
+      loadAvailableSlots();
       console.error('Error cancelling session:', error);
       toast.error('An error occurred. Please try again.');
-      setIsRescheduling(false);
     }
   };
 

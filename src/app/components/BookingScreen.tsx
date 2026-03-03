@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { ChevronRight, ChevronLeft, User, ArrowLeft, Loader } from 'lucide-react';
 import { Language, translations } from '../translations';
 import { logo } from '../../assets/images';
@@ -6,6 +6,7 @@ import {
   getSkopjeTime,
   isTimeSlotPast
 } from '../../utils/dateUtils';
+import { useRealtimeAvailability } from '@/hooks/useRealtimeAvailability';
 
 const rinaPhoto = 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=400&h=600&fit=crop';
 
@@ -61,56 +62,55 @@ export function BookingScreen({ trainingType, onBack, onSubmit, onInstructorClic
   const lastInteractionRef = useRef<number>(Date.now());
 
   // Fetch all bookings, live days, and slots for each live day
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const { projectId, publicAnonKey } = await import('/utils/supabase/info');
+  const fetchData = useCallback(async () => {
+    try {
+      const { projectId, publicAnonKey } = await import('/utils/supabase/info');
 
-        // Fetch bookings availability and live days in parallel
-        const [bookingsResponse, liveDaysResponse] = await Promise.all([
-          fetch(
-            `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/slots/availability`,
-            { headers: { 'Authorization': `Bearer ${publicAnonKey}` } }
-          ),
-          fetch(
-            `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/slots/live-days`,
-            { headers: { 'Authorization': `Bearer ${publicAnonKey}` } }
-          )
-        ]);
+      // Fetch bookings availability and live days in parallel
+      const [bookingsResponse, liveDaysResponse] = await Promise.all([
+        fetch(
+          `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/slots/availability`,
+          { headers: { 'Authorization': `Bearer ${publicAnonKey}` } }
+        ),
+        fetch(
+          `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/slots/live-days`,
+          { headers: { 'Authorization': `Bearer ${publicAnonKey}` } }
+        )
+      ]);
 
-        if (bookingsResponse.ok) {
-          const data = await bookingsResponse.json();
-          setAllBookings(data.bookings || []);
-        }
-
-        if (liveDaysResponse.ok) {
-          const data = await liveDaysResponse.json();
-          const dates = data.dates || [];
-          setLiveDays(dates);
-
-          // Fetch slots for each live day
-          const slotsPromises = dates.map((date: string) =>
-            fetch(
-              `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/slots?date=${date}`,
-              { headers: { 'Authorization': `Bearer ${publicAnonKey}` } }
-            ).then(res => res.json())
-          );
-
-          const slotsResults = await Promise.all(slotsPromises);
-          const newSlotsPerDate: Record<string, any[]> = {};
-          dates.forEach((date: string, index: number) => {
-            newSlotsPerDate[date] = slotsResults[index]?.slots || [];
-          });
-          setSlotsPerDate(newSlotsPerDate);
-        }
-      } catch (error) {
-        console.error('Error fetching data:', error);
-      } finally {
-        setIsLoadingBookings(false);
+      if (bookingsResponse.ok) {
+        const data = await bookingsResponse.json();
+        setAllBookings(data.bookings || []);
       }
-    };
 
-    // Initial fetch
+      if (liveDaysResponse.ok) {
+        const data = await liveDaysResponse.json();
+        const dates = data.dates || [];
+        setLiveDays(dates);
+
+        // Fetch slots for each live day
+        const slotsPromises = dates.map((date: string) =>
+          fetch(
+            `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/slots?date=${date}`,
+            { headers: { 'Authorization': `Bearer ${publicAnonKey}` } }
+          ).then(res => res.json())
+        );
+
+        const slotsResults = await Promise.all(slotsPromises);
+        const newSlotsPerDate: Record<string, any[]> = {};
+        dates.forEach((date: string, index: number) => {
+          newSlotsPerDate[date] = slotsResults[index]?.slots || [];
+        });
+        setSlotsPerDate(newSlotsPerDate);
+      }
+    } catch (error) {
+      console.error('Error fetching data:', error);
+    } finally {
+      setIsLoadingBookings(false);
+    }
+  }, []);
+
+  useEffect(() => {
     fetchData();
 
     // Refresh every 60 seconds, but skip if user interacted in last 15 seconds
@@ -121,7 +121,10 @@ export function BookingScreen({ trainingType, onBack, onSubmit, onInstructorClic
     }, 60000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [fetchData]);
+
+  // Live availability: re-fetch when any reservation changes
+  useRealtimeAvailability(fetchData);
   
   // Update current time every 10 seconds
   useEffect(() => {

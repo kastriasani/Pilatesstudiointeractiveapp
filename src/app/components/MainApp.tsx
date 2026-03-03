@@ -13,7 +13,7 @@ import { SuccessScreen } from './SuccessScreen';
 import { InstructorProfile } from './InstructorProfile';
 import { MemberActivationModal } from './MemberActivationModal';
 import { LoginRegisterModal } from './LoginRegisterModal';
-import { projectId, publicAnonKey } from '/utils/supabase/info';
+
 
 type Screen =
   | { type: 'trainingType' }
@@ -33,7 +33,6 @@ export function MainApp() {
   const [screen, setScreen] = useState<Screen>({ type: 'trainingType' });
   const [showMemberActivation, setShowMemberActivation] = useState(false);
   const [showLoginRegister, setShowLoginRegister] = useState(false);
-  const [hasCleared, setHasCleared] = useState(false);
   const [logoClickCount, setLogoClickCount] = useState(0);
   const [logoClickTimer, setLogoClickTimer] = useState<NodeJS.Timeout | null>(null);
 
@@ -41,56 +40,6 @@ export function MainApp() {
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [screen]);
-
-  // Clear all data on first load
-  useEffect(() => {
-    const clearData = async () => {
-      if (hasCleared) return;
-      
-      try {
-        console.log('🧹 Clearing all existing data...');
-        const response = await fetch(
-          `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/dev/clear-all-data`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${publicAnonKey}`,
-            },
-          }
-        );
-
-        // Get response text first
-        const responseText = await response.text();
-        
-        // Check if response is ok
-        if (!response.ok) {
-          console.error('❌ Failed to clear data:', response.status, responseText);
-          setHasCleared(true); // Prevent infinite retry
-          return;
-        }
-
-        // Try to parse JSON
-        let data;
-        try {
-          data = responseText ? JSON.parse(responseText) : {};
-        } catch (parseError) {
-          console.error('❌ JSON parse error:', parseError);
-          console.log('Response text was:', responseText);
-          setHasCleared(true); // Prevent infinite retry
-          return;
-        }
-
-        console.log('✅ Data cleared successfully:', data);
-        setHasCleared(true);
-      } catch (error) {
-        console.error('Error clearing data:', error);
-        setHasCleared(true); // Prevent infinite retry
-      }
-    };
-
-    clearData();
-  }, [hasCleared]);
 
   const handleSelectTrainingType = (type: 'single' | 'package' | 'individual' | 'duo') => {
     if (type === 'individual') {

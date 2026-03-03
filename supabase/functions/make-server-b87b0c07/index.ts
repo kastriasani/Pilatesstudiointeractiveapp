@@ -370,6 +370,30 @@ async function maybeMarkPackageFullyUsed(supabase: ReturnType<typeof getSupabase
   }
 }
 
+// ============ DEFENSIVE: VERIFY CANCEL CLEANUP ============
+
+// Safety net: after cancel_reservation RPC, verify sessions_booked was actually cleaned.
+// If not (e.g. transient infra issue during deploy), fix it here.
+async function verifySessionsBookedCleanup(supabase: ReturnType<typeof getSupabase>, packageId: string, reservationId: string, userEmail: string) {
+  const { data: pkg } = await supabase
+    .from('user_packages')
+    .select('sessions_booked, total_sessions, sessions_attended')
+    .eq('id', packageId)
+    .single();
+  if (pkg?.sessions_booked?.includes(reservationId)) {
+    console.warn(`⚠️ cancel RPC did not remove ${reservationId} from sessions_booked — fixing`);
+    const cleaned = pkg.sessions_booked.filter((id: string) => id !== reservationId);
+    const remaining = Math.max(0, (pkg.total_sessions || 0) - cleaned.length - (pkg.sessions_attended?.length || 0));
+    const used = (pkg.total_sessions || 0) - remaining;
+    await supabase.from('user_packages')
+      .update({ sessions_booked: cleaned, remaining_sessions: remaining, updated_at: new Date().toISOString() })
+      .eq('id', packageId);
+    await supabase.from('users')
+      .update({ remaining_sessions: remaining, used_sessions: used, updated_at: new Date().toISOString() })
+      .eq('email', userEmail);
+  }
+}
+
 // ============ AUTO-DEDUCT MISSED SESSIONS ============
 
 // Check for past confirmed reservations that were never attended and mark as no_show
@@ -1991,6 +2015,11 @@ app.patch("/make-server-b87b0c07/reservations/:id/status", async (c) => {
               .update({ remaining_sessions: updatedPkg.remaining_sessions, used_sessions: usedSessions, updated_at: new Date().toISOString() })
               .eq('email', reservation.user_email);
           }
+        }
+
+        // Defensive: verify sessions_booked was actually cleaned by RPC
+        if (reservation.package_id) {
+          await verifySessionsBookedCleanup(supabase, reservation.package_id, reservationId, reservation.user_email);
         }
 
         // Audit trail: log admin cancellation
@@ -4218,6 +4247,11 @@ app.post("/make-server-b87b0c07/admin/cancel-class", async (c) => {
         }
       }
 
+      // Defensive: verify sessions_booked was actually cleaned by RPC
+      if (reservation.package_id) {
+        await verifySessionsBookedCleanup(supabase, reservation.package_id, reservation.id, reservation.user_email);
+      }
+
       // Audit trail
       try {
         await supabase.from('booking_changes').insert({
@@ -5560,6 +5594,11 @@ app.delete("/make-server-b87b0c07/user/packages/:id/reservations/:reservationId"
           .update({ remaining_sessions: updatedPkg.remaining_sessions, used_sessions: usedSessions, updated_at: nowISO })
           .eq('email', session.email);
       }
+    }
+
+    // Defensive: verify sessions_booked was actually cleaned by RPC
+    if (packageId) {
+      await verifySessionsBookedCleanup(supabase, packageId, reservationId, session.email);
     }
 
     console.log(`🗑️ Cancelled reservation ${reservationId} for package ${packageId}`);

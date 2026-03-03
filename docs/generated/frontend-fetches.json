@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-02T16:29:20.414Z",
+  "generatedAt": "2026-03-02T23:42:05.535Z",
   "sourceDir": "src",
   "occurrenceCount": 52,
   "uniquePathCount": 41,
@@ -176,13 +176,13 @@
       "method": "POST",
       "path": "/packages",
       "file": "src/app/components/PackageOverview.tsx",
-      "line": 189
+      "line": 190
     },
     {
       "method": "POST",
       "path": "/packages/:param/first-session",
       "file": "src/app/components/PackageOverview.tsx",
-      "line": 364
+      "line": 368
     },
     {
       "method": "POST",
@@ -212,7 +212,7 @@
       "method": "GET",
       "path": "/slots",
       "file": "src/app/components/PackageOverview.tsx",
-      "line": 267
+      "line": 268
     },
     {
       "method": "GET",
@@ -224,7 +224,7 @@
       "method": "GET",
       "path": "/slots/availability",
       "file": "src/app/components/PackageOverview.tsx",
-      "line": 249
+      "line": 250
     },
     {
       "method": "GET",
@@ -242,13 +242,13 @@
       "method": "GET",
       "path": "/slots/live-days",
       "file": "src/app/components/PackageOverview.tsx",
-      "line": 253
+      "line": 254
     },
     {
       "method": "GET",
       "path": "/slots/user-calendar",
       "file": "src/app/components/UserDashboard.tsx",
-      "line": 382
+      "line": 383
     },
     {
       "method": "POST",
@@ -266,37 +266,37 @@
       "method": "GET",
       "path": "/user/packages",
       "file": "src/app/components/UserDashboard.tsx",
-      "line": 296
+      "line": 297
     },
     {
       "method": "POST",
       "path": "/user/packages/:param/book-session",
       "file": "src/app/components/UserDashboard.tsx",
-      "line": 584
+      "line": 588
     },
     {
       "method": "POST",
       "path": "/user/packages/:param/book-session",
       "file": "src/app/components/UserDashboard.tsx",
-      "line": 676
+      "line": 680
     },
     {
       "method": "POST",
       "path": "/user/packages/:param/reschedule",
       "file": "src/app/components/UserDashboard.tsx",
-      "line": 528
+      "line": 532
     },
     {
       "method": "DELETE",
       "path": "/user/packages/:param/reservations/:param",
       "file": "src/app/components/UserDashboard.tsx",
-      "line": 830
+      "line": 834
     },
     {
       "method": "POST",
       "path": "/user/packages/purchase",
       "file": "src/app/components/UserDashboard.tsx",
-      "line": 884
+      "line": 888
     },
     {
       "method": "DELETE",
@@ -308,13 +308,13 @@
       "method": "POST",
       "path": "/validate-coupon",
       "file": "src/app/components/PackageOverview.tsx",
-      "line": 120
+      "line": 121
     },
     {
       "method": "POST",
       "path": "/validate-coupon",
       "file": "src/app/components/PackageOverview.tsx",
-      "line": 123
+      "line": 124
     }
   ]
 }

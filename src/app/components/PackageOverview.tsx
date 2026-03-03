@@ -7,6 +7,7 @@ import {
   formatDateKeyLegacy,
   isTimeSlotPast
 } from '../../utils/dateUtils';
+import { useRealtimeAvailability } from '@/hooks/useRealtimeAvailability';
 
 type PackageOverviewProps = {
   onBack: () => void;
@@ -351,6 +352,9 @@ export function PackageOverview({ onBack, language }: PackageOverviewProps) {
       setIsLoadingSlots(false);
     }
   };
+
+  // Live availability: re-fetch when any reservation changes
+  useRealtimeAvailability(loadAvailableSlots);
 
   // Step 2: Book first session
   const handleBookFirstSession = async (dateKey: string, timeSlot: string) => {

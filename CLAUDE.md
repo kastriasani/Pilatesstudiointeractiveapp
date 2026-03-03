@@ -37,7 +37,7 @@ After ANY backend or frontend code change, run all three checks **before** consi
 ```bash
 npm run build        # 1. Must pass — no TS/build errors
 npm run api:check    # 2. Must pass — every frontend fetch has a matching backend route, docs in sync
-npm run smoke        # 3. Must pass (after deploy) — all 26 live endpoints respond correctly
+npm run smoke        # 3. Must pass (after deploy) — all 58 live endpoints respond correctly
 ```
 
 - If `api:check` reports WARN or FAIL, fix the issue before proceeding.
