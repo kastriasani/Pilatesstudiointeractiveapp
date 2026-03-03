@@ -290,8 +290,8 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
     };
 
     for (const u of users) {
-      // Only active (non-blocked) users
-      if (u.blocked) continue;
+      // Only active (confirmed, non-blocked) users
+      if (u.blocked || u.status !== 'confirmed') continue;
 
       const pkgs = u.packages || [];
       const fullName = `${u.name} ${u.surname}`;
@@ -335,41 +335,6 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
           });
         }
 
-        // Signed up but never activated (waiting >7 days)
-        if (pkg.status === 'pending' && pkg.createdAt) {
-          const days = Math.floor((now.getTime() - new Date(pkg.createdAt).getTime()) / (1000 * 60 * 60 * 24));
-          if (days > 7) {
-            result.push({
-              id: `stale-pending-${pkg.id}`,
-              severity: 'warning',
-              category: 'Not activated',
-              title: `Signed up ${days} days ago but never activated`,
-              description: `${pkgLabel(pkg.type)} package — registered on ${pkg.createdAt.slice(0, 10)}. Did they pay? Activate or remove.`,
-              userEmail: u.email, userName: fullName, userSubTab: subTab, userId: u.id,
-            });
-          }
-        }
-      }
-
-      // Payment confusion: marked as paid but latest package is unpaid, or vice versa
-      if (pkgs.length > 0) {
-        const latestPkg = [...pkgs].sort((a, b) =>
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-        )[0];
-        const userPaid = u.status === 'confirmed';
-        const pkgPaid = latestPkg.paymentStatus === 'paid';
-        if (userPaid !== pkgPaid) {
-          result.push({
-            id: `payment-${u.id}`,
-            severity: 'warning',
-            category: 'Payment',
-            title: userPaid
-              ? 'Marked as paid, but latest package shows unpaid'
-              : 'Marked as unpaid, but latest package shows paid',
-            description: `${pkgLabel(latestPkg.type)} package — check if payment was actually received.`,
-            userEmail: u.email, userName: fullName, userSubTab: subTab, userId: u.id,
-          });
-        }
       }
     }
 
@@ -378,8 +343,8 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
       for (const cu of consistencyData.users) {
         if (cu.issueCount === 0) continue;
         const localUser = users.find(u => u.email.toLowerCase() === cu.email.toLowerCase());
-        // Only active users
-        if (localUser?.blocked) continue;
+        // Only active (confirmed, non-blocked) users
+        if (!localUser || localUser.blocked || localUser.status !== 'confirmed') continue;
         const fullName = localUser ? `${localUser.name} ${localUser.surname}` : cu.email;
         const subTab: 'confirmed' | 'pending' = !localUser ? 'confirmed'
           : localUser.status === 'confirmed' ? 'confirmed' : 'pending';
@@ -424,19 +389,6 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
             });
           }
 
-          // Unpaid client booking too many classes
-          if (issue.code === 'unpaid_package_booking_limit_violation') {
-            const countMatch = issue.details.match(/has (\d+) upcoming/);
-            const count = countMatch ? countMatch[1] : 'several';
-            result.push({
-              id: `unpaid-limit-${cu.userId}-${issue.details.slice(0, 15)}`,
-              severity: 'warning',
-              category: 'Unpaid',
-              title: `Unpaid client has ${count} upcoming bookings`,
-              description: 'This client hasn\'t paid yet but has booked more than 2 upcoming classes. Consider restricting until payment is received.',
-              userEmail: cu.email, userName: fullName, userSubTab: subTab, userId: localUser?.id || cu.userId,
-            });
-          }
         }
       }
     }
@@ -455,10 +407,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
       'Over limit': 'More classes used than purchased.',
       'Session count': 'Remaining classes don\'t match between your view and the client\'s.',
       'Expiring soon': 'Package expires within 5 days.',
-      'Not activated': 'Signed up but never activated.',
-      'Payment': 'Payment status doesn\'t match between user and package.',
       'Cancelled class': 'Cancelled class not returned to the package.',
-      'Unpaid': 'Unpaid client with too many upcoming bookings.',
     };
 
     const groups: Array<{ category: string; description: string; alerts: Alert[] }> = [];
