@@ -233,7 +233,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
   const [consistencyData, setConsistencyData] = useState<ConsistencyCheckResult | null>(null);
   const [isLoadingConsistency, setIsLoadingConsistency] = useState(false);
   const [consistencyError, setConsistencyError] = useState<string | null>(null);
-  const [alertSeverityFilter, setAlertSeverityFilter] = useState<'all' | AlertSeverity>('all');
+  const [alertSeverityFilter, setAlertSeverityFilter] = useState<'all' | 'critical' | 'warning'>('all');
 
   const fetchConsistencyCheck = async () => {
     setIsLoadingConsistency(true);
@@ -270,22 +270,32 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
     }
   }, [activeTab]);
 
-  // Core alert computation from users + consistency data
+  // Plain-language, user-focused alerts for the studio trainer
   const alerts = useMemo<Alert[]>(() => {
     const result: Alert[] = [];
     const now = getSkopjeTime();
 
-    // Helper: find which sub-tab a user belongs to
-    const getUserSubTab = (u: User): 'confirmed' | 'pending' | 'archived' => {
+    const getSubTab = (u: User): 'confirmed' | 'pending' | 'archived' => {
       if (u.blocked) return 'archived';
       return u.status === 'confirmed' ? 'confirmed' : 'pending';
     };
 
+    const pkgLabel = (type: string) => {
+      const map: Record<string, string> = {
+        '1class': '1 class', '8classes': '8 classes', '12classes': '12 classes',
+        'duo1class': 'Duo 1 class', 'duo8classes': 'Duo 8 classes', 'duo12classes': 'Duo 12 classes',
+        'package8': '8 classes', 'package10': '10 classes', 'package12': '12 classes',
+      };
+      return map[type] || type;
+    };
+
     for (const u of users) {
       const pkgs = u.packages || [];
+      const fullName = `${u.name} ${u.surname}`;
+      const subTab = getSubTab(u);
 
       for (const pkg of pkgs) {
-        // 1. Expiring Soon (active package, expiry ≤5 days away)
+        // Package expired but still marked active
         if (pkg.status === 'active' && pkg.expiryDate) {
           const expiry = new Date(pkg.expiryDate);
           const daysLeft = Math.ceil((expiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
@@ -293,188 +303,155 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
             result.push({
               id: `expired-${pkg.id}`,
               severity: 'critical',
-              category: 'Expired Package',
-              title: `Active package expired ${Math.abs(daysLeft)} day(s) ago`,
-              description: `${pkg.type} package (ID: ${pkg.id.slice(0, 8)}…) expired on ${pkg.expiryDate}`,
-              userEmail: u.email,
-              userName: `${u.name} ${u.surname}`,
-              userSubTab: getUserSubTab(u),
-              userId: u.id,
+              category: 'Expired',
+              title: `Package expired ${Math.abs(daysLeft)} day(s) ago but is still active`,
+              description: `${pkgLabel(pkg.type)} package — expired ${pkg.expiryDate}. This client can still book classes.`,
+              userEmail: u.email, userName: fullName, userSubTab: subTab, userId: u.id,
             });
           } else if (daysLeft <= 5) {
             result.push({
               id: `expiring-${pkg.id}`,
               severity: 'warning',
-              category: 'Expiring Soon',
+              category: 'Expiring soon',
               title: `Package expires in ${daysLeft} day(s)`,
-              description: `${pkg.type} package (ID: ${pkg.id.slice(0, 8)}…) expires on ${pkg.expiryDate}`,
-              userEmail: u.email,
-              userName: `${u.name} ${u.surname}`,
-              userSubTab: getUserSubTab(u),
-              userId: u.id,
+              description: `${pkgLabel(pkg.type)} package — expires ${pkg.expiryDate}. Remind them to renew.`,
+              userEmail: u.email, userName: fullName, userSubTab: subTab, userId: u.id,
             });
           }
         }
 
-        // 3. Session Overshoot
+        // More classes used than purchased (negative remaining)
         if (pkg.remainingSessions < 0) {
           result.push({
             id: `overshoot-${pkg.id}`,
             severity: 'critical',
-            category: 'Session Overshoot',
-            title: `Negative remaining sessions (${pkg.remainingSessions})`,
-            description: `${pkg.type} package has ${pkg.remainingSessions} remaining sessions`,
-            userEmail: u.email,
-            userName: `${u.name} ${u.surname}`,
-            userSubTab: getUserSubTab(u),
-            userId: u.id,
+            category: 'Over limit',
+            title: `Used more classes than purchased`,
+            description: `${pkgLabel(pkg.type)} package shows ${Math.abs(pkg.remainingSessions)} extra class(es) used beyond what was paid for.`,
+            userEmail: u.email, userName: fullName, userSubTab: subTab, userId: u.id,
           });
         }
 
-        // 5. Stale Pending (pending package created >7 days ago)
+        // Signed up but never activated (waiting >7 days)
         if (pkg.status === 'pending' && pkg.createdAt) {
-          const created = new Date(pkg.createdAt);
-          const daysSinceCreation = Math.floor((now.getTime() - created.getTime()) / (1000 * 60 * 60 * 24));
-          if (daysSinceCreation > 7) {
+          const days = Math.floor((now.getTime() - new Date(pkg.createdAt).getTime()) / (1000 * 60 * 60 * 24));
+          if (days > 7) {
             result.push({
               id: `stale-pending-${pkg.id}`,
               severity: 'warning',
-              category: 'Stale Pending',
-              title: `Pending package for ${daysSinceCreation} days`,
-              description: `${pkg.type} package created on ${pkg.createdAt.slice(0, 10)}, never activated`,
-              userEmail: u.email,
-              userName: `${u.name} ${u.surname}`,
-              userSubTab: getUserSubTab(u),
-              userId: u.id,
+              category: 'Not activated',
+              title: `Signed up ${days} days ago but never activated`,
+              description: `${pkgLabel(pkg.type)} package — registered on ${pkg.createdAt.slice(0, 10)}. Did they pay? Activate or remove.`,
+              userEmail: u.email, userName: fullName, userSubTab: subTab, userId: u.id,
             });
           }
         }
       }
 
-      // 4. Payment Mismatch (user confirmed but has unpaid package, or vice versa)
+      // Payment confusion: marked as paid but latest package is unpaid, or vice versa
       if (pkgs.length > 0) {
         const latestPkg = [...pkgs].sort((a, b) =>
           new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
         )[0];
-        const userPaid = u.status === 'confirmed'; // mapped from paymentStatus === 'paid'
+        const userPaid = u.status === 'confirmed';
         const pkgPaid = latestPkg.paymentStatus === 'paid';
         if (userPaid !== pkgPaid) {
           result.push({
-            id: `payment-mismatch-${u.id}`,
+            id: `payment-${u.id}`,
             severity: 'warning',
-            category: 'Payment Mismatch',
-            title: `User ${userPaid ? 'paid' : 'unpaid'} but latest package ${pkgPaid ? 'paid' : 'unpaid'}`,
-            description: `Latest package: ${latestPkg.type} (${latestPkg.paymentStatus})`,
-            userEmail: u.email,
-            userName: `${u.name} ${u.surname}`,
-            userSubTab: getUserSubTab(u),
-            userId: u.id,
+            category: 'Payment',
+            title: userPaid
+              ? 'Marked as paid, but latest package shows unpaid'
+              : 'Marked as unpaid, but latest package shows paid',
+            description: `${pkgLabel(latestPkg.type)} package — check if payment was actually received.`,
+            userEmail: u.email, userName: fullName, userSubTab: subTab, userId: u.id,
           });
         }
       }
-
-      // 6. No Package (confirmed user with zero packages)
-      if (u.status === 'confirmed' && pkgs.length === 0) {
-        result.push({
-          id: `no-package-${u.id}`,
-          severity: 'info',
-          category: 'No Package',
-          title: 'Confirmed user with no packages',
-          description: `${u.email} has no packages on record`,
-          userEmail: u.email,
-          userName: `${u.name} ${u.surname}`,
-          userSubTab: getUserSubTab(u),
-          userId: u.id,
-        });
-      }
-
-      // 7. Blocked User
-      if (u.blocked) {
-        result.push({
-          id: `blocked-${u.id}`,
-          severity: 'info',
-          category: 'Blocked User',
-          title: 'User is blocked',
-          description: `${u.email} is currently blocked from the system`,
-          userEmail: u.email,
-          userName: `${u.name} ${u.surname}`,
-          userSubTab: 'archived',
-          userId: u.id,
-        });
-      }
     }
 
-    // Server-side alerts from consistency check
+    // Server-side: session count mismatches the client can see
     if (consistencyData) {
-      const issueCodeToSeverity: Record<string, AlertSeverity> = {
-        users_remaining_sessions_mismatch: 'critical',
-        users_used_sessions_mismatch: 'critical',
-        dangling_reservation_reference: 'critical',
-        reservation_user_mismatch: 'critical',
-        reservation_package_mismatch: 'critical',
-        missing_first_reservation: 'critical',
-        cancelled_first_reservation: 'warning',
-        cancelled_reservation_still_in_sessions_booked: 'warning',
-        package_remaining_sessions_mismatch: 'warning',
-        payment_status_mismatch_latest_package: 'warning',
-        unpaid_package_booking_limit_violation: 'warning',
-        legacy_or_invalid_date_key: 'info',
-      };
+      for (const cu of consistencyData.users) {
+        if (cu.issueCount === 0) continue;
+        const localUser = users.find(u => u.email.toLowerCase() === cu.email.toLowerCase());
+        const fullName = localUser ? `${localUser.name} ${localUser.surname}` : cu.email;
+        const subTab: 'confirmed' | 'pending' | 'archived' = !localUser ? 'confirmed'
+          : localUser.blocked ? 'archived'
+          : localUser.status === 'confirmed' ? 'confirmed' : 'pending';
 
-      const issueCodeToTitle: Record<string, string> = {
-        users_remaining_sessions_mismatch: 'Remaining sessions mismatch',
-        users_used_sessions_mismatch: 'Used sessions mismatch',
-        dangling_reservation_reference: 'Dangling reservation reference',
-        reservation_user_mismatch: 'Reservation belongs to different user',
-        reservation_package_mismatch: 'Reservation linked to wrong package',
-        missing_first_reservation: 'Missing first reservation',
-        cancelled_first_reservation: 'Cancelled first reservation',
-        cancelled_reservation_still_in_sessions_booked: 'Cancelled reservation in sessions_booked',
-        package_remaining_sessions_mismatch: 'Package remaining sessions mismatch',
-        payment_status_mismatch_latest_package: 'Payment status mismatch',
-        unpaid_package_booking_limit_violation: 'Unpaid package booking limit exceeded',
-        legacy_or_invalid_date_key: 'Legacy date key format',
-      };
+        for (const issue of cu.issues) {
+          // Session count: what admin sees vs what client sees on their dashboard
+          if (issue.code === 'users_remaining_sessions_mismatch') {
+            result.push({
+              id: `sessions-${cu.userId}`,
+              severity: 'critical',
+              category: 'Session count',
+              title: 'You and the client see different remaining classes',
+              description: `Admin panel shows ${cu.stats.aggregatedRemainingSessions} remaining, but the client's dashboard shows ${cu.stats.usersRemainingSessions ?? '?'}. One of them is wrong.`,
+              userEmail: cu.email, userName: fullName, userSubTab: subTab, userId: localUser?.id || cu.userId,
+            });
+          }
 
-      for (const user of consistencyData.users) {
-        if (user.issueCount === 0) continue;
-        // Find matching local user for navigation
-        const localUser = users.find(u => u.email.toLowerCase() === user.email.toLowerCase());
-        const getUserSubTabForConsistency = (): 'confirmed' | 'pending' | 'archived' => {
-          if (!localUser) return 'confirmed';
-          if (localUser.blocked) return 'archived';
-          return localUser.status === 'confirmed' ? 'confirmed' : 'pending';
-        };
+          // Package class count doesn't add up
+          if (issue.code === 'package_remaining_sessions_mismatch') {
+            const match = issue.details.match(/remaining_sessions=(\d+), expected=(\d+)/);
+            if (match) {
+              result.push({
+                id: `pkg-count-${cu.userId}-${issue.details.slice(0, 15)}`,
+                severity: 'critical',
+                category: 'Session count',
+                title: 'Package class count doesn\'t add up',
+                description: `Package says ${match[1]} classes left, but based on bookings it should be ${match[2]}. The client may be able to book more or fewer classes than expected.`,
+                userEmail: cu.email, userName: fullName, userSubTab: subTab, userId: localUser?.id || cu.userId,
+              });
+            }
+          }
 
-        for (const issue of user.issues) {
-          // Skip payment mismatch from server if already generated client-side
-          if (issue.code === 'payment_status_mismatch_latest_package') continue;
+          // Cancelled class still counted as used
+          if (issue.code === 'cancelled_reservation_still_in_sessions_booked') {
+            const countMatch = issue.details.match(/(\d+) cancelled/);
+            const count = countMatch ? countMatch[1] : '?';
+            result.push({
+              id: `cancelled-counted-${cu.userId}-${issue.details.slice(0, 15)}`,
+              severity: 'warning',
+              category: 'Cancelled class',
+              title: `${count} cancelled class(es) still counted as used`,
+              description: 'A class was cancelled but the session was not returned to the package. The client has fewer classes than they should.',
+              userEmail: cu.email, userName: fullName, userSubTab: subTab, userId: localUser?.id || cu.userId,
+            });
+          }
 
-          result.push({
-            id: `consistency-${user.userId}-${issue.code}-${issue.details.slice(0, 20)}`,
-            severity: issueCodeToSeverity[issue.code] || 'warning',
-            category: 'Data Consistency',
-            title: issueCodeToTitle[issue.code] || issue.code,
-            description: issue.details,
-            userEmail: user.email,
-            userName: localUser ? `${localUser.name} ${localUser.surname}` : user.email,
-            userSubTab: getUserSubTabForConsistency(),
-            userId: localUser?.id || user.userId,
-          });
+          // Unpaid client booking too many classes
+          if (issue.code === 'unpaid_package_booking_limit_violation') {
+            const countMatch = issue.details.match(/has (\d+) upcoming/);
+            const count = countMatch ? countMatch[1] : 'several';
+            result.push({
+              id: `unpaid-limit-${cu.userId}-${issue.details.slice(0, 15)}`,
+              severity: 'warning',
+              category: 'Unpaid',
+              title: `Unpaid client has ${count} upcoming bookings`,
+              description: 'This client hasn\'t paid yet but has booked more than 2 upcoming classes. Consider restricting until payment is received.',
+              userEmail: cu.email, userName: fullName, userSubTab: subTab, userId: localUser?.id || cu.userId,
+            });
+          }
         }
       }
     }
 
-    // Sort: critical first, then warning, then info
-    const severityOrder: Record<AlertSeverity, number> = { critical: 0, warning: 1, info: 2 };
-    result.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
+    // Sort: critical first, then warning
+    const order: Record<AlertSeverity, number> = { critical: 0, warning: 1, info: 2 };
+    result.sort((a, b) => order[a.severity] - order[b.severity]);
 
     return result;
   }, [users, consistencyData]);
 
   const alertCounts = useMemo(() => {
-    const counts = { all: alerts.length, critical: 0, warning: 0, info: 0 };
-    for (const a of alerts) counts[a.severity]++;
+    const counts = { all: alerts.length, critical: 0, warning: 0 };
+    for (const a of alerts) {
+      if (a.severity === 'critical') counts.critical++;
+      else if (a.severity === 'warning') counts.warning++;
+    }
     return counts;
   }, [alerts]);
 
@@ -1548,8 +1525,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
             Alerts
             {alertCounts.all > 0 && (
               <span className={`text-white text-xs px-2 py-0.5 rounded-full ${
-                alertCounts.critical > 0 ? 'bg-red-500' :
-                alertCounts.warning > 0 ? 'bg-amber-500' : 'bg-blue-500'
+                alertCounts.critical > 0 ? 'bg-red-500' : 'bg-amber-500'
               }`}>
                 {alertCounts.all}
               </span>
@@ -2582,20 +2558,21 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
 
               {/* Severity filter pills */}
               <div className="flex gap-2 mt-3">
-                {(['all', 'critical', 'warning', 'info'] as const).map(sev => (
+                {([
+                  { key: 'all' as const, label: 'All', color: 'bg-[#6b5949]' },
+                  { key: 'critical' as const, label: 'Urgent', color: 'bg-red-500' },
+                  { key: 'warning' as const, label: 'Heads up', color: 'bg-amber-500' },
+                ]).map(({ key, label, color }) => (
                   <button
-                    key={sev}
-                    onClick={() => setAlertSeverityFilter(sev)}
+                    key={key}
+                    onClick={() => setAlertSeverityFilter(key)}
                     className={`px-3 py-1 text-xs rounded-full transition-colors ${
-                      alertSeverityFilter === sev
-                        ? sev === 'critical' ? 'bg-red-500 text-white'
-                        : sev === 'warning' ? 'bg-amber-500 text-white'
-                        : sev === 'info' ? 'bg-blue-500 text-white'
-                        : 'bg-[#6b5949] text-white'
+                      alertSeverityFilter === key
+                        ? `${color} text-white`
                         : 'bg-white border border-[#e8dfd8] text-[#8b7764] hover:bg-[#f5f0ee]'
                     }`}
                   >
-                    {sev === 'all' ? 'All' : sev.charAt(0).toUpperCase() + sev.slice(1)} ({alertCounts[sev]})
+                    {label} ({alertCounts[key]})
                   </button>
                 ))}
               </div>
