@@ -347,7 +347,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
           if (issue.code === 'package_remaining_sessions_mismatch') {
             const match = issue.details.match(/remaining_sessions=(\d+), expected=(\d+)/);
             if (match) {
-              result.push({ id: `pkg-count-${cu.userId}-${issue.details.slice(0, 15)}`, severity: 'critical', category: 'Session count', title: `System shows: ${match[1]} classes left\nBased on bookings: ${match[2]} classes left`, ...base });
+              result.push({ id: `pkg-count-${cu.userId}-${issue.details.slice(0, 15)}`, severity: 'critical', category: 'Session count', title: `Admin sees: ${match[1]} classes left\nUser sees: ${match[2]} classes left`, ...base });
             }
           }
 
