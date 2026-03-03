@@ -905,7 +905,7 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
       }
 
       refreshSessionExpiry();
-      toast.success(t.sessionCancelledSuccess || 'Session cancelled successfully!');
+      // No toast — optimistic UI already shows the cancellation
       // Slots reconcile automatically via useRealtimeAvailability (1.5s debounce)
 
     } catch (error) {
