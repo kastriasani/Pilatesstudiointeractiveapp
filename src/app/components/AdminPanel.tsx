@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Calendar, Users, LogOut, Mail, X, CheckCircle, Trash2, Ban, ShieldAlert, Settings, UserMinus, Send, AlertCircle, Loader2, Pencil, Plus, ChevronDown, ChevronUp, Clock, XCircle } from 'lucide-react';
 import { logo } from '../../assets/images';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { DevTools } from './DevTools';
 import { toast } from 'sonner';
+import { useRealtimeAvailability } from '@/hooks/useRealtimeAvailability';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -179,7 +180,6 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
   const [showChanges, setShowChanges] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
-  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Timeslot management state
   const [customSlots, setCustomSlots] = useState<any[]>([]);
@@ -206,16 +206,11 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
     fetchBookingChanges(showArchived);
   }, [showArchived]);
 
-  // Auto-poll every 30 seconds so admin sees user changes
-  useEffect(() => {
-    pollingRef.current = setInterval(() => {
-      fetchBookings(true);
-      fetchBookingChanges(showArchived);
-    }, 30000);
-    return () => {
-      if (pollingRef.current) clearInterval(pollingRef.current);
-    };
-  }, [showArchived]);
+  // Realtime: silent refresh when any reservation changes (replaces 30s polling)
+  useRealtimeAvailability(useCallback(() => {
+    fetchBookings(true);
+    fetchBookingChanges(showArchived);
+  }, [showArchived]));
 
   // Scroll to top whenever tab changes
   useEffect(() => {
