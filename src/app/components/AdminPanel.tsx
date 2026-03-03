@@ -233,7 +233,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
   const [consistencyData, setConsistencyData] = useState<ConsistencyCheckResult | null>(null);
   const [isLoadingConsistency, setIsLoadingConsistency] = useState(false);
   const [consistencyError, setConsistencyError] = useState<string | null>(null);
-  const [alertSeverityFilter, setAlertSeverityFilter] = useState<'all' | 'critical' | 'warning'>('all');
+  // alertSeverityFilter removed — no filter pills
 
   const fetchConsistencyCheck = async () => {
     setIsLoadingConsistency(true);
@@ -290,6 +290,9 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
     };
 
     for (const u of users) {
+      // Only active (non-blocked) users
+      if (u.blocked) continue;
+
       const pkgs = u.packages || [];
       const fullName = `${u.name} ${u.surname}`;
       const subTab = getSubTab(u);
@@ -375,9 +378,10 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
       for (const cu of consistencyData.users) {
         if (cu.issueCount === 0) continue;
         const localUser = users.find(u => u.email.toLowerCase() === cu.email.toLowerCase());
+        // Only active users
+        if (localUser?.blocked) continue;
         const fullName = localUser ? `${localUser.name} ${localUser.surname}` : cu.email;
-        const subTab: 'confirmed' | 'pending' | 'archived' = !localUser ? 'confirmed'
-          : localUser.blocked ? 'archived'
+        const subTab: 'confirmed' | 'pending' = !localUser ? 'confirmed'
           : localUser.status === 'confirmed' ? 'confirmed' : 'pending';
 
         for (const issue of cu.issues) {
@@ -446,59 +450,33 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
     return result;
   }, [users, consistencyData]);
 
-  const alertCounts = useMemo(() => {
-    const counts = { all: alerts.length, critical: 0, warning: 0 };
-    for (const a of alerts) {
-      if (a.severity === 'critical') counts.critical++;
-      else if (a.severity === 'warning') counts.warning++;
-    }
-    return counts;
-  }, [alerts]);
-
-  const filteredAlerts = useMemo(() => {
-    if (alertSeverityFilter === 'all') return alerts;
-    return alerts.filter(a => a.severity === alertSeverityFilter);
-  }, [alerts, alertSeverityFilter]);
-
-  // Group filtered alerts by category for the simplified list view
+  // Group alerts by category
   const groupedAlerts = useMemo(() => {
-    const groups: Array<{
-      category: string;
-      severity: AlertSeverity;
-      description: string;
-      alerts: Alert[];
-    }> = [];
-    const map = new Map<string, typeof groups[number]>();
-
-    // Each alert type gets a fixed description explaining what it means
     const categoryDescriptions: Record<string, string> = {
-      'Expired': 'Package passed its expiry date but is still active — client can still book when they shouldn\'t.',
-      'Over limit': 'Client attended or booked more classes than they paid for.',
-      'Session count': 'The number of remaining classes doesn\'t match between admin view and client view.',
-      'Expiring soon': 'Package is about to expire within 5 days — remind them to renew.',
-      'Not activated': 'Client signed up more than 7 days ago but was never activated — did they pay?',
-      'Payment': 'Client\'s payment status and their package payment status don\'t match.',
-      'Cancelled class': 'A cancelled class was never returned to the package — client has fewer classes than they should.',
-      'Unpaid': 'Unpaid client booked more than 2 upcoming classes — consider restricting until payment.',
+      'Expired': 'Package expired but still active — client can still book.',
+      'Over limit': 'More classes used than purchased.',
+      'Session count': 'Remaining classes don\'t match between your view and the client\'s.',
+      'Expiring soon': 'Package expires within 5 days.',
+      'Not activated': 'Signed up but never activated.',
+      'Payment': 'Payment status doesn\'t match between user and package.',
+      'Cancelled class': 'Cancelled class not returned to the package.',
+      'Unpaid': 'Unpaid client with too many upcoming bookings.',
     };
 
-    for (const alert of filteredAlerts) {
-      const key = alert.category;
-      if (!map.has(key)) {
-        const group = {
-          category: alert.category,
-          severity: alert.severity,
-          description: categoryDescriptions[alert.category] || '',
-          alerts: [],
-        };
-        map.set(key, group);
+    const groups: Array<{ category: string; description: string; alerts: Alert[] }> = [];
+    const map = new Map<string, typeof groups[number]>();
+
+    for (const alert of alerts) {
+      if (!map.has(alert.category)) {
+        const group = { category: alert.category, description: categoryDescriptions[alert.category] || '', alerts: [] };
+        map.set(alert.category, group);
         groups.push(group);
       }
-      map.get(key)!.alerts.push(alert);
+      map.get(alert.category)!.alerts.push(alert);
     }
 
     return groups;
-  }, [filteredAlerts]);
+  }, [alerts]);
 
   // Fetch all bookings on component mount
   useEffect(() => {
@@ -1563,11 +1541,9 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
           >
             <Bell className="w-4 h-4" />
             Alerts
-            {alertCounts.all > 0 && (
-              <span className={`text-white text-xs px-2 py-0.5 rounded-full ${
-                alertCounts.critical > 0 ? 'bg-red-500' : 'bg-amber-500'
-              }`}>
-                {alertCounts.all}
+            {alerts.length > 0 && (
+              <span className="text-white text-xs px-2 py-0.5 rounded-full bg-red-500">
+                {alerts.length}
               </span>
             )}
           </button>
@@ -2598,7 +2574,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
 
             {/* Grouped alert list */}
             {groupedAlerts.length > 0 ? (
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {groupedAlerts.map((group, gi) => (
                   <motion.div
                     key={group.category}
@@ -2608,23 +2584,25 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                     className="bg-white rounded-xl shadow-sm overflow-hidden"
                   >
                     <div className="px-4 pt-3 pb-1">
-                      <span className="text-sm font-semibold text-[#3d2f28]">{group.category}</span>
+                      <p className="text-sm font-semibold text-[#3d2f28]">{group.category}</p>
+                      <p className="text-xs text-[#8b7764] mt-0.5">{group.description}</p>
                     </div>
-                    <div className="px-4 pb-3 space-y-1">
-                      {group.alerts.map(alert => (
-                        <button
-                          key={alert.id}
-                          onClick={() => {
-                            if (alert.userSubTab) setUserSubTab(alert.userSubTab);
-                            if (alert.userId) setExpandedUserId(alert.userId);
-                            setActiveTab('users');
-                          }}
-                          className="block text-sm text-[#6b5949] hover:underline"
-                        >
-                          {alert.userName}
-                        </button>
-                      ))}
-                    </div>
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-t border-[#f0ebe7]">
+                          <th className="px-4 py-1.5 text-left text-xs font-medium text-[#8b7764]">Name</th>
+                          <th className="px-4 py-1.5 text-left text-xs font-medium text-[#8b7764]">Detail</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {group.alerts.map(alert => (
+                          <tr key={alert.id} className="border-t border-[#f5f0ee]">
+                            <td className="px-4 py-2 text-[#3d2f28] whitespace-nowrap">{alert.userName}</td>
+                            <td className="px-4 py-2 text-[#8b7764]">{alert.title}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </motion.div>
                 ))}
               </div>
