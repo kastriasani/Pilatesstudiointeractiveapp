@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-03-03T01:02:51.244Z",
+  "generatedAt": "2026-03-03T01:17:57.696Z",
   "sourceDir": "src",
-  "occurrenceCount": 52,
-  "uniquePathCount": 41,
+  "occurrenceCount": 53,
+  "uniquePathCount": 42,
   "entries": [
     {
       "method": "POST",
@@ -248,7 +248,7 @@
       "method": "GET",
       "path": "/slots/user-calendar",
       "file": "src/app/components/UserDashboard.tsx",
-      "line": 422
+      "line": 520
     },
     {
       "method": "POST",
@@ -266,37 +266,43 @@
       "method": "GET",
       "path": "/user/packages",
       "file": "src/app/components/UserDashboard.tsx",
-      "line": 336
+      "line": 433
     },
     {
       "method": "POST",
       "path": "/user/packages/:param/book-session",
       "file": "src/app/components/UserDashboard.tsx",
-      "line": 627
+      "line": 725
     },
     {
       "method": "POST",
       "path": "/user/packages/:param/book-session",
       "file": "src/app/components/UserDashboard.tsx",
-      "line": 752
+      "line": 850
     },
     {
       "method": "POST",
       "path": "/user/packages/:param/reschedule",
       "file": "src/app/components/UserDashboard.tsx",
-      "line": 571
+      "line": 669
     },
     {
       "method": "DELETE",
       "path": "/user/packages/:param/reservations/:param",
       "file": "src/app/components/UserDashboard.tsx",
-      "line": 918
+      "line": 1016
     },
     {
       "method": "POST",
       "path": "/user/packages/purchase",
       "file": "src/app/components/UserDashboard.tsx",
-      "line": 971
+      "line": 1069
+    },
+    {
+      "method": "POST",
+      "path": "/user/upload-avatar",
+      "file": "src/app/components/UserDashboard.tsx",
+      "line": 389
     },
     {
       "method": "DELETE",

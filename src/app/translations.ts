@@ -392,6 +392,13 @@ export const translations = {
     sessionsUsed: 'Klasë të përdorura',
     yourSessions2: 'KLASËT TUAJA',
     nextClassLabel: 'KLASA E RADHËS',
+
+    // Avatar upload
+    changePhoto: 'Ndrysho foton',
+    uploadPhoto: 'Ngarko foton',
+    uploading: 'Duke ngarkuar...',
+    uploadSuccess: 'Foto u ngarkua me sukses',
+    uploadError: 'Gabim gjatë ngarkimit të fotos',
   },
 
   MK: {
@@ -785,6 +792,13 @@ export const translations = {
     sessionsUsed: 'Искористени класи',
     yourSessions2: 'ВАШИТЕ КЛАСИ',
     nextClassLabel: 'СЛЕДНА КЛАСА',
+
+    // Avatar upload
+    changePhoto: 'Промени фотографија',
+    uploadPhoto: 'Прикачи фотографија',
+    uploading: 'Се прикачува...',
+    uploadSuccess: 'Фотографијата е прикачена успешно',
+    uploadError: 'Грешка при прикачување на фотографијата',
   },
 
   EN: {
@@ -1178,5 +1192,12 @@ export const translations = {
     sessionsUsed: 'Sessions used',
     yourSessions2: 'YOUR SESSIONS',
     nextClassLabel: 'NEXT CLASS',
+
+    // Avatar upload
+    changePhoto: 'Change photo',
+    uploadPhoto: 'Upload photo',
+    uploading: 'Uploading...',
+    uploadSuccess: 'Photo uploaded successfully',
+    uploadError: 'Error uploading photo',
   },
 };

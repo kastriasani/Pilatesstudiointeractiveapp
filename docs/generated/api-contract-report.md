@@ -1,12 +1,12 @@
 # API Contract Report
 
-Generated: 2026-03-03T01:02:51.540Z
+Generated: 2026-03-03T01:17:58.042Z
 
 ## Summary
 
 - Status: PASS
-- Backend unique paths: 50
-- Frontend unique paths: 41
+- Backend unique paths: 51
+- Frontend unique paths: 42
 - Docs unique paths: 12
 
 ## Frontend Paths Missing In Backend
@@ -67,6 +67,7 @@ Generated: 2026-03-03T01:02:51.540Z
 - /user/packages/:id/reschedule
 - /user/packages/:id/reservations/:reservationId
 - /user/packages/purchase
+- /user/upload-avatar
 - /users/:email
 - /validate-coupon
 

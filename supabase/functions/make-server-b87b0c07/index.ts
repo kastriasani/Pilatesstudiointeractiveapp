@@ -4480,7 +4480,8 @@ app.post("/make-server-b87b0c07/auth/setup-password", async (c) => {
         email: normalizedEmail,
         name: user.name,
         surname: user.surname,
-        language: user.language || 'sq'
+        language: user.language || 'sq',
+        profileImageUrl: user.profile_image_url || null
       }
     });
 
@@ -4723,7 +4724,8 @@ app.post("/make-server-b87b0c07/auth/login", async (c) => {
         name: user.name,
         surname: user.surname,
         mobile: user.mobile,
-        language: user.language || 'sq'
+        language: user.language || 'sq',
+        profileImageUrl: user.profile_image_url || null
       }
     });
 
@@ -4745,7 +4747,7 @@ app.get("/make-server-b87b0c07/auth/verify", async (c) => {
     const supabase = getSupabase();
     const { data: user, error: userError } = await supabase
       .from('users')
-      .select('email, name, surname, mobile, blocked')
+      .select('email, name, surname, mobile, blocked, profile_image_url')
       .eq('email', session.email)
       .maybeSingle();
 
@@ -4759,7 +4761,8 @@ app.get("/make-server-b87b0c07/auth/verify", async (c) => {
         email: user.email,
         name: user.name,
         surname: user.surname,
-        mobile: user.mobile
+        mobile: user.mobile,
+        profileImageUrl: user.profile_image_url || null
       }
     });
 
@@ -5867,6 +5870,105 @@ app.post("/make-server-b87b0c07/admin/archived-users/send-email", async (c) => {
   } catch (error: any) {
     console.error('Error sending re-engagement emails:', error);
     return c.json({ error: 'Failed to send emails', details: error.message }, 500);
+  }
+});
+
+// ============ USER AVATAR UPLOAD ============
+app.post('/make-server-b87b0c07/user/upload-avatar', async (c) => {
+  try {
+    const sessionAuth = await verifyUserSession(c);
+    if (!sessionAuth.valid) {
+      return c.json({ error: sessionAuth.error }, 401);
+    }
+    const session = sessionAuth.session;
+    const userEmail = session.email;
+
+    const formData = await c.req.formData();
+    const file = formData.get('avatar');
+
+    if (!file || !(file instanceof File)) {
+      return c.json({ error: 'No avatar file provided' }, 400);
+    }
+
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      return c.json({ error: 'Invalid file type. Use JPEG, PNG, or WebP.' }, 400);
+    }
+
+    // Validate file size (2MB max - images are already resized client-side)
+    if (file.size > 2 * 1024 * 1024) {
+      return c.json({ error: 'File too large. Maximum 2MB.' }, 400);
+    }
+
+    const arrayBuffer = await file.arrayBuffer();
+    const fileBuffer = new Uint8Array(arrayBuffer);
+
+    const supabase = getSupabase();
+
+    // Ensure assets bucket exists
+    const bucketName = 'assets';
+    const { data: buckets } = await supabase.storage.listBuckets();
+    const bucketExists = buckets?.some((bucket: any) => bucket.name === bucketName);
+
+    if (!bucketExists) {
+      const { error: createError } = await supabase.storage.createBucket(bucketName, {
+        public: true,
+        fileSizeLimit: 5242880,
+      });
+      if (createError) {
+        return c.json({ error: 'Failed to create storage bucket', details: createError.message }, 500);
+      }
+    }
+
+    // Use email hash as filename to avoid special chars
+    const encoder = new TextEncoder();
+    const data = encoder.encode(userEmail.toLowerCase());
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const emailHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 16);
+
+    const ext = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg';
+    const fileName = `profile-images/${emailHash}.${ext}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from(bucketName)
+      .upload(fileName, fileBuffer, {
+        contentType: file.type,
+        upsert: true,
+      });
+
+    if (uploadError) {
+      return c.json({ error: 'Failed to upload avatar', details: uploadError.message }, 500);
+    }
+
+    // Get public URL with cache-busting timestamp
+    const { data: urlData } = supabase.storage
+      .from(bucketName)
+      .getPublicUrl(fileName);
+
+    const publicUrl = `${urlData.publicUrl}?t=${Date.now()}`;
+
+    // Update user record
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({ profile_image_url: publicUrl })
+      .eq('email', userEmail);
+
+    if (updateError) {
+      console.error('Failed to update user profile_image_url:', updateError);
+    }
+
+    console.log(`✅ Avatar uploaded for ${userEmail}: ${publicUrl}`);
+
+    return c.json({
+      success: true,
+      url: publicUrl,
+    });
+
+  } catch (error: any) {
+    console.error('Error uploading avatar:', error);
+    return c.json({ error: 'Failed to upload avatar', details: error.message }, 500);
   }
 });
 

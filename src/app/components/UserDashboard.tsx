@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Calendar, CheckCircle, AlertCircle, Plus, ChevronDown, ChevronUp, Globe, Users, LogOut, Lock, ShoppingBag } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Calendar, CheckCircle, AlertCircle, Plus, ChevronDown, ChevronUp, Globe, Users, LogOut, Lock, ShoppingBag, Camera } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Language, translations } from '../translations';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
@@ -7,7 +7,7 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { toast } from 'sonner';
 import { getSkopjeTime, isTimeSlotPast } from '../../utils/dateUtils';
 import { useRealtimeAvailability } from '@/hooks/useRealtimeAvailability';
-import { Avatar, AvatarFallback } from '@/app/components/ui/avatar';
+import { Avatar, AvatarImage, AvatarFallback } from '@/app/components/ui/avatar';
 
 type UserDashboardProps = {
   onBack: () => void;
@@ -151,6 +151,20 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
   // Buy new package state
   const [isBuyingPackage, setIsBuyingPackage] = useState(false);
   const [showArchivedPackages, setShowArchivedPackages] = useState(false);
+
+  // Avatar upload state
+  const [profileImageUrl, setProfileImageUrl] = useState<string | null>(() => {
+    try {
+      const userData = localStorage.getItem('wellnest_user');
+      if (userData) {
+        const parsed = JSON.parse(userData);
+        return parsed.profileImageUrl || null;
+      }
+    } catch { /* ignore */ }
+    return null;
+  });
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   // Get session token from prop or localStorage as fallback
   const activeSessionToken = sessionToken || localStorage.getItem('wellnest_session') || '';
@@ -322,7 +336,90 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
     return () => clearInterval(interval);
   }, [packages, reservations, language]);
 
-  // Previously had debug logging here - removed for production
+  // Resize image to square (center-crop) and return as Blob
+  const resizeImage = (file: File, maxSize: number): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = maxSize;
+        canvas.height = maxSize;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return reject(new Error('Canvas not supported'));
+
+        // Center-crop to square
+        const size = Math.min(img.width, img.height);
+        const sx = (img.width - size) / 2;
+        const sy = (img.height - size) / 2;
+        ctx.drawImage(img, sx, sy, size, size, 0, 0, maxSize, maxSize);
+
+        canvas.toBlob(
+          (blob) => blob ? resolve(blob) : reject(new Error('Failed to create blob')),
+          'image/jpeg',
+          0.85
+        );
+      };
+      img.onerror = () => reject(new Error('Failed to load image'));
+      img.src = URL.createObjectURL(file);
+    });
+  };
+
+  // Handle avatar file selection, resize, and upload
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Reset input so same file can be re-selected
+    e.target.value = '';
+
+    if (!file.type.startsWith('image/')) {
+      toast.error(t.uploadError || 'Error uploading photo');
+      return;
+    }
+
+    setUploadingAvatar(true);
+    try {
+      // Resize to 256x256 square
+      const resizedBlob = await resizeImage(file, 256);
+
+      const formData = new FormData();
+      formData.append('avatar', resizedBlob, 'avatar.jpg');
+
+      const res = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/user/upload-avatar`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${publicAnonKey}`,
+            'X-Session-Token': activeSessionToken,
+          },
+          body: formData,
+        }
+      );
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Upload failed');
+
+      setProfileImageUrl(data.url);
+
+      // Update localStorage so it persists across page reloads
+      try {
+        const userData = localStorage.getItem('wellnest_user');
+        if (userData) {
+          const parsed = JSON.parse(userData);
+          parsed.profileImageUrl = data.url;
+          localStorage.setItem('wellnest_user', JSON.stringify(parsed));
+        }
+      } catch { /* ignore */ }
+
+      toast.success(t.uploadSuccess || 'Photo uploaded successfully');
+    } catch (err: any) {
+      console.error('Avatar upload error:', err);
+      toast.error(t.uploadError || 'Error uploading photo');
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
 
   // Load user's packages. Returns fresh packages array for callers that need it immediately.
   const loadPackages = async (): Promise<PackageDetails[]> => {
@@ -1090,11 +1187,32 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
       >
-        <Avatar className="size-12 bg-gradient-to-br from-[#9ca571] to-[#7A8F3A] shadow-md">
-          <AvatarFallback className="bg-transparent text-white font-bold text-sm">
-            {initials}
-          </AvatarFallback>
-        </Avatar>
+        {/* Clickable avatar with camera overlay */}
+        <div className="relative group cursor-pointer" onClick={() => avatarInputRef.current?.click()}>
+          <Avatar className="size-12 bg-gradient-to-br from-[#9ca571] to-[#7A8F3A] shadow-md">
+            {profileImageUrl && (
+              <AvatarImage src={profileImageUrl} alt={displayName} />
+            )}
+            <AvatarFallback className="bg-transparent text-white font-bold text-sm">
+              {initials}
+            </AvatarFallback>
+          </Avatar>
+          {/* Camera overlay */}
+          <div className="absolute inset-0 rounded-full bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+            {uploadingAvatar ? (
+              <div className="w-4 h-4 border-2 border-white/80 border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <Camera className="w-4 h-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+            )}
+          </div>
+          <input
+            ref={avatarInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleAvatarUpload}
+          />
+        </div>
         <div className="min-w-0">
           <h1 className="text-lg font-bold text-[#3d2f28] truncate">
             {t.greeting || 'Hello'}, {displayName}!

@@ -56,6 +56,7 @@ Last updated: 2026-03-02 (post waitlist removal)
 | 3632 | GET | `/slots/availability` | Public |
 | 3608 | GET | `/slots/live-days` | Public |
 | 5746 | POST | `/upload-logo` | Public |
+| 5873 | POST | `/user/upload-avatar` | User |
 | 4716 | PATCH | `/user/language` | User |
 | 4756 | GET | `/user/packages` | User |
 | 5233 | POST | `/user/packages/:id/book-session` | User |
