@@ -82,6 +82,8 @@ export function UserRoute() {
   return (
     <UserDashboard
       userEmail={user.email}
+      userName={user.name || ''}
+      userSurname={user.surname || ''}
       language={language}
       sessionToken={sessionToken}
       onBack={() => navigate('/')}

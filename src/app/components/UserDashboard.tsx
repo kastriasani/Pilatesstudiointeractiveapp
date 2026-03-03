@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Package, Calendar, Clock, CheckCircle, AlertCircle, Edit2, Plus, ChevronDown, ChevronUp, Globe, Users, LogOut, Lock, ShoppingBag } from 'lucide-react';
+import { Calendar, CheckCircle, AlertCircle, Plus, ChevronDown, ChevronUp, Globe, Users, LogOut, Lock, ShoppingBag } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { Language, translations } from '../translations';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { toast } from 'sonner';
 import { getSkopjeTime, isTimeSlotPast } from '../../utils/dateUtils';
 import { useRealtimeAvailability } from '@/hooks/useRealtimeAvailability';
+import { Avatar, AvatarFallback } from '@/app/components/ui/avatar';
 
 type UserDashboardProps = {
   onBack: () => void;
@@ -13,6 +15,8 @@ type UserDashboardProps = {
   language: Language;
   sessionToken: string;
   userEmail: string;
+  userName: string;
+  userSurname: string;
 };
 
 type BookedSession = {
@@ -73,7 +77,41 @@ type Reservation = {
   createdAt: string;
 };
 
-export function UserDashboard({ onBack, onLogout, language, sessionToken, userEmail }: UserDashboardProps) {
+// Progress ring SVG component
+function ProgressRing({ used, total, size = 64, stroke = 5 }: { used: number; total: number; size?: number; stroke?: number }) {
+  const radius = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const progress = total > 0 ? used / total : 0;
+  const offset = circumference * (1 - progress);
+
+  return (
+    <svg width={size} height={size} className="transform -rotate-90">
+      <circle
+        cx={size / 2}
+        cy={size / 2}
+        r={radius}
+        fill="none"
+        stroke="#e8e6e3"
+        strokeWidth={stroke}
+      />
+      <motion.circle
+        cx={size / 2}
+        cy={size / 2}
+        r={radius}
+        fill="none"
+        stroke="#7A8F3A"
+        strokeWidth={stroke}
+        strokeLinecap="round"
+        strokeDasharray={circumference}
+        initial={{ strokeDashoffset: circumference }}
+        animate={{ strokeDashoffset: offset }}
+        transition={{ duration: 1, delay: 0.5, ease: 'easeOut' }}
+      />
+    </svg>
+  );
+}
+
+export function UserDashboard({ onBack, onLogout, language, sessionToken, userEmail, userName, userSurname }: UserDashboardProps) {
   const { setLanguage } = useLanguage();
   const t = translations[language];
   const [packages, setPackages] = useState<PackageDetails[]>([]);
@@ -980,87 +1018,123 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
     return typeMap[packageType] || packageType;
   };
 
+  // Compute display name and initials
+  const displayName = userName || userEmail.split('@')[0];
+  const initials = userName && userSurname
+    ? `${userName[0]}${userSurname[0]}`.toUpperCase()
+    : userEmail.slice(0, 2).toUpperCase();
+
   if (loading) {
     return (
       <div className="h-full flex items-center justify-center">
-        <div className="text-center">
+        <motion.div
+          className="text-center"
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.3 }}
+        >
           <div className="w-12 h-12 border-4 border-[#9ca571] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-sm text-[#6b5949]">Loading your packages...</p>
-        </div>
+          <p className="text-sm text-[#6b5949]">{t.loadingAvailability || 'Loading...'}</p>
+        </motion.div>
       </div>
     );
   }
 
+  // Next session data for countdown card
+  const nextSession = getNextSession();
+  const nextSessionDay = (() => {
+    if (!nextSession) return '';
+    const dayNames: Record<Language, string[]> = {
+      SQ: ['E Diel', 'E Hënë', 'E Martë', 'E Mërkurë', 'E Enjte', 'E Premte', 'E Shtunë'],
+      MK: ['Недела', 'Понеделник', 'Вторник', 'Среда', 'Четврток', 'Петок', 'Сабота'],
+      EN: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+    };
+    const parts = nextSession.dateKey.split('-').map(Number);
+    const [y, mo, d] = parts.length === 3 ? parts : [getSkopjeTime().getFullYear(), ...parts];
+    const dow = new Date(y, mo - 1, d).getDay();
+    return dayNames[language][dow];
+  })();
+
   return (
     <div className="h-full overflow-y-auto px-4 py-4 pb-20">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6 pt-8">
-        {/* Logout Button */}
+      {/* Top Bar: Language + Logout */}
+      <div className="flex items-center justify-between pt-8 mb-5">
+        <div className="flex items-center gap-0.5 px-1.5 py-1 bg-[#f5f2ef] rounded-full">
+          <Globe className="w-3 h-3 text-[#6b5949] mr-0.5" />
+          {(['SQ', 'MK', 'EN'] as const).map((lang) => (
+            <button
+              key={lang}
+              onClick={() => setLanguage(lang)}
+              className={`text-[10px] font-medium px-1.5 py-0.5 rounded transition-colors ${
+                language === lang ? 'text-[#3d2f28] bg-white shadow-sm' : 'text-[#8b7764] hover:text-[#6b5949]'
+              }`}
+            >
+              {lang === 'MK' ? 'МК' : lang}
+            </button>
+          ))}
+        </div>
         <button
           onClick={onLogout}
           className="hover:bg-[#e8dfd8] rounded-lg p-2 transition-colors"
           title={t.logout}
         >
-          <LogOut className="w-6 h-6 text-[#6b5949]" />
+          <LogOut className="w-5 h-5 text-[#6b5949]" />
         </button>
-        <h1 className="text-lg font-semibold text-[#3d2f28]">
-          {t.myPackages || 'My Packages'}
-        </h1>
-        {/* Language Selector */}
-        <div className="flex items-center gap-0.5 px-1.5 py-1 bg-[#f5f2ef] rounded-full">
-          <Globe className="w-3 h-3 text-[#6b5949] mr-0.5" />
-          <button
-            onClick={() => setLanguage('SQ')}
-            className={`text-[10px] font-medium px-1 py-0.5 rounded transition-colors ${
-              language === 'SQ' ? 'text-[#3d2f28] bg-white' : 'text-[#8b7764] hover:text-[#6b5949]'
-            }`}
-          >
-            SQ
-          </button>
-          <button
-            onClick={() => setLanguage('MK')}
-            className={`text-[10px] font-medium px-1 py-0.5 rounded transition-colors ${
-              language === 'MK' ? 'text-[#3d2f28] bg-white' : 'text-[#8b7764] hover:text-[#6b5949]'
-            }`}
-          >
-            МК
-          </button>
-          <button
-            onClick={() => setLanguage('EN')}
-            className={`text-[10px] font-medium px-1 py-0.5 rounded transition-colors ${
-              language === 'EN' ? 'text-[#3d2f28] bg-white' : 'text-[#8b7764] hover:text-[#6b5949]'
-            }`}
-          >
-            EN
-          </button>
-        </div>
       </div>
 
-      {/* User Info + Next Session Countdown */}
-      <div className="bg-gradient-to-br from-[#9ca571] to-[#8a9463] rounded-2xl p-4 mb-6 text-white">
-        <div className="flex justify-between items-start">
-          <div>
-            <p className="text-xs opacity-90 mb-1">{t.loggedInAs || 'Logged in as'}</p>
-            <p className="text-sm font-semibold">{userEmail}</p>
-          </div>
-          {countdown && (
-            <div className="text-right">
-              <p className="text-xs opacity-90 mb-1">{t.nextClass || 'Next class'}</p>
-              <p className="text-lg font-bold">{countdown}</p>
-            </div>
-          )}
+      {/* Profile Header: Avatar + Greeting */}
+      <motion.div
+        className="flex items-center gap-3 mb-5"
+        initial={{ opacity: 0, y: -12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+      >
+        <Avatar className="size-12 bg-gradient-to-br from-[#9ca571] to-[#7A8F3A] shadow-md">
+          <AvatarFallback className="bg-transparent text-white font-bold text-sm">
+            {initials}
+          </AvatarFallback>
+        </Avatar>
+        <div className="min-w-0">
+          <h1 className="text-lg font-bold text-[#3d2f28] truncate">
+            {t.greeting || 'Hello'}, {displayName}!
+          </h1>
+          <p className="text-xs text-[#8b7764] truncate">{userEmail}</p>
         </div>
-        {lastUpdated && (
-          <p className="text-xs opacity-70 mt-2">
-            {t.lastUpdated || 'Last updated'}: {lastUpdated.toLocaleTimeString()}
-          </p>
-        )}
-      </div>
+      </motion.div>
+
+      {/* Next Class Countdown Hero Card */}
+      {nextSession && countdown && (
+        <motion.div
+          className="bg-gradient-to-br from-[#9ca571] to-[#7A8F3A] rounded-2xl p-4 mb-6 text-white shadow-lg"
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wider opacity-80 mb-1">
+                {t.nextClassLabel || 'NEXT CLASS'}
+              </p>
+              <p className="text-sm font-medium opacity-95">
+                {nextSessionDay}, {formatShortDate(nextSession.dateKey)} · {nextSession.time}
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-2xl font-bold tracking-tight">{countdown}</p>
+            </div>
+          </div>
+        </motion.div>
+      )}
 
       {/* Content: Packages + Reservations */}
       {packages.length === 0 && reservations.filter(r => !r.packageId).length === 0 ? (
-        // Empty state - no packages AND no standalone reservations
-        <div className="text-center py-12">
+        // Empty state
+        <motion.div
+          className="text-center py-12"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.4 }}
+        >
           <Calendar className="w-16 h-16 text-[#e8e6e3] mx-auto mb-4" />
           <p className="text-sm text-[#6b5949] mb-4">
             {t.whenIsNextClass || 'When is your next class?'}
@@ -1071,92 +1145,82 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
           >
             {t.bookNow || 'Book Now'}
           </button>
-        </div>
+        </motion.div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-5">
           {(() => {
             const terminalStatuses = ['fully_used', 'expired', 'cancelled'];
             const activePackages = packages.filter(p => !terminalStatuses.includes(p.packageStatus));
             const archivedPackages = packages.filter(p => terminalStatuses.includes(p.packageStatus));
             return (
               <>
-              {activePackages.map((pkg) => {
-            // Calculate session details
+              {activePackages.map((pkg, pkgIndex) => {
             const baseSessionCount = pkg.packageType === 'package8' ? 8 : pkg.packageType === 'package10' ? 10 : pkg.packageType === 'package12' ? 12 : pkg.totalSessions;
             const bonusSessions = pkg.totalSessions > baseSessionCount ? pkg.totalSessions - baseSessionCount : 0;
-            const bookedSlotIndices = pkg.bookedSessions?.map(s => s.slotIndex) || [];
+            const usedSessions = pkg.totalSessions - pkg.remainingSessions;
             const isInlineCalendarOpen = inlineBookingPackageId === pkg.id;
 
             return (
-              <div
+              <motion.div
                 key={pkg.id}
                 className="bg-white rounded-2xl p-5 shadow-md border border-[#e8e6e3]"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4, delay: pkgIndex * 0.1 }}
               >
-                {/* Package Header */}
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex-1">
-                    <h3 className="text-base font-semibold text-[#3d2f28] mb-1">
-                      {getPackageDisplayName(pkg.packageType)}
-                    </h3>
-                    <p className="text-xs text-[#6b5949]">
-                      <span className="font-semibold" style={{ color: '#7A8F3A' }}>{pkg.remainingSessions}</span> / {pkg.totalSessions} {t.sessionsRemaining || 'sessions remaining'}
-                    </p>
+                {/* Package Header with Progress Ring */}
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="relative flex-shrink-0">
+                    <ProgressRing used={usedSessions} total={pkg.totalSessions} />
+                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                      <span className="text-sm font-bold text-[#3d2f28]">{usedSessions}/{pkg.totalSessions}</span>
+                    </div>
                   </div>
-
-                  {/* Payment Status Badge */}
-                  <div className={`px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 ${
-                    pkg.packageStatus === 'active'
-                      ? 'bg-green-100 text-green-700'
-                      : pkg.packageStatus === 'fully_used'
-                      ? 'bg-stone-100 text-stone-600'
-                      : pkg.packageStatus === 'expired'
-                      ? 'bg-red-50 text-red-600'
-                      : pkg.packageStatus === 'cancelled'
-                      ? 'bg-red-100 text-red-700'
-                      : 'bg-amber-100 text-amber-700'
-                  }`}>
-                    {pkg.packageStatus === 'active' ? (
-                      <>
-                        <CheckCircle className="w-3.5 h-3.5" />
-                        {t.paid || 'Paid'}
-                      </>
-                    ) : pkg.packageStatus === 'fully_used' ? (
-                      <>
-                        <CheckCircle className="w-3.5 h-3.5" />
-                        {t.completed || 'Completed'}
-                      </>
-                    ) : pkg.packageStatus === 'expired' ? (
-                      <>
-                        <AlertCircle className="w-3.5 h-3.5" />
-                        {t.expired || 'Expired'}
-                      </>
-                    ) : pkg.packageStatus === 'cancelled' ? (
-                      <>
-                        <AlertCircle className="w-3.5 h-3.5" />
-                        {t.cancelled || 'Cancelled'}
-                      </>
-                    ) : (
-                      <>
-                        <AlertCircle className="w-3.5 h-3.5" />
-                        {t.needsPayment || 'Needs Payment'}
-                      </>
-                    )}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2">
+                      <h3 className="text-base font-semibold text-[#3d2f28] truncate">
+                        {getPackageDisplayName(pkg.packageType)}
+                      </h3>
+                      {/* Status Badge */}
+                      <div className={`flex-shrink-0 px-2.5 py-1 rounded-full text-[10px] font-semibold flex items-center gap-1 ${
+                        pkg.packageStatus === 'active'
+                          ? 'bg-green-100 text-green-700'
+                          : pkg.packageStatus === 'fully_used'
+                          ? 'bg-stone-100 text-stone-600'
+                          : pkg.packageStatus === 'expired'
+                          ? 'bg-red-50 text-red-600'
+                          : pkg.packageStatus === 'cancelled'
+                          ? 'bg-red-100 text-red-700'
+                          : 'bg-amber-100 text-amber-700'
+                      }`}>
+                        {pkg.packageStatus === 'active' ? (
+                          <><CheckCircle className="w-3 h-3" />{t.paid || 'Paid'}</>
+                        ) : pkg.packageStatus === 'pending' ? (
+                          <><AlertCircle className="w-3 h-3" />{t.needsPayment || 'Needs Payment'}</>
+                        ) : null}
+                      </div>
+                    </div>
+                    <p className="text-xs text-[#8b7764] mt-0.5">
+                      {pkg.remainingSessions} {t.sessionsRemaining || 'remaining'}
+                    </p>
                   </div>
                 </div>
 
                 {/* Unpaid Package Warning */}
                 {pkg.paymentStatus !== 'paid' && pkg.packageStatus !== 'cancelled' && pkg.packageStatus !== 'expired' && (
-                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-3">
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4">
                     <p className="text-xs text-amber-800 font-medium">
                       {t.packageUnpaid || 'Package not yet paid. Please visit the studio to complete payment.'}
                     </p>
                   </div>
                 )}
 
-                {/* Session Slots Row */}
+                {/* Session Slots Grid — 4-column */}
                 <div className="mb-4">
-                  <p className="text-xs text-[#6b5949] mb-2">{t.yourSessions || 'Your sessions'}:</p>
-                  <div className="flex flex-wrap gap-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-[#8b7764] mb-2.5">
+                    {t.yourSessions2 || 'YOUR SESSIONS'}
+                  </p>
+                  <div className="grid grid-cols-4 gap-2.5">
                     {Array.from({ length: pkg.totalSessions }).map((_, slotIndex) => {
                       const bookedSession = getBookedSessionForSlot(pkg, slotIndex);
                       const isBooked = !!bookedSession;
@@ -1165,23 +1229,26 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
                       const isBonus = slotIndex >= baseSessionCount;
 
                       return (
-                        <button
+                        <motion.button
                           key={slotIndex}
                           onClick={() => !isAttended && handleSlotClick(pkg, slotIndex)}
                           disabled={(pkg.remainingSessions <= 0 && !isBooked) || isAttended}
-                          className={`relative flex flex-col items-center justify-center min-w-[48px] h-[52px] rounded-lg text-xs font-medium transition-all ${
+                          initial={{ opacity: 0, scale: 0.8 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          transition={{ duration: 0.3, delay: 0.05 * slotIndex }}
+                          className={`relative flex flex-col items-center justify-center h-14 rounded-xl text-xs font-medium transition-all shadow-sm ${
                             isAttended
-                              ? 'bg-[#6b5949] text-white/90 cursor-default'
+                              ? 'bg-gradient-to-br from-[#6b5949] to-[#5a4a3c] text-white/90 cursor-default'
                               : isBooked
                                 ? isSelected
-                                  ? 'bg-[#7A8F3A] text-white ring-2 ring-offset-2 ring-[#7A8F3A]'
+                                  ? 'bg-gradient-to-br from-[#7A8F3A] to-[#6a7d30] text-white ring-2 ring-offset-2 ring-[#7A8F3A] shadow-md'
                                   : isBonus
-                                    ? 'bg-[#D8A93B] text-white'
-                                    : 'bg-[#7A8F3A] text-white'
+                                    ? 'bg-gradient-to-br from-[#D8A93B] to-[#c49a30] text-white'
+                                    : 'bg-gradient-to-br from-[#9ca571] to-[#7A8F3A] text-white'
                                 : isSelected
-                                  ? 'bg-white border-2 border-[#7A8F3A] text-[#7A8F3A]'
+                                  ? 'bg-white border-2 border-[#7A8F3A] text-[#7A8F3A] shadow-md'
                                   : pkg.remainingSessions > 0
-                                    ? 'bg-white border border-dashed border-[#9ca571] text-[#9ca571] hover:border-solid hover:bg-[#f5f3f0]'
+                                    ? 'bg-white border border-dashed border-[#9ca571]/60 text-[#9ca571] hover:border-solid hover:bg-[#f9f8f5] hover:shadow-md'
                                     : 'bg-[#f5f3f0] border border-[#e8e6e3] text-[#8b7764] cursor-not-allowed'
                           }`}
                         >
@@ -1197,171 +1264,178 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
                             </>
                           ) : (
                             <>
-                              <span className="text-lg">+</span>
-                              <span className="text-[9px]">{slotIndex + 1}</span>
+                              <span className="text-base leading-none">+</span>
+                              <span className="text-[9px] mt-0.5">{slotIndex + 1}</span>
                             </>
                           )}
-                          {/* Bonus indicator */}
                           {isBonus && !isAttended && (
-                            <span className="absolute -top-1 -right-1 w-3 h-3 bg-[#D8A93B] rounded-full flex items-center justify-center text-[8px] text-white font-bold">
+                            <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-[#D8A93B] rounded-full flex items-center justify-center text-[7px] text-white font-bold shadow-sm">
                               B
                             </span>
                           )}
-                          {/* Friend booking indicator */}
                           {bookedSession?.isFriendBooking && (
-                            <span className="absolute -top-1.5 -left-1.5 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
+                            <span className="absolute -top-1.5 -left-1.5 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center shadow-sm">
                               <Users className="w-2.5 h-2.5 text-white" />
                             </span>
                           )}
-                        </button>
+                        </motion.button>
                       );
                     })}
                   </div>
                 </div>
 
-                {/* Inline Booking Calendar (when a slot is selected) */}
-                {isInlineCalendarOpen && selectedSlotIndex !== null && (
-                  <div className="mb-4 bg-gradient-to-br from-[#f5f0ed] to-[#f0ebe6] rounded-xl p-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <p className="text-xs font-semibold text-[#6b5949]">
-                        {getBookedSessionForSlot(pkg, selectedSlotIndex)
-                          ? (t.rescheduleSession || 'Reschedule session')
-                          : (t.selectDateAndTime || 'Select date & time')}
-                        {' '}<span className="text-[#9ca571]">#{selectedSlotIndex + 1}</span>
-                      </p>
-                      <button
-                        onClick={() => {
-                          setInlineBookingPackageId(null);
-                          setSelectedSlotIndex(null);
-                        }}
-                        className="text-[#8b7764] hover:text-[#6b5949] text-sm"
-                      >
-                        ✕
-                      </button>
-                    </div>
+                {/* Inline Booking Calendar with AnimatePresence */}
+                <AnimatePresence>
+                  {isInlineCalendarOpen && selectedSlotIndex !== null && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.3 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="mb-4 bg-gradient-to-br from-[#f5f0ed] to-[#f0ebe6] rounded-xl p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <p className="text-xs font-semibold text-[#6b5949]">
+                            {getBookedSessionForSlot(pkg, selectedSlotIndex)
+                              ? (t.rescheduleSession || 'Reschedule session')
+                              : (t.selectDateAndTime || 'Select date & time')}
+                            {' '}<span className="text-[#9ca571]">#{selectedSlotIndex + 1}</span>
+                          </p>
+                          <button
+                            onClick={() => {
+                              setInlineBookingPackageId(null);
+                              setSelectedSlotIndex(null);
+                            }}
+                            className="text-[#8b7764] hover:text-[#6b5949] text-sm"
+                          >
+                            ✕
+                          </button>
+                        </div>
 
-                    {/* Cancel button for booked sessions */}
-                    {(() => {
-                      const selectedSession = getBookedSessionForSlot(pkg, selectedSlotIndex);
-                      if (!selectedSession) return null;
+                        {/* Cancel button for booked sessions */}
+                        {(() => {
+                          const selectedSession = getBookedSessionForSlot(pkg, selectedSlotIndex);
+                          if (!selectedSession) return null;
 
-                      if (canCancelSession(selectedSession)) {
-                        const within24h = isWithin24Hours(selectedSession);
-                        const graceSeconds = within24h ? getGracePeriodRemaining(selectedSession) : 0;
+                          if (canCancelSession(selectedSession)) {
+                            const within24h = isWithin24Hours(selectedSession);
+                            const graceSeconds = within24h ? getGracePeriodRemaining(selectedSession) : 0;
 
-                        return (
-                          <div className={`mb-3 p-3 bg-white rounded-lg border ${within24h ? 'border-orange-300' : 'border-red-200'}`}>
-                            <div className="flex items-center justify-between">
-                              <div className="text-xs text-[#6b5949]">
-                                <span className="font-medium">{t.currentBooking || 'Current booking'}:</span>{' '}
-                                {formatShortDate(selectedSession.dateKey)} {t.at || 'at'} {selectedSession.time}
-                                {within24h && graceSeconds > 0 && (
-                                  <span className="ml-2 text-orange-600 font-semibold">
-                                    ⏱️ {Math.floor(graceSeconds / 60)}:{String(graceSeconds % 60).padStart(2, '0')}
-                                  </span>
+                            return (
+                              <div className={`mb-3 p-3 bg-white rounded-lg border ${within24h ? 'border-orange-300' : 'border-red-200'}`}>
+                                <div className="flex items-center justify-between">
+                                  <div className="text-xs text-[#6b5949]">
+                                    <span className="font-medium">{t.currentBooking || 'Current booking'}:</span>{' '}
+                                    {formatShortDate(selectedSession.dateKey)} {t.at || 'at'} {selectedSession.time}
+                                    {within24h && graceSeconds > 0 && (
+                                      <span className="ml-2 text-orange-600 font-semibold">
+                                        {Math.floor(graceSeconds / 60)}:{String(graceSeconds % 60).padStart(2, '0')}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <button
+                                    onClick={() => handleCancelSession(pkg, selectedSession)}
+                                    disabled={isRescheduling}
+                                    className={`px-3 py-1.5 text-white text-xs font-medium rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${
+                                      within24h
+                                        ? 'bg-orange-500 hover:bg-orange-600'
+                                        : 'bg-red-500 hover:bg-red-600'
+                                    }`}
+                                  >
+                                    {isRescheduling ? '...' : (t.cancelSession || 'Cancel')}
+                                  </button>
+                                </div>
+                                {within24h && (
+                                  <p className="text-[10px] text-orange-600 mt-1">
+                                    {t.gracePeriodWarning || 'Grace period - cancel within 2 min of booking'}
+                                  </p>
                                 )}
                               </div>
-                              <button
-                                onClick={() => handleCancelSession(pkg, selectedSession)}
-                                disabled={isRescheduling}
-                                className={`px-3 py-1.5 text-white text-xs font-medium rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${
-                                  within24h
-                                    ? 'bg-orange-500 hover:bg-orange-600'
-                                    : 'bg-red-500 hover:bg-red-600'
-                                }`}
-                              >
-                                {isRescheduling ? '...' : (t.cancelSession || 'Cancel')}
-                              </button>
-                            </div>
-                            {within24h && (
-                              <p className="text-[10px] text-orange-600 mt-1">
-                                {t.gracePeriodWarning || 'Grace period - cancel within 2 min of booking'}
-                              </p>
-                            )}
-                          </div>
-                        );
-                      }
+                            );
+                          }
 
-                      // Session exists but can't be cancelled — show explanation if within 24h
-                      if (isWithin24Hours(selectedSession) && !selectedSession.attended) {
-                        return (
-                          <div className="mb-3 p-3 bg-white rounded-lg border border-[#e8e6e3]">
-                            <div className="text-xs text-[#6b5949]">
-                              <span className="font-medium">{t.currentBooking || 'Current booking'}:</span>{' '}
-                              {formatShortDate(selectedSession.dateKey)} {t.at || 'at'} {selectedSession.time}
-                            </div>
-                            <p className="text-[10px] text-[#8b7764] mt-1">
-                              {t.cannotCancelWithin24h || 'Cancellation is not available within 24 hours of class time.'}
-                            </p>
-                          </div>
-                        );
-                      }
+                          if (isWithin24Hours(selectedSession) && !selectedSession.attended) {
+                            return (
+                              <div className="mb-3 p-3 bg-white rounded-lg border border-[#e8e6e3]">
+                                <div className="text-xs text-[#6b5949]">
+                                  <span className="font-medium">{t.currentBooking || 'Current booking'}:</span>{' '}
+                                  {formatShortDate(selectedSession.dateKey)} {t.at || 'at'} {selectedSession.time}
+                                </div>
+                                <p className="text-[10px] text-[#8b7764] mt-1">
+                                  {t.cannotCancelWithin24h || 'Cancellation is not available within 24 hours of class time.'}
+                                </p>
+                              </div>
+                            );
+                          }
 
-                      return null;
-                    })()}
+                          return null;
+                        })()}
 
-                    {availableSlots.length === 0 ? (
-                      <p className="text-xs text-[#6b5949] text-center py-4">
-                        {t.noSlotsAvailable || 'No slots available'}
-                      </p>
-                    ) : (
-                      <div className="space-y-3 max-h-[300px] overflow-y-auto">
-                        {availableSlots.map((dateSlot) => (
-                          <div key={dateSlot.dateKey} className="bg-white rounded-lg p-3">
-                            <p className="text-xs font-semibold text-[#3d2f28] mb-2">
-                              {dateSlot.displayDate}
-                            </p>
-                            <div className="flex flex-wrap gap-2">
-                              {dateSlot.timeSlots.map((timeSlot) => (
-                                <button
-                                  key={timeSlot.time}
-                                  onClick={() => handleInlineBook(pkg, dateSlot.dateKey, timeSlot.time)}
-                                  disabled={timeSlot.available <= 0 || isRescheduling}
-                                  className={`py-2 px-3 rounded-lg text-xs font-medium transition-all ${
-                                    timeSlot.available > 0 && !isRescheduling
-                                      ? 'bg-[#9ca571] text-white hover:bg-[#8a9463]'
-                                      : 'bg-[#e8e6e3] text-[#8b7764] cursor-not-allowed'
-                                  }`}
-                                >
-                                  <span className="font-semibold">{isRescheduling ? '...' : timeSlot.time}</span>
-                                  {timeSlot.userBookings > 0 && (
-                                    <span className="ml-1 text-[10px]">●{timeSlot.userBookings}</span>
-                                  )}
-                                  <span className={`block text-[10px] mt-0.5 ${timeSlot.available > 0 ? 'text-white/80' : 'text-[#8b7764]'}`}>
-                                    {timeSlot.available <= 0
-                                      ? (t.full || 'Full')
-                                      : `${timeSlot.available} ${timeSlot.available === 1
-                                          ? (t.spotFree || 'spot')
-                                          : (t.spotsFree || 'spots')}`
-                                    }
-                                  </span>
-                                </button>
-                              ))}
-                            </div>
+                        {availableSlots.length === 0 ? (
+                          <p className="text-xs text-[#6b5949] text-center py-4">
+                            {t.noSlotsAvailable || 'No slots available'}
+                          </p>
+                        ) : (
+                          <div className="space-y-3 max-h-[300px] overflow-y-auto">
+                            {availableSlots.map((dateSlot) => (
+                              <div key={dateSlot.dateKey} className="bg-white rounded-lg p-3">
+                                <p className="text-xs font-semibold text-[#3d2f28] mb-2">
+                                  {dateSlot.displayDate}
+                                </p>
+                                <div className="flex flex-wrap gap-2">
+                                  {dateSlot.timeSlots.map((timeSlot) => (
+                                    <button
+                                      key={timeSlot.time}
+                                      onClick={() => handleInlineBook(pkg, dateSlot.dateKey, timeSlot.time)}
+                                      disabled={timeSlot.available <= 0 || isRescheduling}
+                                      className={`py-2 px-3 rounded-lg text-xs font-medium transition-all ${
+                                        timeSlot.available > 0 && !isRescheduling
+                                          ? 'bg-[#9ca571] text-white hover:bg-[#8a9463]'
+                                          : 'bg-[#e8e6e3] text-[#8b7764] cursor-not-allowed'
+                                      }`}
+                                    >
+                                      <span className="font-semibold">{isRescheduling ? '...' : timeSlot.time}</span>
+                                      {timeSlot.userBookings > 0 && (
+                                        <span className="ml-1 text-[10px]">{timeSlot.userBookings}</span>
+                                      )}
+                                      <span className={`block text-[10px] mt-0.5 ${timeSlot.available > 0 ? 'text-white/80' : 'text-[#8b7764]'}`}>
+                                        {timeSlot.available <= 0
+                                          ? (t.full || 'Full')
+                                          : `${timeSlot.available} ${timeSlot.available === 1
+                                              ? (t.spotFree || 'spot')
+                                              : (t.spotsFree || 'spots')}`
+                                        }
+                                      </span>
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
                           </div>
-                        ))}
+                        )}
                       </div>
-                    )}
-                  </div>
-                )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
                 {/* Legend */}
-                <div className="flex flex-wrap items-center gap-3 text-xs text-[#8b7764] mb-3">
+                <div className="flex flex-wrap items-center gap-3 text-[10px] text-[#8b7764]">
                   <span className="flex items-center gap-1">
-                    <span style={{ width: '8px', height: '8px', borderRadius: '2px', backgroundColor: '#6b5949', display: 'inline-block' }} />
+                    <span className="w-2 h-2 rounded-sm bg-[#6b5949] inline-block" />
                     {t.attended || 'Attended'}
                   </span>
                   <span className="flex items-center gap-1">
-                    <span style={{ width: '8px', height: '8px', borderRadius: '2px', backgroundColor: '#7A8F3A', display: 'inline-block' }} />
+                    <span className="w-2 h-2 rounded-sm bg-[#7A8F3A] inline-block" />
                     {t.booked || 'Booked'}
                   </span>
                   <span className="flex items-center gap-1">
-                    <span style={{ width: '8px', height: '8px', borderRadius: '2px', border: '1px dashed #9ca571', display: 'inline-block' }} />
+                    <span className="w-2 h-2 rounded-sm border border-dashed border-[#9ca571] inline-block" />
                     {t.available || 'Available'}
                   </span>
                   {bonusSessions > 0 && (
                     <span className="flex items-center gap-1">
-                      <span style={{ width: '8px', height: '8px', borderRadius: '2px', backgroundColor: '#D8A93B', display: 'inline-block' }} />
+                      <span className="w-2 h-2 rounded-sm bg-[#D8A93B] inline-block" />
                       {t.bonus || 'Bonus'}
                     </span>
                   )}
@@ -1369,19 +1443,19 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
 
                 {/* Package status footer for non-activated packages */}
                 {pkg.activationStatus !== 'activated' && (
-                  <div className="pt-3 border-t border-[#e8e6e3]">
+                  <div className="pt-3 mt-3 border-t border-[#e8e6e3]">
                     <p className="text-xs text-[#8b7764]">
                       {t.pendingPayment || 'Pending Payment'}
                     </p>
                   </div>
                 )}
-              </div>
+              </motion.div>
             );
           })}
 
-              {/* Archived Packages Section */}
+              {/* Archived Packages */}
               {archivedPackages.length > 0 && (
-                <div className="mt-4">
+                <div>
                   <button
                     onClick={() => setShowArchivedPackages(!showArchivedPackages)}
                     className="flex items-center gap-2 w-full py-2 text-sm text-[#8b7764] hover:text-[#6b5949] transition-colors"
@@ -1389,200 +1463,178 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
                     {showArchivedPackages ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                     <span className="font-medium">{t.archivedPackages || 'Archived Packages'} ({archivedPackages.length})</span>
                   </button>
-                  {showArchivedPackages && (
-                    <div className="space-y-3 mt-2 opacity-70">
-                      {archivedPackages.map((pkg) => {
-                        const baseSessionCount = pkg.packageType === 'package8' ? 8 : pkg.packageType === 'package10' ? 10 : pkg.packageType === 'package12' ? 12 : pkg.totalSessions;
-                        const bonusSessions = pkg.totalSessions > baseSessionCount ? pkg.totalSessions - baseSessionCount : 0;
+                  <AnimatePresence>
+                    {showArchivedPackages && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.3 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="space-y-3 mt-2 opacity-70">
+                          {archivedPackages.map((pkg) => {
+                            const baseSessionCount = pkg.packageType === 'package8' ? 8 : pkg.packageType === 'package10' ? 10 : pkg.packageType === 'package12' ? 12 : pkg.totalSessions;
+                            const bonusSessions = pkg.totalSessions > baseSessionCount ? pkg.totalSessions - baseSessionCount : 0;
 
-                        return (
-                          <div
-                            key={pkg.id}
-                            className="bg-white/60 rounded-2xl p-5 shadow-sm border border-[#e8e6e3]"
-                          >
-                            {/* Package Header */}
-                            <div className="flex items-start justify-between mb-3">
-                              <div className="flex-1">
-                                <h3 className="text-base font-semibold text-[#3d2f28] mb-1">
-                                  {getPackageDisplayName(pkg.packageType)}
-                                </h3>
-                                <p className="text-xs text-[#6b5949]">
-                                  <span className="font-semibold">{pkg.remainingSessions}</span> / {pkg.totalSessions} {t.sessionsRemaining || 'sessions remaining'}
-                                </p>
+                            return (
+                              <div
+                                key={pkg.id}
+                                className="bg-white/60 rounded-2xl p-5 shadow-sm border border-[#e8e6e3]"
+                              >
+                                <div className="flex items-start justify-between mb-3">
+                                  <div className="flex-1">
+                                    <h3 className="text-base font-semibold text-[#3d2f28] mb-1">
+                                      {getPackageDisplayName(pkg.packageType)}
+                                    </h3>
+                                    <p className="text-xs text-[#6b5949]">
+                                      <span className="font-semibold">{pkg.remainingSessions}</span> / {pkg.totalSessions} {t.sessionsRemaining || 'sessions remaining'}
+                                    </p>
+                                  </div>
+                                  <div className={`px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 ${
+                                    pkg.packageStatus === 'fully_used'
+                                      ? 'bg-stone-100 text-stone-600'
+                                      : pkg.packageStatus === 'expired'
+                                      ? 'bg-red-50 text-red-600'
+                                      : 'bg-red-100 text-red-700'
+                                  }`}>
+                                    {pkg.packageStatus === 'fully_used' ? (
+                                      <><CheckCircle className="w-3.5 h-3.5" />{t.completed || 'Completed'}</>
+                                    ) : pkg.packageStatus === 'expired' ? (
+                                      <><AlertCircle className="w-3.5 h-3.5" />{t.expired || 'Expired'}</>
+                                    ) : (
+                                      <><AlertCircle className="w-3.5 h-3.5" />{t.cancelled || 'Cancelled'}</>
+                                    )}
+                                  </div>
+                                </div>
+                                <div>
+                                  <p className="text-xs text-[#6b5949] mb-2">{t.yourSessions || 'Your sessions'}:</p>
+                                  <div className="grid grid-cols-4 gap-2">
+                                    {Array.from({ length: pkg.totalSessions }).map((_, slotIndex) => {
+                                      const bookedSession = getBookedSessionForSlot(pkg, slotIndex);
+                                      const isBooked = !!bookedSession;
+                                      const isAttended = bookedSession?.attended === true;
+                                      const isBonus = slotIndex >= baseSessionCount;
+
+                                      return (
+                                        <div
+                                          key={slotIndex}
+                                          className={`relative flex flex-col items-center justify-center h-14 rounded-xl text-xs font-medium ${
+                                            isAttended
+                                              ? 'bg-[#6b5949] text-white/90'
+                                              : isBooked
+                                                ? isBonus ? 'bg-[#D8A93B] text-white' : 'bg-[#7A8F3A] text-white'
+                                                : 'bg-[#f5f3f0] border border-[#e8e6e3] text-[#8b7764]'
+                                          }`}
+                                        >
+                                          {isBooked ? (
+                                            <>
+                                              <span className="text-[10px] font-bold">✓</span>
+                                              <span className="text-[9px] opacity-90 leading-tight">
+                                                {formatShortDate(bookedSession.dateKey)}
+                                              </span>
+                                              <span className="text-[9px] opacity-90 leading-tight">
+                                                {bookedSession.time}
+                                              </span>
+                                            </>
+                                          ) : (
+                                            <span className="text-[9px]">{slotIndex + 1}</span>
+                                          )}
+                                          {isBonus && !isAttended && (
+                                            <span className="absolute -top-1 -right-1 w-3 h-3 bg-[#D8A93B] rounded-full flex items-center justify-center text-[8px] text-white font-bold">
+                                              B
+                                            </span>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
                               </div>
-
-                              {/* Status Badge */}
-                              <div className={`px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 ${
-                                pkg.packageStatus === 'fully_used'
-                                  ? 'bg-stone-100 text-stone-600'
-                                  : pkg.packageStatus === 'expired'
-                                  ? 'bg-red-50 text-red-600'
-                                  : 'bg-red-100 text-red-700'
-                              }`}>
-                                {pkg.packageStatus === 'fully_used' ? (
-                                  <>
-                                    <CheckCircle className="w-3.5 h-3.5" />
-                                    {t.completed || 'Completed'}
-                                  </>
-                                ) : pkg.packageStatus === 'expired' ? (
-                                  <>
-                                    <AlertCircle className="w-3.5 h-3.5" />
-                                    {t.expired || 'Expired'}
-                                  </>
-                                ) : (
-                                  <>
-                                    <AlertCircle className="w-3.5 h-3.5" />
-                                    {t.cancelled || 'Cancelled'}
-                                  </>
-                                )}
-                              </div>
-                            </div>
-
-                            {/* Session Slots Row (read-only) */}
-                            <div>
-                              <p className="text-xs text-[#6b5949] mb-2">{t.yourSessions || 'Your sessions'}:</p>
-                              <div className="flex flex-wrap gap-2">
-                                {Array.from({ length: pkg.totalSessions }).map((_, slotIndex) => {
-                                  const bookedSession = getBookedSessionForSlot(pkg, slotIndex);
-                                  const isBooked = !!bookedSession;
-                                  const isAttended = bookedSession?.attended === true;
-                                  const isBonus = slotIndex >= baseSessionCount;
-
-                                  return (
-                                    <div
-                                      key={slotIndex}
-                                      className={`relative flex flex-col items-center justify-center min-w-[48px] h-[52px] rounded-lg text-xs font-medium ${
-                                        isAttended
-                                          ? 'bg-[#6b5949] text-white/90'
-                                          : isBooked
-                                            ? isBonus ? 'bg-[#D8A93B] text-white' : 'bg-[#7A8F3A] text-white'
-                                            : 'bg-[#f5f3f0] border border-[#e8e6e3] text-[#8b7764]'
-                                      }`}
-                                    >
-                                      {isBooked ? (
-                                        <>
-                                          <span className="text-[10px] font-bold">✓</span>
-                                          <span className="text-[9px] opacity-90 leading-tight">
-                                            {formatShortDate(bookedSession.dateKey)}
-                                          </span>
-                                          <span className="text-[9px] opacity-90 leading-tight">
-                                            {bookedSession.time}
-                                          </span>
-                                        </>
-                                      ) : (
-                                        <span className="text-[9px]">{slotIndex + 1}</span>
-                                      )}
-                                      {isBonus && !isAttended && (
-                                        <span className="absolute -top-1 -right-1 w-3 h-3 bg-[#D8A93B] rounded-full flex items-center justify-center text-[8px] text-white font-bold">
-                                          B
-                                        </span>
-                                      )}
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
+                            );
+                          })}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
               )}
               </>
             );
           })()}
 
-          {/* Buy New Package Section - Always visible */}
+          {/* Buy New Package Section — Compact cards with left accent bar */}
           {packages.length > 0 && (
-            <div className="mt-6">
-              <div className="flex items-center gap-2 mb-4">
+            <div className="mt-4">
+              <div className="flex items-center gap-2 mb-3">
                 <ShoppingBag className="w-4 h-4 text-[#6b5949]" />
-                <h3 className="text-sm font-semibold text-[#3d2f28]">
+                <h3 className="text-[10px] font-semibold uppercase tracking-wider text-[#8b7764]">
                   {t.buyNewPackage || 'Buy New Package'}
                 </h3>
               </div>
-              <div className="space-y-3">
-                {newPackageOptions.map((pkg) => (
-                  <div
+              <div className="space-y-2.5">
+                {newPackageOptions.map((pkg, i) => (
+                  <motion.div
                     key={pkg.type}
-                    className={`relative rounded-2xl transition-all overflow-hidden ${
-                      isEligibleForNewPackage
-                        ? pkg.isRecommended
-                          ? 'bg-gradient-to-br from-white via-white to-[#f8f9f4] border-2 border-[#9ca571]/40 shadow-md'
-                          : 'bg-white border border-[#e8e6e3] shadow-sm'
-                        : 'bg-gray-100 border border-gray-200'
-                    }`}
+                    initial={{ opacity: 0, x: -16 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ duration: 0.4, delay: 0.1 * i }}
+                    className="relative"
                   >
-                    {/* Locked overlay */}
+                    {/* Locked state */}
                     {!isEligibleForNewPackage && (
-                      <div className="absolute inset-0 bg-gray-200/30 z-10 flex items-center justify-center rounded-xl">
-                        <div className="text-center px-4">
-                          <Lock className="w-6 h-6 text-[#8b7764]/60 mx-auto mb-2" />
-                          <p className="text-xs text-[#8b7764] font-medium leading-snug">
-                            {t.packageLockedMessage || 'Available when you have 1 class remaining'}
-                          </p>
-                        </div>
-                      </div>
+                      <div className="absolute inset-0 bg-white/60 z-10 rounded-xl" />
                     )}
-
                     <button
                       onClick={() => {
                         if (!isEligibleForNewPackage || isBuyingPackage) return;
                         handlePurchasePackage(pkg.type);
                       }}
                       disabled={!isEligibleForNewPackage || isBuyingPackage}
-                      className={`w-full p-4 text-left ${!isEligibleForNewPackage ? 'opacity-40' : ''}`}
+                      className={`w-full flex items-stretch rounded-xl overflow-hidden border transition-all ${
+                        isEligibleForNewPackage
+                          ? pkg.isRecommended
+                            ? 'border-[#9ca571]/40 shadow-md bg-white'
+                            : 'border-[#e8e6e3] shadow-sm bg-white'
+                          : 'border-gray-200 bg-gray-50 opacity-60'
+                      }`}
                     >
-                      {/* Recommended Badge */}
-                      {pkg.isRecommended && (
-                        <div className={`text-white text-[10px] px-3 py-1 rounded-full inline-block mb-3 font-semibold uppercase tracking-wider ${
-                          isEligibleForNewPackage
-                            ? 'bg-gradient-to-r from-[#9ca571] to-[#8a9463] shadow-sm'
-                            : 'bg-gray-400'
-                        }`}>
-                          {t.recommended || 'Recommended'}
+                      {/* Left accent bar */}
+                      <div className={`w-1.5 flex-shrink-0 ${
+                        pkg.isRecommended ? 'bg-gradient-to-b from-[#9ca571] to-[#7A8F3A]' : 'bg-[#e8e6e3]'
+                      }`} />
+                      <div className="flex-1 p-3.5 text-left">
+                        {pkg.isRecommended && (
+                          <p className="text-[9px] font-bold uppercase tracking-widest text-[#7A8F3A] mb-1">
+                            {t.recommended || 'Recommended'}
+                          </p>
+                        )}
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-bold text-[#3d2f28]">{pkg.sessions} {t.sessions || 'CLASSES'}</p>
+                            <p className="text-[10px] text-[#8b7764] mt-0.5">
+                              {t.classDuration || '50 min'} · {t.validityPeriod || '35 days'} · {t.groupClass || 'Group'}
+                            </p>
+                          </div>
+                          <p className="text-lg font-bold text-[#3d2f28]">
+                            {pkg.price} <span className="text-xs font-semibold text-[#8b7764]">DEN</span>
+                          </p>
                         </div>
-                      )}
-
-                      {/* Package name + price row */}
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="text-lg font-bold text-[#3d2f28] tracking-tight">{pkg.label}</div>
-                        <div className="text-right">
-                          <span className="text-xl font-bold text-[#3d2f28]">{pkg.price}</span>
-                          <span className="text-xs font-semibold text-[#6b5949] ml-1">DEN</span>
-                        </div>
-                      </div>
-
-                      {/* Description */}
-                      <p className="text-xs text-[#8b7764] leading-relaxed mb-2">
-                        {pkg.type === 'package8' && (t.package8Detail || '8 training packages in a group (twice a week). For 35 days.')}
-                        {pkg.type === 'package10' && (t.package10Detail || '10 training packages in a group (twice a week). For 35 days.')}
-                        {pkg.type === 'package12' && (t.package12Detail || '12 training packages in a group (three times a week). For 35 days.')}
-                      </p>
-
-                      {/* Details row */}
-                      <div className="flex flex-wrap gap-3 text-[11px] text-[#6b5949]">
-                        <span className="flex items-center gap-1">
-                          <span className="w-1 h-1 bg-[#9ca571] rounded-full"></span>
-                          {t.classDuration || '50 min'}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <span className="w-1 h-1 bg-[#9ca571] rounded-full"></span>
-                          {t.validityPeriod || 'Valid 35 days'}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <span className="w-1 h-1 bg-[#9ca571] rounded-full"></span>
-                          {t.groupClass || 'Group class'}
-                        </span>
                       </div>
                     </button>
-                  </div>
+                  </motion.div>
                 ))}
 
-                {/* Pay at studio note */}
+                {/* Lock message below cards */}
+                {!isEligibleForNewPackage && (
+                  <div className="flex items-center justify-center gap-1.5 py-2 text-xs text-[#8b7764]">
+                    <Lock className="w-3.5 h-3.5" />
+                    <span>{t.packageLockedMessage || 'Available when you have 1 class remaining'}</span>
+                  </div>
+                )}
+
                 {isEligibleForNewPackage && (
-                  <p className="text-xs text-[#8b7764] text-center mt-2">
+                  <p className="text-[10px] text-[#8b7764] text-center mt-1">
                     {t.payAtStudio || 'Payment is made at the studio'}
                   </p>
                 )}
@@ -1590,17 +1642,16 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
             </div>
           )}
 
-          {/* Single Session Reservations (not linked to packages) */}
+          {/* Single Session Reservations */}
           {reservations.filter(r => {
             if (r.packageId) return false;
             if (r.reservationStatus === 'cancelled' || r.reservationStatus === 'no_show' || r.reservationStatus === 'attended') return false;
-            // Filter out past sessions
             const parts = r.dateKey.split('-').map(Number);
             const [year, month, day] = parts.length === 3 ? parts : [getSkopjeTime().getFullYear(), ...parts];
             const [h, m] = r.timeSlot.split(':').map(Number);
             return new Date(year, month - 1, day, h, m + 50) > getSkopjeTime();
           }).length > 0 && (
-            <div className="mt-6">
+            <div className="mt-4">
               <h3 className="text-sm font-semibold text-[#3d2f28] mb-3">
                 {t.yourNextClass || 'Your Next Class'}
               </h3>
@@ -1634,15 +1685,9 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
                           : 'bg-amber-100 text-amber-700'
                       }`}>
                         {res.paymentStatus === 'paid' || res.reservationStatus === 'confirmed' ? (
-                          <>
-                            <CheckCircle className="w-3.5 h-3.5" />
-                            {t.confirmed || 'Confirmed'}
-                          </>
+                          <><CheckCircle className="w-3.5 h-3.5" />{t.confirmed || 'Confirmed'}</>
                         ) : (
-                          <>
-                            <AlertCircle className="w-3.5 h-3.5" />
-                            {t.pendingPayment || 'Pending Payment'}
-                          </>
+                          <><AlertCircle className="w-3.5 h-3.5" />{t.pendingPayment || 'Pending Payment'}</>
                         )}
                       </div>
                       {res.isFriendBooking && (
@@ -1656,7 +1701,6 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
                 ))}
               </div>
 
-              {/* Book Another Class Button */}
               <button
                 onClick={() => window.location.href = '/'}
                 className="w-full mt-4 bg-[#9ca571] text-white py-3 rounded-xl text-sm font-medium hover:bg-[#8a9463] transition-colors flex items-center justify-center gap-2"

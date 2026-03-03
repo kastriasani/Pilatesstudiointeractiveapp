@@ -386,6 +386,12 @@ export const translations = {
     checkBackLater: 'Ju lutem kontrolloni përsëri më vonë',
     fillAllFields: 'Ju lutem plotësoni të gjitha fushat e kërkuara',
     invalidEmail: 'Ju lutem vendosni një adresë email të vlefshme',
+
+    // Dashboard redesign
+    greeting: 'Përshëndetje',
+    sessionsUsed: 'Klasë të përdorura',
+    yourSessions2: 'KLASËT TUAJA',
+    nextClassLabel: 'KLASA E RADHËS',
   },
 
   MK: {
@@ -773,6 +779,12 @@ export const translations = {
     checkBackLater: 'Ве молиме проверете подоцна',
     fillAllFields: 'Ве молиме пополнете ги сите задолжителни полиња',
     invalidEmail: 'Ве молиме внесете валидна е-маил адреса',
+
+    // Dashboard redesign
+    greeting: 'Здраво',
+    sessionsUsed: 'Искористени класи',
+    yourSessions2: 'ВАШИТЕ КЛАСИ',
+    nextClassLabel: 'СЛЕДНА КЛАСА',
   },
 
   EN: {
@@ -1160,5 +1172,11 @@ export const translations = {
     checkBackLater: 'Please check back later',
     fillAllFields: 'Please fill in all required fields',
     invalidEmail: 'Please enter a valid email address',
+
+    // Dashboard redesign
+    greeting: 'Hello',
+    sessionsUsed: 'Sessions used',
+    yourSessions2: 'YOUR SESSIONS',
+    nextClassLabel: 'NEXT CLASS',
   },
 };
