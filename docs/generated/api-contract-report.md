@@ -1,12 +1,12 @@
 # API Contract Report
 
-Generated: 2026-03-03T01:17:58.042Z
+Generated: 2026-03-03T01:45:23.662Z
 
 ## Summary
 
 - Status: PASS
 - Backend unique paths: 51
-- Frontend unique paths: 42
+- Frontend unique paths: 43
 - Docs unique paths: 12
 
 ## Frontend Paths Missing In Backend
@@ -24,7 +24,6 @@ Generated: 2026-03-03T01:17:58.042Z
 - /admin/sync-user-sessions
 - /auth/logout
 - /auth/register
-- /auth/verify
 - /health
 - /migrate-bookings
 - /packages/:id

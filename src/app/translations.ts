@@ -399,6 +399,12 @@ export const translations = {
     uploading: 'Duke ngarkuar...',
     uploadSuccess: 'Foto u ngarkua me sukses',
     uploadError: 'Gabim gjatë ngarkimit të fotos',
+    levelBronze: 'Bronz',
+    levelSilver: 'Argjend',
+    levelGold: 'Ar',
+    levelPlatinum: 'Platinë',
+    levelDiamond: 'Diamant',
+    sessionsLabel: 'seanca',
   },
 
   MK: {
@@ -799,6 +805,12 @@ export const translations = {
     uploading: 'Се прикачува...',
     uploadSuccess: 'Фотографијата е прикачена успешно',
     uploadError: 'Грешка при прикачување на фотографијата',
+    levelBronze: 'Бронза',
+    levelSilver: 'Сребро',
+    levelGold: 'Злато',
+    levelPlatinum: 'Платина',
+    levelDiamond: 'Дијамант',
+    sessionsLabel: 'сесии',
   },
 
   EN: {
@@ -1199,5 +1211,11 @@ export const translations = {
     uploading: 'Uploading...',
     uploadSuccess: 'Photo uploaded successfully',
     uploadError: 'Error uploading photo',
+    levelBronze: 'Bronze',
+    levelSilver: 'Silver',
+    levelGold: 'Gold',
+    levelPlatinum: 'Platinum',
+    levelDiamond: 'Diamond',
+    sessionsLabel: 'sessions',
   },
 };

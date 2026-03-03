@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-03-03T01:17:57.696Z",
+  "generatedAt": "2026-03-03T01:45:23.375Z",
   "sourceDir": "src",
-  "occurrenceCount": 53,
-  "uniquePathCount": 42,
+  "occurrenceCount": 54,
+  "uniquePathCount": 43,
   "entries": [
     {
       "method": "POST",
@@ -138,6 +138,12 @@
     },
     {
       "method": "GET",
+      "path": "/auth/verify",
+      "file": "src/app/components/UserDashboard.tsx",
+      "line": 476
+    },
+    {
+      "method": "GET",
       "path": "/bookings",
       "file": "src/app/components/AdminPanel.tsx",
       "line": 228
@@ -248,7 +254,7 @@
       "method": "GET",
       "path": "/slots/user-calendar",
       "file": "src/app/components/UserDashboard.tsx",
-      "line": 520
+      "line": 541
     },
     {
       "method": "POST",
@@ -266,43 +272,43 @@
       "method": "GET",
       "path": "/user/packages",
       "file": "src/app/components/UserDashboard.tsx",
-      "line": 433
+      "line": 431
     },
     {
       "method": "POST",
       "path": "/user/packages/:param/book-session",
       "file": "src/app/components/UserDashboard.tsx",
-      "line": 725
+      "line": 746
     },
     {
       "method": "POST",
       "path": "/user/packages/:param/book-session",
       "file": "src/app/components/UserDashboard.tsx",
-      "line": 850
+      "line": 871
     },
     {
       "method": "POST",
       "path": "/user/packages/:param/reschedule",
       "file": "src/app/components/UserDashboard.tsx",
-      "line": 669
+      "line": 690
     },
     {
       "method": "DELETE",
       "path": "/user/packages/:param/reservations/:param",
       "file": "src/app/components/UserDashboard.tsx",
-      "line": 1016
+      "line": 1037
     },
     {
       "method": "POST",
       "path": "/user/packages/purchase",
       "file": "src/app/components/UserDashboard.tsx",
-      "line": 1069
+      "line": 1090
     },
     {
       "method": "POST",
       "path": "/user/upload-avatar",
       "file": "src/app/components/UserDashboard.tsx",
-      "line": 389
+      "line": 387
     },
     {
       "method": "DELETE",

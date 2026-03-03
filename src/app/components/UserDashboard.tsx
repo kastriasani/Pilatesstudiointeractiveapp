@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Calendar, CheckCircle, AlertCircle, Plus, ChevronDown, ChevronUp, Globe, Users, LogOut, Lock, ShoppingBag, Camera } from 'lucide-react';
+import { Calendar, CheckCircle, AlertCircle, Plus, ChevronDown, ChevronUp, Globe, Users, LogOut, Lock, ShoppingBag, Camera, Star } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Language, translations } from '../translations';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
@@ -306,17 +306,15 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
     const hoursLeft = totalHours % 24;
     const minutesLeft = totalMinutes % 60;
 
+    const dAbbr = language === 'MK' ? 'д' : 'd';
+    const hAbbr = language === 'MK' ? 'ч' : 'h';
+
     if (days > 0) {
-      const dayLabel = language === 'SQ' ? 'ditë' : language === 'MK' ? 'дена' : 'days';
-      const hourLabel = language === 'SQ' ? 'orë' : language === 'MK' ? 'часа' : 'h';
-      return `${days} ${dayLabel} ${hoursLeft}${hourLabel}`;
+      return `${days}${dAbbr} ${hoursLeft}${hAbbr} ${minutesLeft}min`;
     } else if (hoursLeft > 0) {
-      const hourLabel = language === 'SQ' ? 'orë' : language === 'MK' ? 'часа' : 'h';
-      const minLabel = language === 'SQ' ? 'min' : language === 'MK' ? 'мин' : 'min';
-      return `${hoursLeft}${hourLabel} ${minutesLeft}${minLabel}`;
+      return `${hoursLeft}${hAbbr} ${minutesLeft}min`;
     } else {
-      const minLabel = language === 'SQ' ? 'minuta' : language === 'MK' ? 'минути' : 'minutes';
-      return `${minutesLeft} ${minLabel}`;
+      return `${minutesLeft}min`;
     }
   };
 
@@ -1145,6 +1143,19 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
     ? `${userName[0]}${userSurname[0]}`.toUpperCase()
     : userEmail.slice(0, 2).toUpperCase();
 
+  // Level system
+  const LEVEL_CONFIG = [
+    { level: 5, labelKey: 'levelDiamond'  as const, color: '#B9F2FF', textColor: '#1a3a4a', minSessions: 48 },
+    { level: 4, labelKey: 'levelPlatinum' as const, color: '#6FBFCE', textColor: '#fff',    minSessions: 24 },
+    { level: 3, labelKey: 'levelGold'     as const, color: '#D4AF37', textColor: '#3d2f28', minSessions: 12 },
+    { level: 2, labelKey: 'levelSilver'   as const, color: '#A0A0A0', textColor: '#fff',    minSessions: 5 },
+    { level: 1, labelKey: 'levelBronze'   as const, color: '#CD7F32', textColor: '#fff',    minSessions: 0 },
+  ];
+  const totalSessionsAttended = packages.reduce(
+    (acc, pkg) => acc + pkg.bookedSessions.filter(s => s.attended).length, 0
+  );
+  const currentLevel = LEVEL_CONFIG.find(l => totalSessionsAttended >= l.minSessions) || LEVEL_CONFIG[LEVEL_CONFIG.length - 1];
+
   if (loading) {
     return (
       <div className="h-full flex items-center justify-center">
@@ -1178,40 +1189,54 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
 
   return (
     <div className="h-full overflow-y-auto px-4 py-4 pb-20">
-      {/* Top Bar: Logout only */}
-      <div className="flex items-center justify-end pt-8 mb-5">
-        <button
-          onClick={onLogout}
-          className="hover:bg-[#e8dfd8] rounded-lg p-2 transition-colors"
-          title={t.logout}
+      {/* Compact Next-Class Timer Bar */}
+      {nextSession && countdown && (
+        <motion.div
+          className="bg-[#3d2f28] rounded-xl px-3 py-2 mt-8 mb-4 flex items-center gap-2"
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35 }}
         >
-          <LogOut className="w-5 h-5 text-[#6b5949]" />
-        </button>
-      </div>
+          <span className="text-[9px] font-semibold uppercase tracking-wider text-white/50 shrink-0">
+            {t.nextClassLabel || 'NEXT CLASS'}
+          </span>
+          <span className="text-[11px] text-white/80 truncate">
+            {nextSessionDay}, {formatShortDate(nextSession.dateKey)} · {nextSession.time}
+          </span>
+          <span className="text-[12px] font-bold text-[#9ca571] tabular-nums ml-auto shrink-0">
+            {countdown}
+          </span>
+        </motion.div>
+      )}
+      {/* Spacer when no next session */}
+      {(!nextSession || !countdown) && <div className="pt-8" />}
 
-      {/* Profile Header: Avatar + Greeting */}
+      {/* Profile Header: Avatar + Greeting + Level */}
       <motion.div
-        className="flex items-center gap-3 mb-5"
+        className="flex flex-col items-center text-center mb-5"
         initial={{ opacity: 0, y: -12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
       >
-        {/* Clickable avatar with camera overlay */}
-        <div className="relative group cursor-pointer" onClick={() => avatarInputRef.current?.click()}>
-          <Avatar className="size-12 bg-gradient-to-br from-[#9ca571] to-[#7A8F3A] shadow-md">
+        {/* Avatar with level badge */}
+        <div className="relative group cursor-pointer mb-3" onClick={() => avatarInputRef.current?.click()}>
+          <Avatar
+            className="size-24 bg-gradient-to-br from-[#9ca571] to-[#7A8F3A] shadow-lg"
+            style={{ border: `3px solid ${currentLevel.color}` }}
+          >
             {profileImageUrl && (
               <AvatarImage src={profileImageUrl} alt={displayName} />
             )}
-            <AvatarFallback className="bg-transparent text-white font-bold text-sm">
+            <AvatarFallback className="bg-transparent text-white font-bold text-2xl">
               {initials}
             </AvatarFallback>
           </Avatar>
           {/* Camera overlay */}
           <div className="absolute inset-0 rounded-full bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
             {uploadingAvatar ? (
-              <div className="w-4 h-4 border-2 border-white/80 border-t-transparent rounded-full animate-spin" />
+              <div className="w-5 h-5 border-2 border-white/80 border-t-transparent rounded-full animate-spin" />
             ) : (
-              <Camera className="w-4 h-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+              <Camera className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
             )}
           </div>
           <input
@@ -1221,38 +1246,45 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
             className="hidden"
             onChange={handleAvatarUpload}
           />
+          {/* Level badge */}
+          <div
+            className="absolute -bottom-1 -right-1 flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold shadow-md"
+            style={{ backgroundColor: currentLevel.color, color: currentLevel.textColor }}
+          >
+            <Star className="w-2.5 h-2.5 fill-current" />
+            <span>{currentLevel.level}</span>
+          </div>
         </div>
-        <div className="min-w-0">
+
+        {/* Greeting + logout */}
+        <div className="flex items-center gap-2 mb-0.5">
           <h1 className="text-lg font-bold text-[#3d2f28] truncate">
             {t.greeting || 'Hello'}, {displayName}!
           </h1>
-          <p className="text-xs text-[#8b7764] truncate">{userEmail}</p>
+          <button
+            onClick={onLogout}
+            className="hover:bg-[#e8dfd8] rounded-lg p-1.5 transition-colors shrink-0"
+            title={t.logout}
+          >
+            <LogOut className="w-4 h-4 text-[#6b5949]" />
+          </button>
+        </div>
+
+        {/* Email */}
+        <p className="text-xs text-[#8b7764] truncate mb-1.5">{userEmail}</p>
+
+        {/* Level pill */}
+        <div
+          className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold"
+          style={{
+            backgroundColor: currentLevel.color + '22',
+            color: currentLevel.color === '#B9F2FF' ? '#1a3a4a' : currentLevel.color === '#D4AF37' ? '#8B7500' : currentLevel.color,
+          }}
+        >
+          <Star className="w-3 h-3 fill-current" />
+          {t[currentLevel.labelKey] || currentLevel.labelKey.replace('level', '')} · {totalSessionsAttended} {t.sessionsLabel || 'sessions'}
         </div>
       </motion.div>
-
-      {/* Next Class Countdown Hero Card */}
-      {nextSession && countdown && (
-        <motion.div
-          className="bg-gradient-to-br from-[#9ca571] to-[#7A8F3A] rounded-2xl p-4 mb-6 text-white shadow-lg"
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-wider opacity-80 mb-1">
-                {t.nextClassLabel || 'NEXT CLASS'}
-              </p>
-              <p className="text-sm font-medium opacity-95">
-                {nextSessionDay}, {formatShortDate(nextSession.dateKey)} · {nextSession.time}
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="text-2xl font-bold tracking-tight">{countdown}</p>
-            </div>
-          </div>
-        </motion.div>
-      )}
 
       {/* Content: Packages + Reservations */}
       {packages.length === 0 && reservations.filter(r => !r.packageId).length === 0 ? (
