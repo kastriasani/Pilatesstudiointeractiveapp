@@ -142,7 +142,7 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
   const [isRescheduling, setIsRescheduling] = useState(false);
   const [modalMode, setModalMode] = useState<'reschedule' | 'book'>('reschedule');
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [countdown, setCountdown] = useState<string>('');
+  // countdown is now derived at render time (see below loading check)
   const [selectedSlotIndex, setSelectedSlotIndex] = useState<number | null>(null);
   const [expandedPackageId, setExpandedPackageId] = useState<string | null>(null);
   const [inlineBookingPackageId, setInlineBookingPackageId] = useState<string | null>(null);
@@ -239,46 +239,30 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
     const now = getSkopjeTime();
     let nextSession: { dateKey: string; time: string; date: string; dateTime: Date } | null = null;
 
-    // Check package first sessions
+    const consider = (dateKey: string, time: string, dateFmt: string) => {
+      const parts = dateKey.split('-').map(Number);
+      const [y, mo, d] = parts.length === 3 ? parts : [now.getFullYear(), ...parts];
+      const [h, mi] = time.split(':').map(Number);
+      const sessionDateTime = new Date(y, mo - 1, d, h, mi);
+      if (sessionDateTime > now && (!nextSession || sessionDateTime < nextSession.dateTime)) {
+        nextSession = { dateKey, time, date: dateFmt, dateTime: sessionDateTime };
+      }
+    };
+
+    // Check ALL booked sessions inside each package (not just firstSession)
     packages.forEach(pkg => {
+      pkg.bookedSessions.forEach(bs => {
+        consider(bs.dateKey, bs.time, formatDateKey(bs.dateKey));
+      });
+      // Also check firstSession in case it's not yet in bookedSessions
       if (pkg.firstSession) {
-        // Parse date consistently using component constructor (same as standalone path)
-        const dk = pkg.firstSession.dateKey;
-        const dkParts = dk.split('-').map(Number);
-        const [y, mo, d] = dkParts.length === 3 ? dkParts : [now.getFullYear(), ...dkParts];
-        const [h, mi] = pkg.firstSession.time.split(':').map(Number);
-        const sessionDateTime = new Date(y, mo - 1, d, h, mi);
-        if (sessionDateTime > now && (!nextSession || sessionDateTime < nextSession.dateTime)) {
-          nextSession = {
-            dateKey: pkg.firstSession.dateKey,
-            time: pkg.firstSession.time,
-            date: pkg.firstSession.date,
-            dateTime: sessionDateTime
-          };
-        }
+        consider(pkg.firstSession.dateKey, pkg.firstSession.time, pkg.firstSession.date);
       }
     });
 
     // Check standalone reservations
     reservations.filter(r => !r.packageId && r.reservationStatus !== 'cancelled').forEach(res => {
-      // Parse both YYYY-MM-DD and legacy M-D formats
-      let year: number, month: number, day: number;
-      const parts = res.dateKey.split('-').map(Number);
-      if (parts.length === 3) {
-        [year, month, day] = parts;
-      } else {
-        [month, day] = parts;
-        year = getSkopjeTime().getFullYear();
-      }
-      const sessionDateTime = new Date(year, month - 1, day, ...res.timeSlot.split(':').map(Number));
-      if (sessionDateTime > now && (!nextSession || sessionDateTime < nextSession.dateTime)) {
-        nextSession = {
-          dateKey: res.dateKey,
-          time: res.timeSlot,
-          date: formatDateKey(res.dateKey),
-          dateTime: sessionDateTime
-        };
-      }
+      consider(res.dateKey, res.timeSlot, formatDateKey(res.dateKey));
     });
 
     return nextSession ? { dateKey: nextSession.dateKey, time: nextSession.time, date: nextSession.date } : null;
@@ -318,21 +302,12 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
     }
   };
 
-  // Update countdown every minute
+  // Tick counter to force countdown recalculation every minute
+  const [countdownTick, setCountdownTick] = useState(0);
   useEffect(() => {
-    const updateCountdown = () => {
-      const nextSession = getNextSession();
-      if (nextSession) {
-        setCountdown(calculateCountdown(nextSession.dateKey, nextSession.time));
-      } else {
-        setCountdown('');
-      }
-    };
-
-    updateCountdown();
-    const interval = setInterval(updateCountdown, 60000); // Update every minute
+    const interval = setInterval(() => setCountdownTick(t => t + 1), 60000);
     return () => clearInterval(interval);
-  }, [packages, reservations, language]);
+  }, []);
 
   // Resize image to square (center-crop) and return as Blob
   const resizeImage = (file: File, maxSize: number): Promise<Blob> => {
@@ -1172,8 +1147,11 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
     );
   }
 
-  // Next session data for countdown card
+  // Next session data — derived fresh every render (reactive to packages, reservations, countdownTick)
   const nextSession = getNextSession();
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _tick = countdownTick; // reference tick so countdown recalculates each minute
+  const countdown = nextSession ? calculateCountdown(nextSession.dateKey, nextSession.time) : '';
   const nextSessionDay = (() => {
     if (!nextSession) return '';
     const dayNames: Record<Language, string[]> = {
@@ -1198,7 +1176,7 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
       >
         {/* Avatar with star badge */}
         <div className="relative group cursor-pointer shrink-0" onClick={() => avatarInputRef.current?.click()}>
-          <Avatar className="size-12 bg-gradient-to-br from-[#9ca571] to-[#7A8F3A] shadow-md">
+          <Avatar className="size-14 bg-gradient-to-br from-[#9ca571] to-[#7A8F3A] shadow-md">
             {profileImageUrl && (
               <AvatarImage src={profileImageUrl} alt={displayName} />
             )}
@@ -1240,7 +1218,7 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
 
         {/* Name + Email stack */}
         <div className="min-w-0 flex-1">
-          <h1 className="text-[15px] font-bold text-[#3d2f28] truncate leading-snug">
+          <h1 className="text-xl font-bold text-[#3d2f28] truncate leading-snug">
             {t.greeting || 'Hello'}, {displayName}!
           </h1>
           <p className="text-[11px] text-[#8b7764] truncate leading-tight">{userEmail}</p>
