@@ -856,11 +856,6 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
 
   // Cancel a booked session
   const handleCancelSession = async (pkg: PackageDetails, bookedSession: BookedSession) => {
-    // Confirm cancellation
-    if (!window.confirm(t.confirmCancelSession || 'Are you sure you want to cancel this session?')) {
-      return;
-    }
-
     // Optimistic update BEFORE API call — UI updates instantly on click
     const cancelledPkg = {
       ...pkg,
