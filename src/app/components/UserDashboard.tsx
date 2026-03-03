@@ -375,6 +375,7 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
     if (activeSessionToken) {
       console.log('✅ Session token available, loading packages...');
       loadPackages();
+      loadAvailableSlots(); // Pre-fetch so inline calendar opens instantly
     } else {
       console.warn('⚠️ No session token available - user may need to login');
       setLoading(false);
@@ -1377,34 +1378,32 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
                             {t.noSlotsAvailable || 'No slots available'}
                           </p>
                         ) : (
-                          <div className="space-y-3 max-h-[300px] overflow-y-auto">
+                          <div className="space-y-2 max-h-[300px] overflow-y-auto">
                             {availableSlots.map((dateSlot) => (
-                              <div key={dateSlot.dateKey} className="bg-white rounded-lg p-3">
-                                <p className="text-xs font-semibold text-[#3d2f28] mb-2">
+                              <div key={dateSlot.dateKey}>
+                                <p className="text-[10px] font-semibold uppercase tracking-wider text-[#8b7764] mb-1">
                                   {dateSlot.displayDate}
                                 </p>
-                                <div className="flex flex-wrap gap-2">
+                                <div className="flex flex-wrap gap-1.5">
                                   {dateSlot.timeSlots.map((timeSlot) => (
                                     <button
                                       key={timeSlot.time}
                                       onClick={() => handleInlineBook(pkg, dateSlot.dateKey, timeSlot.time)}
                                       disabled={timeSlot.available <= 0 || isRescheduling}
-                                      className={`py-2 px-3 rounded-lg text-xs font-medium transition-all ${
+                                      className={`py-1.5 px-2.5 rounded-lg text-[11px] font-medium transition-all ${
                                         timeSlot.available > 0 && !isRescheduling
                                           ? 'bg-[#9ca571] text-white hover:bg-[#8a9463]'
                                           : 'bg-[#e8e6e3] text-[#8b7764] cursor-not-allowed'
                                       }`}
                                     >
-                                      <span className="font-semibold">{isRescheduling ? '...' : timeSlot.time}</span>
+                                      {isRescheduling ? '...' : timeSlot.time}
                                       {timeSlot.userBookings > 0 && (
-                                        <span className="ml-1 text-[10px]">{timeSlot.userBookings}</span>
+                                        <span className="ml-0.5 text-[9px]">{timeSlot.userBookings}</span>
                                       )}
-                                      <span className={`block text-[10px] mt-0.5 ${timeSlot.available > 0 ? 'text-white/80' : 'text-[#8b7764]'}`}>
+                                      <span className={`ml-1 text-[9px] ${timeSlot.available > 0 ? 'text-white/80' : 'text-[#8b7764]'}`}>
                                         {timeSlot.available <= 0
-                                          ? (t.full || 'Full')
-                                          : `${timeSlot.available} ${timeSlot.available === 1
-                                              ? (t.spotFree || 'spot')
-                                              : (t.spotsFree || 'spots')}`
+                                          ? `· ${t.full || 'Plot'}`
+                                          : `· ${timeSlot.available}`
                                         }
                                       </span>
                                     </button>
