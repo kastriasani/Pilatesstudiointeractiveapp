@@ -1178,22 +1178,8 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
 
   return (
     <div className="h-full overflow-y-auto px-4 py-4 pb-20">
-      {/* Top Bar: Language + Logout */}
-      <div className="flex items-center justify-between pt-8 mb-5">
-        <div className="flex items-center gap-0.5 px-1.5 py-1 bg-[#f5f2ef] rounded-full">
-          <Globe className="w-3 h-3 text-[#6b5949] mr-0.5" />
-          {(['SQ', 'MK', 'EN'] as const).map((lang) => (
-            <button
-              key={lang}
-              onClick={() => setLanguage(lang)}
-              className={`text-[10px] font-medium px-1.5 py-0.5 rounded transition-colors ${
-                language === lang ? 'text-[#3d2f28] bg-white shadow-sm' : 'text-[#8b7764] hover:text-[#6b5949]'
-              }`}
-            >
-              {lang === 'MK' ? 'МК' : lang}
-            </button>
-          ))}
-        </div>
+      {/* Top Bar: Logout only */}
+      <div className="flex items-center justify-end pt-8 mb-5">
         <button
           onClick={onLogout}
           className="hover:bg-[#e8dfd8] rounded-lg p-2 transition-colors"
@@ -1938,6 +1924,24 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
           </div>
         </div>
       )}
+
+      {/* Language switcher — bottom of dashboard */}
+      <div className="flex items-center justify-center gap-1 pt-6 pb-2">
+        <Globe className="w-3 h-3 text-[#b5a99a]" />
+        {(['SQ', 'MK', 'EN'] as const).map((lang) => (
+          <button
+            key={lang}
+            onClick={() => setLanguage(lang)}
+            className={`text-[10px] font-medium px-2 py-0.5 rounded-full transition-colors ${
+              language === lang
+                ? 'text-[#3d2f28] bg-[#e8e6e3]'
+                : 'text-[#b5a99a] hover:text-[#8b7764]'
+            }`}
+          >
+            {lang === 'SQ' ? 'Shqip' : lang === 'MK' ? 'Македонски' : 'English'}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
