@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { motion } from 'motion/react';
 import { Calendar, Users, LogOut, Mail, X, CheckCircle, Trash2, Ban, ShieldAlert, Settings, UserMinus, Send, AlertCircle, Loader2, Pencil, Plus, ChevronDown, ChevronUp, Clock, XCircle } from 'lucide-react';
 import { logo } from '../../assets/images';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
@@ -1099,6 +1100,13 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
   const handleBookingStatusChange = async (bookingId: string, newStatus: string) => {
     console.log('📝 Updating booking status:', bookingId, newStatus);
     setProcessingBookingId(bookingId);
+
+    // Optimistic update
+    const previousBookings = bookings;
+    setBookings(prev => prev.map(b =>
+      b.id === bookingId ? { ...b, status: newStatus as UserStatus } : b
+    ));
+
     try {
       const response = await fetch(
         `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/reservations/${bookingId}/status`,
@@ -1112,15 +1120,15 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
           body: JSON.stringify({ reservationStatus: newStatus }),
         }
       );
-      if (response.ok) {
-        await fetchBookings();
-      } else {
+      if (!response.ok) {
         const errorData = await response.text();
         console.error('Failed to update booking status:', response.status, errorData);
         toast.error('Failed to update booking status. Please try again.');
+        setBookings(previousBookings);
       }
     } catch (error) {
       console.error('❌ Error updating booking status:', error);
+      setBookings(previousBookings);
     } finally {
       setProcessingBookingId(null);
     }
@@ -1134,6 +1142,12 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
       async () => {
         console.log('🗑️ Removing user from class:', bookingId);
         setProcessingBookingId(bookingId);
+
+        // Optimistic update
+        const previousBookings = bookings;
+        setBookings(prev => prev.filter(b => b.id !== bookingId));
+        toast.success(`${userName} removed from class. Session credit restored.`);
+
         try {
           const response = await fetch(
             `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/reservations/${bookingId}`,
@@ -1146,18 +1160,16 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
               },
             }
           );
-          if (response.ok) {
-            console.log('✅ User removed from class, session restored');
-            toast.success(`${userName} removed from class. Session credit restored.`);
-            await fetchBookings();
-          } else {
+          if (!response.ok) {
             const errorData = await response.text();
             console.error('❌ Failed to remove from class:', response.status, errorData);
             toast.error('Failed to remove user from class. Please try again.');
+            setBookings(previousBookings);
           }
         } catch (error) {
           console.error('❌ Error removing from class:', error);
           toast.error('Network error. Please check your connection.');
+          setBookings(previousBookings);
         } finally {
           setProcessingBookingId(null);
         }
@@ -1168,11 +1180,16 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
   return (
     <div className="h-full flex flex-col bg-[#f5f0ed]">
       {/* Header */}
-      <div className="bg-[#F5F0EE] shadow-sm px-4 py-3 flex items-center justify-between">
+      <motion.div
+        initial={{ opacity: 0, y: -8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: 'easeOut' }}
+        className="bg-[#F5F0EE] shadow-sm px-4 py-3 flex items-center justify-between"
+      >
         <div className="flex items-center gap-3">
           <img src={logo} alt="Logo" className="w-8 h-8" />
           <div>
-            <h1 className="text-base text-[#3d2f28]">Admin Panel</h1>
+            <h1 className="text-base font-semibold text-[#3d2f28]">Admin Panel</h1>
             <p className="text-xs text-[#8b7764]">Wellnest Pilates</p>
           </div>
         </div>
@@ -1194,16 +1211,21 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
             <LogOut className="w-5 h-5 text-[#6b5949]" />
           </button>
         </div>
-      </div>
+      </motion.div>
 
       {/* Tabs */}
-      <div className="bg-[#F5F0EE] border-b border-[#e8dfd8] px-4">
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.3, delay: 0.15 }}
+        className="bg-[#F5F0EE] border-b border-[#e8dfd8] px-4"
+      >
         <div className="flex gap-1">
           <button
             onClick={() => setActiveTab('calendar')}
             className={`flex items-center gap-2 px-4 py-3 text-sm transition-colors ${
               activeTab === 'calendar'
-                ? 'text-[#6b5949] border-b-2 border-[#6b5949]'
+                ? 'text-[#6b5949] border-b-2 border-[#6b5949] font-medium'
                 : 'text-[#8b7764] hover:text-[#6b5949]'
             }`}
           >
@@ -1214,7 +1236,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
             onClick={() => setActiveTab('users')}
             className={`flex items-center gap-2 px-4 py-3 text-sm transition-colors ${
               activeTab === 'users'
-                ? 'text-[#6b5949] border-b-2 border-[#6b5949]'
+                ? 'text-[#6b5949] border-b-2 border-[#6b5949] font-medium'
                 : 'text-[#8b7764] hover:text-[#6b5949]'
             }`}
           >
@@ -1227,10 +1249,16 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
             )}
           </button>
         </div>
-      </div>
+      </motion.div>
 
       {/* Content */}
-      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-4 bg-stone-50">
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: 0.2, ease: 'easeOut' }}
+        ref={scrollContainerRef}
+        className="flex-1 overflow-y-auto p-4 bg-stone-50"
+      >
         {activeTab === 'calendar' ? (
           <div className="space-y-4">
             {/* Date Selection - Clean Week Strip */}
@@ -1872,7 +1900,12 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                   console.log(`Rendering ${userSubTab} tab. Total users: ${users.length}, Filtered: ${filtered.length}`);
                   return filtered;
                 })()
-                  .map((user) => {
+                  .sort((a, b) => {
+                    const nameA = `${a.name} ${a.surname}`.toLowerCase();
+                    const nameB = `${b.name} ${b.surname}`.toLowerCase();
+                    return nameA.localeCompare(nameB);
+                  })
+                  .map((user, userIndex) => {
                     const isExpanded = expandedUserId === user.id;
                     const baseSessionCount = user.packageType === 'package8' || user.packageType === '8classes' || user.packageType === 'duo8classes' ? 8
                       : user.packageType === 'package10' ? 10
@@ -1893,8 +1926,11 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                     const normalRemaining = normalTotal - normalUsed;
 
                     return (
-                      <div
+                      <motion.div
                         key={user.id}
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.3, delay: Math.min(userIndex * 0.03, 0.3) }}
                         className="border border-[#e8dfd8] rounded-lg overflow-hidden hover:border-[#6b5949] transition-colors"
                       >
                         {/* Compact View (Always Visible) */}
@@ -2189,7 +2225,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                             </div>
                           </div>
                         )}
-                      </div>
+                      </motion.div>
                     );
                   })}
 
@@ -2209,7 +2245,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
             </div>
           </div>
         ) : null}
-      </div>
+      </motion.div>
 
       {/* Confirmation actions now use styled AlertDialog */}
 
