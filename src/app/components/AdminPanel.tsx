@@ -2570,59 +2570,29 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
         ) : activeTab === 'alerts' ? (
           <div className="space-y-4">
             {/* Header */}
-            <div className="bg-[#F5F0EE] rounded-xl p-4 shadow-sm">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-base font-medium text-[#3d2f28]">System Alerts</h2>
-                  {consistencyData && (
-                    <p className="text-xs text-[#8b7764] mt-1">
-                      Last checked: {new Date(consistencyData.checkedAt).toLocaleString('en-GB', { timeZone: 'Europe/Skopje' })}
-                    </p>
-                  )}
-                </div>
-                <button
-                  onClick={() => fetchConsistencyCheck()}
-                  disabled={isLoadingConsistency}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm bg-white border border-[#e8dfd8] rounded-lg hover:bg-[#f5f0ee] transition-colors disabled:opacity-50"
-                >
-                  <RefreshCw className={`w-4 h-4 ${isLoadingConsistency ? 'animate-spin' : ''}`} />
-                  Re-check
-                </button>
-              </div>
-
-              {consistencyError && (
-                <div className="mt-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-                  {consistencyError}
-                </div>
-              )}
-
-              {/* Severity filter pills */}
-              <div className="flex gap-2 mt-3">
-                {([
-                  { key: 'all' as const, label: 'All', color: 'bg-[#6b5949]' },
-                  { key: 'critical' as const, label: 'Urgent', color: 'bg-red-500' },
-                  { key: 'warning' as const, label: 'Heads up', color: 'bg-amber-500' },
-                ]).map(({ key, label, color }) => (
-                  <button
-                    key={key}
-                    onClick={() => setAlertSeverityFilter(key)}
-                    className={`px-3 py-1 text-xs rounded-full transition-colors ${
-                      alertSeverityFilter === key
-                        ? `${color} text-white`
-                        : 'bg-white border border-[#e8dfd8] text-[#8b7764] hover:bg-[#f5f0ee]'
-                    }`}
-                  >
-                    {label} ({alertCounts[key]})
-                  </button>
-                ))}
-              </div>
+            <div className="bg-[#F5F0EE] rounded-xl p-3 shadow-sm flex items-center justify-between">
+              <h2 className="text-base font-medium text-[#3d2f28]">Alerts</h2>
+              <button
+                onClick={() => fetchConsistencyCheck()}
+                disabled={isLoadingConsistency}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm bg-white border border-[#e8dfd8] rounded-lg hover:bg-[#f5f0ee] transition-colors disabled:opacity-50"
+              >
+                <RefreshCw className={`w-4 h-4 ${isLoadingConsistency ? 'animate-spin' : ''}`} />
+                Re-check
+              </button>
             </div>
 
             {/* Loading state */}
             {isLoadingConsistency && !consistencyData && (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="w-6 h-6 animate-spin text-[#8b7764]" />
-                <span className="ml-2 text-sm text-[#8b7764]">Running consistency check…</span>
+                <span className="ml-2 text-sm text-[#8b7764]">Checking…</span>
+              </div>
+            )}
+
+            {consistencyError && (
+              <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                {consistencyError}
               </div>
             )}
 
@@ -2635,49 +2605,25 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.2, delay: Math.min(gi * 0.05, 0.3) }}
-                    className={`bg-white rounded-xl shadow-sm border-l-4 overflow-hidden ${
-                      group.severity === 'critical' ? 'border-l-red-500' : 'border-l-amber-500'
-                    }`}
+                    className="bg-white rounded-xl shadow-sm overflow-hidden"
                   >
-                    {/* Group header */}
-                    <div className="px-4 pt-4 pb-2">
-                      <div className="flex items-center gap-2">
-                        <div className={group.severity === 'critical' ? 'text-red-500' : 'text-amber-500'}>
-                          {group.severity === 'critical' ? (
-                            <ShieldAlert className="w-5 h-5" />
-                          ) : (
-                            <AlertCircle className="w-5 h-5" />
-                          )}
-                        </div>
-                        <span className="text-sm font-semibold text-[#3d2f28]">{group.category}</span>
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${
-                          group.severity === 'critical' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
-                        }`}>
-                          {group.alerts.length}
-                        </span>
-                      </div>
-                      <p className="text-xs text-[#8b7764] mt-1 ml-7">{group.description}</p>
+                    <div className="px-4 pt-3 pb-1">
+                      <span className="text-sm font-semibold text-[#3d2f28]">{group.category}</span>
                     </div>
-
-                    {/* User list */}
-                    <div className="px-4 pb-3">
-                      <div className="ml-7 space-y-1">
-                        {group.alerts.map(alert => (
-                          <div key={alert.id} className="flex items-baseline justify-between gap-2">
-                            <button
-                              onClick={() => {
-                                if (alert.userSubTab) setUserSubTab(alert.userSubTab);
-                                if (alert.userId) setExpandedUserId(alert.userId);
-                                setActiveTab('users');
-                              }}
-                              className="text-sm text-[#6b5949] hover:underline truncate"
-                            >
-                              {alert.userName}
-                            </button>
-                            <span className="text-xs text-[#8b7764] shrink-0">{alert.title}</span>
-                          </div>
-                        ))}
-                      </div>
+                    <div className="px-4 pb-3 space-y-1">
+                      {group.alerts.map(alert => (
+                        <button
+                          key={alert.id}
+                          onClick={() => {
+                            if (alert.userSubTab) setUserSubTab(alert.userSubTab);
+                            if (alert.userId) setExpandedUserId(alert.userId);
+                            setActiveTab('users');
+                          }}
+                          className="block text-sm text-[#6b5949] hover:underline"
+                        >
+                          {alert.userName}
+                        </button>
+                      ))}
                     </div>
                   </motion.div>
                 ))}
