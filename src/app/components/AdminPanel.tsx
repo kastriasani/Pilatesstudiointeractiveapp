@@ -312,7 +312,11 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
 
       for (const pkg of pkgs) {
         if (pkg.status === 'active' && pkg.expiryDate) {
-          const expiry = new Date(pkg.expiryDate);
+          // Parse expiry as Skopje midnight to match getSkopjeTime()
+          const [ey, em, ed] = pkg.expiryDate.split('-').map(Number);
+          const expiry = new Date(now);
+          expiry.setFullYear(ey, em - 1, ed);
+          expiry.setHours(23, 59, 59, 999);
           const daysLeft = Math.ceil((expiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
           if (daysLeft <= 0) {
             result.push({ id: `expired-${pkg.id}`, severity: 'critical', category: 'Expired', title: `Expired ${Math.abs(daysLeft)} day(s) ago — ${pkgLabel(pkg.type)}`, ...base });
@@ -343,7 +347,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
           if (issue.code === 'package_remaining_sessions_mismatch') {
             const match = issue.details.match(/remaining_sessions=(\d+), expected=(\d+)/);
             if (match) {
-              result.push({ id: `pkg-count-${cu.userId}-${issue.details.slice(0, 15)}`, severity: 'critical', category: 'Session count', title: `Admin sees: ${match[1]} classes left\nUser sees: ${match[2]} classes left`, ...base });
+              result.push({ id: `pkg-count-${cu.userId}-${issue.details.slice(0, 15)}`, severity: 'critical', category: 'Session count', title: `System shows: ${match[1]} classes left\nBased on bookings: ${match[2]} classes left`, ...base });
             }
           }
 
