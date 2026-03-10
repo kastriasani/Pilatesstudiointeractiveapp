@@ -4,6 +4,7 @@ import { Language, translations } from '../translations';
 import { logo } from '../../assets/images';
 import { useState } from 'react';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
+import { validateEmail } from '@/utils/emailValidation';
 
 type ConfirmationScreenProps = {
   bookingData: BookingData;
@@ -30,7 +31,19 @@ export function ConfirmationScreen({ bookingData, onConfirm, onBack, onPaymentTo
     if (!(bookingData.surname || '').trim()) newErrors.surname = true;
     if (!(bookingData.mobile || '').trim()) newErrors.mobile = true;
     const emailVal = (bookingData.email || '').trim();
-    if (!emailVal || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailVal)) newErrors.email = true;
+    if (!emailVal) {
+      newErrors.email = true;
+    } else {
+      const emailCheck = validateEmail(emailVal);
+      if (!emailCheck.valid) {
+        newErrors.email = true;
+        if (emailCheck.suggestion) {
+          setErrorMessage(`${t.emailDidYouMean || 'Did you mean'} ${emailCheck.suggestion}?`);
+        } else {
+          setErrorMessage(emailCheck.reason === 'invalid_domain' ? (t.invalidEmailDomain || 'The email domain is not valid') : (t.invalidEmail || 'Please enter a valid email address'));
+        }
+      }
+    }
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);

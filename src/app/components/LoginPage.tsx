@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useLanguage, Language } from '@/contexts/LanguageContext';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { translations } from '../translations';
+import { validateEmail } from '@/utils/emailValidation';
 
 interface LoginPageProps {
   onLogin?: (session: string, user: any) => void;
@@ -107,8 +108,15 @@ export function LoginPage({ onLogin, onBack }: LoginPageProps) {
   };
 
   const handleRequestLogin = async () => {
-    if (!requestEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(requestEmail.trim())) {
-      setRequestMessage({ type: 'error', text: t.invalidEmail || 'Please enter a valid email address' });
+    const emailCheck = validateEmail(requestEmail.trim());
+    if (!requestEmail || !emailCheck.valid) {
+      let msg = t.invalidEmail || 'Please enter a valid email address';
+      if (emailCheck.suggestion) {
+        msg = `${t.emailDidYouMean || 'Did you mean'} ${emailCheck.suggestion}?`;
+      } else if (emailCheck.reason === 'invalid_domain') {
+        msg = t.invalidEmailDomain || 'The email domain is not valid';
+      }
+      setRequestMessage({ type: 'error', text: msg });
       return;
     }
 

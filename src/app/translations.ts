@@ -386,6 +386,8 @@ export const translations = {
     checkBackLater: 'Ju lutem kontrolloni përsëri më vonë',
     fillAllFields: 'Ju lutem plotësoni të gjitha fushat e kërkuara',
     invalidEmail: 'Ju lutem vendosni një adresë email të vlefshme',
+    invalidEmailDomain: 'Domeni i email-it nuk është i vlefshëm',
+    emailDidYouMean: 'Mos ndoshta keni menduar',
 
     // Dashboard redesign
     greeting: 'Përshëndetje',
@@ -792,6 +794,8 @@ export const translations = {
     checkBackLater: 'Ве молиме проверете подоцна',
     fillAllFields: 'Ве молиме пополнете ги сите задолжителни полиња',
     invalidEmail: 'Ве молиме внесете валидна е-маил адреса',
+    invalidEmailDomain: 'Доменот на е-маилот не е валиден',
+    emailDidYouMean: 'Дали мислевте на',
 
     // Dashboard redesign
     greeting: 'Здраво',
@@ -1198,6 +1202,8 @@ export const translations = {
     checkBackLater: 'Please check back later',
     fillAllFields: 'Please fill in all required fields',
     invalidEmail: 'Please enter a valid email address',
+    invalidEmailDomain: 'The email domain is not valid',
+    emailDidYouMean: 'Did you mean',
 
     // Dashboard redesign
     greeting: 'Hello',

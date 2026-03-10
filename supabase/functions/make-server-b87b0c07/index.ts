@@ -88,6 +88,80 @@ function normalizeEmail(email: string): string {
   return email.toLowerCase().trim();
 }
 
+// --- Email validation: whitelist domains + valid TLD fallback ---
+const WHITELISTED_DOMAINS = new Set([
+  'gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'live.com',
+  'icloud.com', 'aol.com', 'protonmail.com', 'proton.me', 'mail.com',
+  'zoho.com', 'yandex.com', 'yandex.ru', 'gmx.com', 'gmx.net',
+  'yahoo.co.uk', 'yahoo.de', 'yahoo.fr', 'yahoo.it', 'yahoo.es',
+  'hotmail.co.uk', 'hotmail.fr', 'hotmail.de', 'hotmail.it', 'hotmail.es',
+  'outlook.de', 'outlook.fr', 'outlook.it',
+  'live.co.uk', 'live.de', 'live.fr', 'live.nl',
+  't-online.de', 'web.de', 'freenet.de', 'arcor.de',
+  'yahoo.mk', 'hotmail.mk', 'outlook.mk',
+  'yahoo.al', 'hotmail.al', 'yahoo.rs', 'hotmail.rs',
+  'yahoo.bg', 'hotmail.bg', 'yahoo.hr', 'hotmail.hr',
+  'yahoo.gr', 'hotmail.gr',
+]);
+const VALID_TLDS = new Set([
+  'com', 'net', 'org', 'edu', 'gov', 'mil', 'int',
+  'io', 'co', 'me', 'info', 'biz', 'name', 'pro', 'mobi', 'tel',
+  'app', 'dev', 'tech', 'online', 'site', 'store', 'shop', 'cloud',
+  'uk', 'de', 'fr', 'it', 'es', 'nl', 'be', 'at', 'ch', 'se', 'no',
+  'dk', 'fi', 'pt', 'ie', 'pl', 'cz', 'sk', 'hu', 'ro', 'bg',
+  'hr', 'si', 'ba', 'rs', 'me', 'mk', 'al', 'gr', 'tr', 'cy',
+  'lt', 'lv', 'ee', 'ua', 'ru', 'by', 'eu',
+  'us', 'ca', 'mx', 'br', 'ar', 'cl',
+  'au', 'nz', 'jp', 'kr', 'cn', 'in', 'sg', 'hk', 'tw',
+  'za', 'ng', 'ke', 'eg', 'il', 'ae', 'sa',
+]);
+const DOMAIN_TYPOS: Record<string, string> = {
+  'gmial.com': 'gmail.com', 'gmai.com': 'gmail.com', 'gamil.com': 'gmail.com',
+  'gnail.com': 'gmail.com', 'gmaill.com': 'gmail.com', 'gmail.con': 'gmail.com',
+  'gmail.vom': 'gmail.com', 'gmail.cmo': 'gmail.com', 'gmail.ocm': 'gmail.com',
+  'gmal.com': 'gmail.com', 'gmil.com': 'gmail.com', 'gimail.com': 'gmail.com',
+  'yahoo.vom': 'yahoo.com', 'yahoo.con': 'yahoo.com', 'yahoo.cmo': 'yahoo.com',
+  'yahoo.ocm': 'yahoo.com', 'yahooo.com': 'yahoo.com', 'yaho.com': 'yahoo.com',
+  'yahho.com': 'yahoo.com', 'uahoo.com': 'yahoo.com', 'tahoo.com': 'yahoo.com',
+  'hotmal.com': 'hotmail.com', 'hotmial.com': 'hotmail.com', 'hotamil.com': 'hotmail.com',
+  'hotmail.con': 'hotmail.com', 'hotmail.vom': 'hotmail.com', 'hotmil.com': 'hotmail.com',
+  'hotmaill.com': 'hotmail.com', 'hotmale.com': 'hotmail.com',
+  'outloo.com': 'outlook.com', 'outlok.com': 'outlook.com', 'outlook.con': 'outlook.com',
+  'outlook.vom': 'outlook.com', 'outloock.com': 'outlook.com',
+  'live.con': 'live.com', 'live.vom': 'live.com',
+  'icloud.con': 'icloud.com', 'icloud.vom': 'icloud.com', 'iclould.com': 'icloud.com',
+  'protonmail.con': 'protonmail.com', 'protonmail.vom': 'protonmail.com',
+};
+const TLD_TYPOS: Record<string, string> = {
+  'vom': 'com', 'con': 'com', 'cmo': 'com', 'ocm': 'com', 'coom': 'com',
+  'comm': 'com', 'xom': 'com', 'dom': 'com',
+  'nett': 'net', 'ner': 'net', 'orgg': 'org', 'rog': 'org', 'ogr': 'org',
+};
+
+function validateEmail(email: string): { valid: boolean; reason?: string; suggestion?: string } {
+  const trimmed = email.trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+    return { valid: false, reason: 'invalid_format' };
+  }
+  const domain = trimmed.split('@')[1];
+  if (!domain) return { valid: false, reason: 'invalid_format' };
+  if (WHITELISTED_DOMAINS.has(domain)) return { valid: true };
+  if (DOMAIN_TYPOS[domain]) {
+    const corrected = trimmed.replace(`@${domain}`, `@${DOMAIN_TYPOS[domain]}`);
+    return { valid: false, reason: 'typo', suggestion: corrected };
+  }
+  const tld = domain.split('.').pop();
+  if (!tld) return { valid: false, reason: 'invalid_format' };
+  if (TLD_TYPOS[tld]) {
+    const correctedDomain = domain.replace(new RegExp(`\\.${tld}$`), `.${TLD_TYPOS[tld]}`);
+    return { valid: false, reason: 'typo', suggestion: trimmed.replace(`@${domain}`, `@${correctedDomain}`) };
+  }
+  if (VALID_TLDS.has(tld)) return { valid: true };
+  const parts = domain.split('.');
+  if (parts.length >= 3 && VALID_TLDS.has(parts[parts.length - 1])) return { valid: true };
+  return { valid: false, reason: 'invalid_domain' };
+}
+
 function generateSecureToken(prefix: string): string {
   const bytes = new Uint8Array(24);
   crypto.getRandomValues(bytes);
@@ -976,6 +1050,11 @@ app.post("/make-server-b87b0c07/packages", async (c) => {
       return c.json({ error: "Missing required fields" }, 400);
     }
 
+    const emailCheck = validateEmail(email);
+    if (!emailCheck.valid) {
+      return c.json({ error: emailCheck.reason === 'typo' ? `Invalid email domain. Did you mean ${emailCheck.suggestion}?` : 'Invalid email address', suggestion: emailCheck.suggestion }, 400);
+    }
+
     if (!VALID_PACKAGE_TYPES.includes(packageType)) {
       return c.json({ error: "Invalid package type" }, 400);
     }
@@ -1567,6 +1646,11 @@ app.post("/make-server-b87b0c07/reservations", async (c) => {
 
     if (!name || !surname || !email || !mobile) {
       return c.json({ error: "Missing personal information" }, 400);
+    }
+
+    const emailCheck = validateEmail(email);
+    if (!emailCheck.valid) {
+      return c.json({ error: emailCheck.reason === 'typo' ? `Invalid email domain. Did you mean ${emailCheck.suggestion}?` : 'Invalid email address', suggestion: emailCheck.suggestion }, 400);
     }
 
     // DUO validation (keep this check before RPC for better error message)
@@ -4499,6 +4583,11 @@ app.post("/make-server-b87b0c07/auth/register", async (c) => {
 
     if (!email || !password) {
       return c.json({ error: 'Email and password are required' }, 400);
+    }
+
+    const emailCheck = validateEmail(email);
+    if (!emailCheck.valid) {
+      return c.json({ error: emailCheck.reason === 'typo' ? `Invalid email domain. Did you mean ${emailCheck.suggestion}?` : 'Invalid email address', suggestion: emailCheck.suggestion }, 400);
     }
 
     if (password.length < 6) {

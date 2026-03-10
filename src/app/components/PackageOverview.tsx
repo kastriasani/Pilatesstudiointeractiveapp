@@ -8,6 +8,7 @@ import {
   isTimeSlotPast
 } from '../../utils/dateUtils';
 import { useRealtimeAvailability } from '@/hooks/useRealtimeAvailability';
+import { validateEmail } from '@/utils/emailValidation';
 
 type PackageOverviewProps = {
   onBack: () => void;
@@ -174,9 +175,14 @@ export function PackageOverview({ onBack, language }: PackageOverviewProps) {
       return;
     }
     const emailVal = formData.email.trim();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailVal)) {
+    const emailCheck = validateEmail(emailVal);
+    if (!emailCheck.valid) {
       setFieldErrors({ email: true });
-      setFormError(t.invalidEmail || 'Please enter a valid email address');
+      if (emailCheck.suggestion) {
+        setFormError(`${t.emailDidYouMean || 'Did you mean'} ${emailCheck.suggestion}?`);
+      } else {
+        setFormError(emailCheck.reason === 'invalid_domain' ? (t.invalidEmailDomain || 'The email domain is not valid') : (t.invalidEmail || 'Please enter a valid email address'));
+      }
       return;
     }
 
