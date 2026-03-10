@@ -2277,11 +2277,37 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                 : pkg.type === 'duo12classes' ? '12 DUO'
                                 : pkg.type;
 
+                              // Compact single-line for terminal packages
+                              if (isExpired || isCancelled || isFullyUsed) {
+                                const startDate = pkg.purchaseDate ? new Date(pkg.purchaseDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'Europe/Skopje' }) : '';
+                                const endDate = pkg.expiryDate ? new Date(pkg.expiryDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'Europe/Skopje' }) : '';
+                                return (
+                                  <div key={pkg.id || pkgIndex} className="mb-1.5 px-3 py-1.5 rounded border bg-gray-50 border-gray-200 flex items-center justify-between text-xs text-[#8b7764]">
+                                    <div className="flex items-center gap-2 min-w-0">
+                                      <span className="font-medium text-[#3d2f28]">{pkgLabel}{pkgBonus > 0 ? ` +${pkgBonus}` : ''}</span>
+                                      <span className="text-gray-300">·</span>
+                                      <span>{pkgUsed}/{pkgTotal} used</span>
+                                      {startDate && endDate && (
+                                        <>
+                                          <span className="text-gray-300">·</span>
+                                          <span className="truncate">{startDate} – {endDate}</span>
+                                        </>
+                                      )}
+                                    </div>
+                                    <div className={`shrink-0 ml-2 px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase ${
+                                      isExpired ? 'bg-red-100 text-red-600'
+                                      : isCancelled ? 'bg-red-100 text-red-600'
+                                      : 'bg-stone-100 text-stone-500'
+                                    }`}>
+                                      {isExpired ? 'Expired' : isCancelled ? 'Cancelled' : 'Completed'}
+                                    </div>
+                                  </div>
+                                );
+                              }
+
                               return (
                                 <div key={pkg.id || pkgIndex} className={`mb-3 p-3 rounded-md border ${
-                                  isExpired || isCancelled ? 'bg-gray-50 border-gray-200'
-                                  : isFullyUsed ? 'bg-stone-50 border-stone-200'
-                                  : isPaid ? 'bg-green-50/50 border-green-200'
+                                  isPaid ? 'bg-green-50/50 border-green-200'
                                   : 'bg-amber-50/50 border-amber-200'
                                 }`}>
                                   {/* Package header */}
@@ -2290,13 +2316,10 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                       {pkgLabel}{pkgBonus > 0 ? ` + ${pkgBonus} Bonus` : ''}
                                     </div>
                                     <div className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase ${
-                                      isExpired ? 'bg-red-100 text-red-700'
-                                      : isCancelled ? 'bg-red-100 text-red-700'
-                                      : isFullyUsed ? 'bg-stone-100 text-stone-600'
-                                      : isPaid ? 'bg-green-100 text-green-700'
+                                      isPaid ? 'bg-green-100 text-green-700'
                                       : 'bg-amber-100 text-amber-700'
                                     }`}>
-                                      {isExpired ? 'Expired' : isCancelled ? 'Cancelled' : isFullyUsed ? 'Completed' : isPaid ? 'Paid' : 'Unpaid'}
+                                      {isPaid ? 'Paid' : 'Unpaid'}
                                     </div>
                                   </div>
 

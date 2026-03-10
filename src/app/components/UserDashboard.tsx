@@ -1199,9 +1199,7 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
           </svg>
           {/* Avatar centered inside ring */}
           <Avatar className="absolute bg-gradient-to-br from-[#9ca571] to-[#7A8F3A] shadow-md" style={{ top: 5, left: 5, width: 54, height: 54 }}>
-            {profileImageUrl && (
-              <AvatarImage src={profileImageUrl} alt={displayName} />
-            )}
+            <AvatarImage src={profileImageUrl || 'https://i.ibb.co/7dN5nbt3/Group-4.png'} alt={displayName} />
             <AvatarFallback className="bg-transparent text-white font-bold text-sm">
               {initials}
             </AvatarFallback>
@@ -1624,83 +1622,38 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
                         transition={{ duration: 0.3 }}
                         className="overflow-hidden"
                       >
-                        <div className="space-y-3 mt-2 opacity-70">
+                        <div className="space-y-1.5 mt-2">
                           {archivedPackages.map((pkg) => {
-                            const baseSessionCount = pkg.packageType === 'package8' ? 8 : pkg.packageType === 'package10' ? 10 : pkg.packageType === 'package12' ? 12 : pkg.totalSessions;
-                            const bonusSessions = pkg.totalSessions > baseSessionCount ? pkg.totalSessions - baseSessionCount : 0;
+                            const usedSessions = pkg.totalSessions - pkg.remainingSessions;
+                            const startDate = pkg.purchaseDate ? new Date(pkg.purchaseDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'Europe/Skopje' }) : '';
+                            const endDate = pkg.expiryDate ? new Date(pkg.expiryDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'Europe/Skopje' }) : '';
 
                             return (
                               <div
                                 key={pkg.id}
-                                className="bg-white/60 rounded-2xl p-5 shadow-sm border border-[#e8e6e3]"
+                                className="flex items-center justify-between bg-white/50 rounded-lg px-3 py-2 border border-[#e8e6e3]"
                               >
-                                <div className="flex items-start justify-between mb-3">
-                                  <div className="flex-1">
-                                    <h3 className="text-base font-semibold text-[#3d2f28] mb-1">
-                                      {getPackageDisplayName(pkg.packageType)}
-                                    </h3>
-                                    <p className="text-xs text-[#6b5949]">
-                                      <span className="font-semibold">{pkg.remainingSessions}</span> / {pkg.totalSessions} {t.sessionsRemaining || 'sessions remaining'}
-                                    </p>
-                                  </div>
-                                  <div className={`px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 ${
-                                    pkg.packageStatus === 'fully_used'
-                                      ? 'bg-stone-100 text-stone-600'
-                                      : pkg.packageStatus === 'expired'
-                                      ? 'bg-red-50 text-red-600'
-                                      : 'bg-red-100 text-red-700'
-                                  }`}>
-                                    {pkg.packageStatus === 'fully_used' ? (
-                                      <><CheckCircle className="w-3.5 h-3.5" />{t.completed || 'Completed'}</>
-                                    ) : pkg.packageStatus === 'expired' ? (
-                                      <><AlertCircle className="w-3.5 h-3.5" />{t.expired || 'Expired'}</>
-                                    ) : (
-                                      <><AlertCircle className="w-3.5 h-3.5" />{t.cancelled || 'Cancelled'}</>
-                                    )}
-                                  </div>
+                                <div className="flex items-center gap-2 text-xs text-[#8b7764] min-w-0">
+                                  <span className="font-medium text-[#3d2f28] shrink-0">{getPackageDisplayName(pkg.packageType)}</span>
+                                  <span className="text-[#b0a090]">·</span>
+                                  <span className="shrink-0">{usedSessions}/{pkg.totalSessions} {t.used || 'used'}</span>
+                                  {startDate && endDate && (
+                                    <>
+                                      <span className="text-[#b0a090]">·</span>
+                                      <span className="truncate">{startDate} – {endDate}</span>
+                                    </>
+                                  )}
                                 </div>
-                                <div>
-                                  <p className="text-xs text-[#6b5949] mb-2">{t.yourSessions || 'Your sessions'}:</p>
-                                  <div className="grid grid-cols-4 gap-2">
-                                    {Array.from({ length: pkg.totalSessions }).map((_, slotIndex) => {
-                                      const bookedSession = getBookedSessionForSlot(pkg, slotIndex);
-                                      const isBooked = !!bookedSession;
-                                      const isAttended = bookedSession?.attended === true;
-                                      const isBonus = slotIndex >= baseSessionCount;
-
-                                      return (
-                                        <div
-                                          key={slotIndex}
-                                          className={`relative flex flex-col items-center justify-center h-14 rounded-xl text-xs font-medium ${
-                                            isAttended
-                                              ? 'bg-[#6b5949] text-white/90'
-                                              : isBooked
-                                                ? isBonus ? 'bg-[#D8A93B] text-white' : 'bg-[#7A8F3A] text-white'
-                                                : 'bg-[#f5f3f0] border border-[#e8e6e3] text-[#8b7764]'
-                                          }`}
-                                        >
-                                          {isBooked ? (
-                                            <>
-                                              <span className="text-[10px] font-bold">✓</span>
-                                              <span className="text-[9px] opacity-90 leading-tight">
-                                                {formatShortDate(bookedSession.dateKey)}
-                                              </span>
-                                              <span className="text-[9px] opacity-90 leading-tight">
-                                                {bookedSession.time}
-                                              </span>
-                                            </>
-                                          ) : (
-                                            <span className="text-[9px]">{slotIndex + 1}</span>
-                                          )}
-                                          {isBonus && !isAttended && (
-                                            <span className="absolute -top-1 -right-1 w-3 h-3 bg-[#D8A93B] rounded-full flex items-center justify-center text-[8px] text-white font-bold">
-                                              B
-                                            </span>
-                                          )}
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
+                                <div className={`shrink-0 ml-2 px-2 py-0.5 rounded text-[10px] font-semibold ${
+                                  pkg.packageStatus === 'fully_used'
+                                    ? 'bg-stone-100 text-stone-500'
+                                    : pkg.packageStatus === 'expired'
+                                    ? 'bg-red-50 text-red-500'
+                                    : 'bg-red-100 text-red-600'
+                                }`}>
+                                  {pkg.packageStatus === 'fully_used' ? (t.completed || 'Completed')
+                                    : pkg.packageStatus === 'expired' ? (t.expired || 'Expired')
+                                    : (t.cancelled || 'Cancelled')}
                                 </div>
                               </div>
                             );
