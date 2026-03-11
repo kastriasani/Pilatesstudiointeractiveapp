@@ -2198,53 +2198,51 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                             <span className="text-sm text-[#3d2f28] font-medium">
                               {user.name} {user.surname}
                             </span>
-                            <span className="text-xs text-[#8b7764]">
+                            <span className="text-xs text-[#8b7764] text-right">
                               {(() => {
                                 const pkgs = user.packages || [];
                                 const activeOrPending = pkgs.filter(p => p.status === 'active' || p.status === 'pending');
                                 if (pkgs.length === 0) return 'No package';
-                                // Show count if multiple packages
-                                const countLabel = pkgs.length > 1 ? `${pkgs.length} pkgs` : (
-                                  activeOrPending[0]?.type === 'single' || activeOrPending[0]?.type === '1class' || activeOrPending[0]?.type === 'duo1class'
-                                    ? (activeOrPending[0]?.type === '1class' ? 'Individual' : activeOrPending[0]?.type === 'duo1class' ? 'DUO' : 'Single')
-                                    : `${baseSessionCount}-pack`
-                                );
-                                // Show aggregate remaining/total for active packages
-                                const activeTotal = activeOrPending.reduce((s, p) => s + (p.totalSessions || 0), 0);
-                                const activeRemaining = activeOrPending.reduce((s, p) => s + (p.remainingSessions || 0), 0);
-                                return (
-                                  <>
-                                    {countLabel}
-                                    {activeTotal > 0 && (
-                                      <>
-                                        {' · '}
-                                        <span style={{ color: activeRemaining > 0 ? '#7A8F3A' : '#dc2626' }}>
-                                          {activeRemaining}
-                                        </span>
-                                        /{activeTotal}
-                                      </>
-                                    )}
-                                    {(() => {
-                                      // Show expiry from the most relevant active package
-                                      const activePkg = activeOrPending.find(p => p.expiryDate && p.status === 'active');
-                                      if (!activePkg?.expiryDate) return null;
-                                      const expiryInSkopje = new Date(activePkg.expiryDate);
-                                      const daysLeft = Math.ceil((expiryInSkopje.getTime() - getSkopjeTime().getTime()) / (24 * 60 * 60 * 1000));
-                                      if (daysLeft <= 0) return (
-                                        <span style={{ marginLeft: '6px' }}>
-                                          · <span style={{ color: '#dc2626' }}>expired</span>
-                                        </span>
-                                      );
-                                      return (
-                                        <span style={{ marginLeft: '6px' }}>
-                                          · <span style={{ color: daysLeft <= 5 ? '#dc2626' : daysLeft <= 10 ? '#e97a1f' : '#8b7764' }}>
-                                            {daysLeft}d left
+
+                                const getPkgLabel = (type: string) =>
+                                  type === 'single' ? 'Single'
+                                  : type === '1class' ? 'Individual'
+                                  : type === 'duo1class' ? 'DUO'
+                                  : type === 'package8' || type === '8classes' || type === 'duo8classes' ? '8-pack'
+                                  : type === 'package10' ? '10-pack'
+                                  : type === 'package12' || type === '12classes' || type === 'duo12classes' ? '12-pack'
+                                  : type;
+
+                                return activeOrPending.map((pkg, i) => {
+                                  const label = getPkgLabel(pkg.type);
+                                  const total = pkg.totalSessions || 0;
+                                  const remaining = pkg.remainingSessions || 0;
+                                  const expiryDate = pkg.expiryDate ? new Date(pkg.expiryDate) : null;
+                                  const daysLeft = expiryDate ? Math.ceil((expiryDate.getTime() - getSkopjeTime().getTime()) / (24 * 60 * 60 * 1000)) : null;
+
+                                  return (
+                                    <span key={pkg.id || i}>
+                                      {i > 0 && <>{' | '}</>}
+                                      {label}
+                                      {total > 0 && (
+                                        <>
+                                          {' · '}
+                                          <span style={{ color: remaining > 0 ? '#7A8F3A' : '#dc2626' }}>
+                                            {remaining}
+                                          </span>
+                                          /{total}
+                                        </>
+                                      )}
+                                      {daysLeft !== null && (
+                                        <span style={{ marginLeft: '4px' }}>
+                                          · <span style={{ color: daysLeft <= 0 ? '#dc2626' : daysLeft <= 5 ? '#dc2626' : daysLeft <= 10 ? '#e97a1f' : '#8b7764' }}>
+                                            {daysLeft <= 0 ? 'expired' : `${daysLeft}d left`}
                                           </span>
                                         </span>
-                                      );
-                                    })()}
-                                  </>
-                                );
+                                      )}
+                                    </span>
+                                  );
+                                });
                               })()}
                             </span>
                           </div>
