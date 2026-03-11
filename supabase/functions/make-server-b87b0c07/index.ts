@@ -418,7 +418,7 @@ async function calculateSlotCapacity(dateKey: string, timeSlot: string): Promise
 // ============ PACKAGE FULLY-USED CHECK ============
 
 // Mark a package as fully_used only when all sessions are truly consumed:
-// remaining_sessions = 0 AND no pending/confirmed reservations remain.
+// remaining_sessions = 0 AND no future pending/confirmed reservations remain.
 async function maybeMarkPackageFullyUsed(supabase: ReturnType<typeof getSupabase>, packageId: string): Promise<void> {
   const { data: pkg } = await supabase
     .from('user_packages')
@@ -428,12 +428,14 @@ async function maybeMarkPackageFullyUsed(supabase: ReturnType<typeof getSupabase
 
   if (!pkg || pkg.remaining_sessions > 0 || pkg.package_status === 'fully_used') return;
 
-  // Check if any active (non-terminal) reservations remain for this package
+  // Only count future (today or later) pending/confirmed reservations
+  const today = formatDateKey(getSkopjeTime());
   const { count } = await supabase
     .from('reservations')
     .select('id', { count: 'exact', head: true })
     .eq('package_id', packageId)
-    .in('reservation_status', ['pending', 'confirmed']);
+    .in('reservation_status', ['pending', 'confirmed'])
+    .gte('date_key', today);
 
   if (count === 0) {
     await supabase
@@ -3297,6 +3299,18 @@ app.patch("/make-server-b87b0c07/admin/users/:email/adjust-sessions", async (c) 
     }
 
     console.log(`📊 Sessions adjusted for ${normalizedEmail}: ${currentRemaining} → ${newRemaining} (${adjustment > 0 ? '+1' : '-1'})`);
+
+    // If remaining hit 0, check if package should be marked fully_used
+    if (newRemaining === 0) {
+      const { data: userPkgs } = await supabase
+        .from('user_packages')
+        .select('id')
+        .eq('user_email', normalizedEmail)
+        .in('package_status', ['active']);
+      for (const p of (userPkgs || [])) {
+        await maybeMarkPackageFullyUsed(supabase, p.id);
+      }
+    }
 
     return c.json({
       success: true,
