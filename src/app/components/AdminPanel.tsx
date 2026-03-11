@@ -1059,6 +1059,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
         console.error('Failed to update payment status:', data);
         toast.error(data.error || 'Failed to update payment status');
         fetchBookings();
+        setPaymentUpdatingEmail(null);
         return;
       }
 
@@ -1079,6 +1080,8 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
       console.error('Error updating booking status:', error);
       toast.error('Failed to update payment status');
       fetchBookings();
+    } finally {
+      setPaymentUpdatingEmail(null);
     }
   };
 
@@ -2424,30 +2427,32 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                               {user.status === 'pending' ? (
                                 <>
                                   <button
-                                    onClick={() => handleStatusChange(user.id)}
-                                    className="px-3 py-1.5 bg-amber-100 text-amber-700 rounded-md text-xs font-medium hover:bg-green-100 hover:text-green-700 transition-colors flex items-center gap-1.5"
-                                    title="Click to mark as paid"
+                                    onClick={() => { setPaymentUpdatingEmail(user.email); handleStatusChange(user.id); }}
+                                    disabled={paymentUpdatingEmail === user.email}
+                                    className="px-3 py-1.5 bg-amber-100 text-amber-700 rounded-md text-xs font-medium hover:bg-green-100 hover:text-green-700 transition-colors flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    title="Click to mark as paid & activate"
                                   >
-                                    <AlertCircle className="w-3 h-3" />
+                                    {paymentUpdatingEmail === user.email ? (
+                                      <Loader2 className="w-3 h-3 animate-spin" />
+                                    ) : (
+                                      <AlertCircle className="w-3 h-3" />
+                                    )}
                                     Unpaid
-                                  </button>
-                                  <button
-                                    onClick={() => handleActivateUser(user)}
-                                    className="px-3 py-1.5 bg-green-600 text-white rounded-md text-xs font-medium hover:bg-green-700 transition-colors flex items-center gap-1.5"
-                                    disabled={isSendingEmail}
-                                  >
-                                    <CheckCircle className="w-3 h-3" />
-                                    Activate
                                   </button>
                                 </>
                               ) : user.status === 'confirmed' ? (
                                 <>
                                   <button
-                                    onClick={() => handleStatusChange(user.id)}
-                                    className="px-3 py-1.5 bg-green-100 text-green-700 rounded-md text-xs font-medium hover:bg-amber-100 hover:text-amber-700 transition-colors flex items-center gap-1.5"
+                                    onClick={() => { setPaymentUpdatingEmail(user.email); handleStatusChange(user.id); }}
+                                    disabled={paymentUpdatingEmail === user.email}
+                                    className="px-3 py-1.5 bg-green-100 text-green-700 rounded-md text-xs font-medium hover:bg-amber-100 hover:text-amber-700 transition-colors flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                                     title="Click to mark as unpaid"
                                   >
-                                    <CheckCircle className="w-3 h-3" />
+                                    {paymentUpdatingEmail === user.email ? (
+                                      <Loader2 className="w-3 h-3 animate-spin" />
+                                    ) : (
+                                      <CheckCircle className="w-3 h-3" />
+                                    )}
                                     Paid
                                   </button>
                                   <button
