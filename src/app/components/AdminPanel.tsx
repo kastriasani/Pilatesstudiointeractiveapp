@@ -1057,16 +1057,27 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
 
       if (!response.ok) {
         console.error('Failed to update payment status:', data);
-        // Revert the change if backend update fails
+        toast.error(data.error || 'Failed to update payment status');
         fetchBookings();
         return;
+      }
+
+      // Show toast based on what happened
+      if (paymentStatus === 'paid') {
+        if (data.emailType === 'password_setup') {
+          toast.success('Paid & login email sent!');
+        } else if (data.emailType === 'payment_confirmation') {
+          toast.success('Paid & confirmation email sent!');
+        } else {
+          toast.success('Payment status updated to paid');
+        }
       }
 
       // Refresh bookings from backend to get updated state
       await fetchBookings();
     } catch (error) {
       console.error('Error updating booking status:', error);
-      // Revert the change if network error
+      toast.error('Failed to update payment status');
       fetchBookings();
     }
   };
@@ -1110,7 +1121,10 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
           const data = await response.json();
           console.log('User activated successfully:', data);
 
-          toast.success(`${user.name} ${user.surname} activated successfully! Login email sent to ${user.email}`);
+          const emailMsg = data.emailType === 'payment_confirmation'
+            ? 'Confirmation email sent'
+            : 'Login email sent';
+          toast.success(`${user.name} ${user.surname} activated! ${emailMsg} to ${user.email}`);
           setIsSendingEmail(false);
 
           // Refresh user list to show updated status

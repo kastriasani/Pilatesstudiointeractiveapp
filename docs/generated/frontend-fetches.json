@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-11T12:30:40.145Z",
+  "generatedAt": "2026-03-11T12:35:23.392Z",
   "sourceDir": "src",
   "occurrenceCount": 57,
   "uniquePathCount": 45,
@@ -8,7 +8,7 @@
       "method": "POST",
       "path": "/activate",
       "file": "src/app/components/AdminPanel.tsx",
-      "line": 1083
+      "line": 1094
     },
     {
       "method": "POST",
@@ -98,7 +98,7 @@
       "method": "PATCH",
       "path": "/admin/users/:param/adjust-sessions",
       "file": "src/app/components/AdminPanel.tsx",
-      "line": 1198
+      "line": 1212
     },
     {
       "method": "PATCH",
@@ -110,7 +110,7 @@
       "method": "POST",
       "path": "/admin/users/:param/resend-login-email",
       "file": "src/app/components/AdminPanel.tsx",
-      "line": 1265
+      "line": 1279
     },
     {
       "method": "POST",
@@ -218,13 +218,13 @@
       "method": "DELETE",
       "path": "/reservations/:param",
       "file": "src/app/components/AdminPanel.tsx",
-      "line": 1351
+      "line": 1365
     },
     {
       "method": "PATCH",
       "path": "/reservations/:param/status",
       "file": "src/app/components/AdminPanel.tsx",
-      "line": 1310
+      "line": 1324
     },
     {
       "method": "GET",
@@ -332,7 +332,7 @@
       "method": "DELETE",
       "path": "/users/:param",
       "file": "src/app/components/AdminPanel.tsx",
-      "line": 1133
+      "line": 1147
     },
     {
       "method": "POST",

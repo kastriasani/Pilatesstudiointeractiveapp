@@ -754,6 +754,9 @@ function getEmailTranslations(language: string) {
       classCancelledSubject: 'Klasa e anuluar - Wellnest Pilates',
       classCancelled: 'Klasa juaj e rezervuar është anuluar.',
       classCancelledApology: 'Na vjen keq për bezrahatinë. Ju lutem rezervoni një klasë tjetër.',
+      packagePaidSubject: 'Paketa u pagua - Wellnest Pilates',
+      packagePaidMessage: 'Pagesa juaj u konfirmua me sukses! Paketa juaj tani është aktive.',
+      packagePaidDetails: 'Mund të kyçeni dhe të rezervoni klasët tuaja.',
       resetPasswordSubject: 'Ndryshoni Fjalëkalimin - Wellnest Pilates',
       resetPasswordMessage: 'Keni kërkuar ndryshimin e fjalëkalimit.',
       resetPasswordButton: 'Ndrysho Fjalëkalimin',
@@ -786,6 +789,9 @@ function getEmailTranslations(language: string) {
       classCancelledSubject: 'Откажана класа - Велнест Пилатес',
       classCancelled: 'Вашата резервирана класа е откажана.',
       classCancelledApology: 'Се извинуваме за непријатноста. Ве молиме резервирајте друга класа.',
+      packagePaidSubject: 'Пакетот е платен - Велнест Пилатес',
+      packagePaidMessage: 'Вашата уплата е успешно потврдена! Вашиот пакет сега е активен.',
+      packagePaidDetails: 'Можете да се најавите и да ги резервирате вашите часови.',
       resetPasswordSubject: 'Промена на Лозинка - Велнест Пилатес',
       resetPasswordMessage: 'Побаравте промена на вашата лозинка.',
       resetPasswordButton: 'Промени Лозинка',
@@ -818,6 +824,9 @@ function getEmailTranslations(language: string) {
       classCancelledSubject: 'Class Cancelled - Wellnest Pilates',
       classCancelled: 'Your booked class has been cancelled.',
       classCancelledApology: 'We apologize for the inconvenience. Please book another class.',
+      packagePaidSubject: 'Package Paid - Wellnest Pilates',
+      packagePaidMessage: 'Your payment has been confirmed! Your package is now active.',
+      packagePaidDetails: 'You can log in and book your classes.',
       resetPasswordSubject: 'Reset Password - Wellnest Pilates',
       resetPasswordMessage: 'You requested a password reset.',
       resetPasswordButton: 'Reset Password',
@@ -941,6 +950,36 @@ async function sendActivationEmail(
     : 'Your Account - Wellnest Pilates';
 
   return sendEmail(email, subject, html);
+}
+
+// Send payment confirmation email (for returning users who already have a password)
+async function sendPaymentConfirmationEmail(
+  email: string,
+  name: string,
+  language: string = 'en'
+) {
+  const t = getEmailTranslations(language);
+  const capitalizedName = capitalizeName(name);
+  const appUrl = 'https://app.wellnestpilates.com';
+
+  const content: EmailContent = {
+    greeting: `${t.greeting}, ${capitalizedName}`,
+    message: t.packagePaidMessage,
+    button: {
+      text: t.bookNow,
+      url: `${appUrl}/login`,
+      hideUrl: true
+    },
+    instructions: {
+      title: '',
+      steps: [
+        t.packagePaidDetails
+      ]
+    }
+  };
+
+  const html = generateEmailTemplate(content, (language?.toLowerCase() || 'en') as 'sq' | 'mk' | 'en');
+  return sendEmail(email, t.packagePaidSubject, html);
 }
 
 // Send re-engagement email to archived users
@@ -2439,36 +2478,52 @@ app.post("/make-server-b87b0c07/activate", async (c) => {
       // Continue anyway
     }
 
-    // 4. Generate verification token for password setup
-    const verificationToken = generateSecureToken('verify');
-    const tokenKey = `verification_token:${verificationToken}`;
-    const tokenExpiry = new Date();
-    tokenExpiry.setHours(tokenExpiry.getHours() + 24);
-
-    await kv.set(tokenKey, {
-      id: tokenKey,
-      token: verificationToken,
-      email: normalizedEmail,
-      expiresAt: tokenExpiry.toISOString(),
-      used: false,
-      createdAt: now
-    });
-
-    // 5. Send login email with password setup link
+    // 4. Send appropriate email based on whether user already has a password
     const appUrl = c.req.header('origin') || 'https://app.wellnestpilates.com';
-    try {
-      await sendActivationEmail(normalizedEmail, user.name || '', verificationToken, appUrl, user.language || 'en');
-      console.log(`Activation email sent to: ${normalizedEmail}`);
-    } catch (emailError) {
-      console.error('Failed to send login email:', emailError);
-      // Don't fail the activation if email fails
+    let emailType = 'none';
+
+    if (user.password_hash) {
+      // Existing user — send payment confirmation email (no password setup needed)
+      try {
+        await sendPaymentConfirmationEmail(normalizedEmail, user.name || '', user.language || 'en');
+        emailType = 'payment_confirmation';
+        console.log(`Payment confirmation email sent to: ${normalizedEmail}`);
+      } catch (emailError) {
+        console.error('Failed to send payment confirmation email:', emailError);
+      }
+    } else {
+      // New user — generate token and send password setup email
+      const verificationToken = generateSecureToken('verify');
+      const tokenKey = `verification_token:${verificationToken}`;
+      const tokenExpiry = new Date();
+      tokenExpiry.setHours(tokenExpiry.getHours() + 24);
+
+      await kv.set(tokenKey, {
+        id: tokenKey,
+        token: verificationToken,
+        email: normalizedEmail,
+        expiresAt: tokenExpiry.toISOString(),
+        used: false,
+        createdAt: now
+      });
+
+      try {
+        await sendActivationEmail(normalizedEmail, user.name || '', verificationToken, appUrl, user.language || 'en');
+        emailType = 'password_setup';
+        console.log(`Password setup email sent to: ${normalizedEmail}`);
+      } catch (emailError) {
+        console.error('Failed to send login email:', emailError);
+      }
     }
 
-    console.log(`User activated by admin: ${normalizedEmail}`);
+    console.log(`User activated by admin: ${normalizedEmail} (email: ${emailType})`);
 
     return c.json({
       success: true,
-      message: 'User activated successfully! Login email sent.',
+      message: emailType === 'password_setup'
+        ? 'User activated successfully! Login email sent.'
+        : 'User activated successfully! Payment confirmation sent.',
+      emailType,
       user: {
         email: normalizedEmail,
         name: user.name,
@@ -3157,13 +3212,26 @@ app.patch("/make-server-b87b0c07/admin/users/:email/payment", async (c) => {
 
     const normalizedEmail = normalizeEmail(email);
     const supabase = getSupabase();
+    const now = new Date().toISOString();
+
+    // Fetch user to check password_hash
+    const { data: user, error: fetchError } = await supabase
+      .from('users')
+      .select('name, password_hash, language')
+      .eq('email', normalizedEmail)
+      .single();
+
+    if (fetchError || !user) {
+      return c.json({ error: 'User not found' }, 404);
+    }
 
     // Update user payment status
     const { data: userUpdate, error: userError } = await supabase
       .from('users')
       .update({
         payment_status: paymentStatus,
-        updated_at: new Date().toISOString(),
+        activation_status: paymentStatus === 'paid' ? 'activated' : undefined,
+        updated_at: now,
       })
       .eq('email', normalizedEmail)
       .select();
@@ -3173,40 +3241,115 @@ app.patch("/make-server-b87b0c07/admin/users/:email/payment", async (c) => {
       return c.json({ error: 'Failed to update user', details: userError.message }, 500);
     }
 
-    // Update all user_packages for this user
-    const { error: pkgError } = await supabase
-      .from('user_packages')
-      .update({
-        payment_status: paymentStatus,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('user_email', normalizedEmail);
+    // Update user_packages — when marking paid, also activate pending packages
+    if (paymentStatus === 'paid') {
+      const expiryDate = new Date();
+      expiryDate.setDate(expiryDate.getDate() + 35);
 
-    if (pkgError) {
-      console.error('Error updating user_packages payment status:', pkgError);
-      return c.json({ error: 'Failed to update package payment status', details: pkgError.message }, 500);
+      const { data: activatedPkgs, error: pkgError } = await supabase
+        .from('user_packages')
+        .update({
+          payment_status: 'paid',
+          activation_status: 'activated',
+          package_status: 'active',
+          activation_date: now,
+          expiry_date: expiryDate.toISOString(),
+          updated_at: now,
+        })
+        .eq('user_email', normalizedEmail)
+        .eq('activation_status', 'pending')
+        .select();
+
+      if (pkgError) {
+        console.error('Error activating user_packages:', pkgError);
+      }
+
+      // Also update already-active packages' payment status
+      await supabase
+        .from('user_packages')
+        .update({ payment_status: 'paid', updated_at: now })
+        .eq('user_email', normalizedEmail)
+        .neq('activation_status', 'pending');
+
+      // Confirm pending reservations linked to activated packages
+      if (activatedPkgs && activatedPkgs.length > 0) {
+        const packageIds = activatedPkgs.map((p: any) => p.id);
+        await supabase
+          .from('reservations')
+          .update({ reservation_status: 'confirmed', payment_status: 'paid', updated_at: now })
+          .eq('user_email', normalizedEmail)
+          .in('package_id', packageIds)
+          .eq('reservation_status', 'pending');
+      }
+    } else {
+      // Setting to unpaid
+      const { error: pkgError } = await supabase
+        .from('user_packages')
+        .update({ payment_status: 'unpaid', updated_at: now })
+        .eq('user_email', normalizedEmail);
+
+      if (pkgError) {
+        console.error('Error updating user_packages payment status:', pkgError);
+      }
     }
 
-    // Update all reservations for this user
+    // Update all reservations payment_status
     const { data: resUpdate, error: resError } = await supabase
       .from('reservations')
-      .update({
-        payment_status: paymentStatus,
-        updated_at: new Date().toISOString(),
-      })
+      .update({ payment_status: paymentStatus, updated_at: now })
       .eq('user_email', normalizedEmail)
       .select();
 
     if (resError) {
       console.error('Error updating reservations payment status:', resError);
-      // Don't fail - user was updated successfully
     }
 
-    console.log(`💳 Payment status updated to '${paymentStatus}' for user: ${normalizedEmail} (Supabase)`);
+    // Send email when marking as paid
+    let emailType = 'none';
+    if (paymentStatus === 'paid') {
+      const appUrl = c.req.header('origin') || 'https://app.wellnestpilates.com';
+
+      if (user.password_hash) {
+        // Existing user — payment confirmation email
+        try {
+          await sendPaymentConfirmationEmail(normalizedEmail, user.name || '', user.language || 'en');
+          emailType = 'payment_confirmation';
+        } catch (emailError) {
+          console.error('Failed to send payment confirmation email:', emailError);
+        }
+      } else {
+        // New user — password setup email
+        const verificationToken = generateSecureToken('verify');
+        const tokenKey = `verification_token:${verificationToken}`;
+        const tokenExpiry = new Date();
+        tokenExpiry.setHours(tokenExpiry.getHours() + 24);
+
+        await kv.set(tokenKey, {
+          id: tokenKey,
+          token: verificationToken,
+          email: normalizedEmail,
+          expiresAt: tokenExpiry.toISOString(),
+          used: false,
+          createdAt: now
+        });
+
+        try {
+          await sendActivationEmail(normalizedEmail, user.name || '', verificationToken, appUrl, user.language || 'en');
+          emailType = 'password_setup';
+        } catch (emailError) {
+          console.error('Failed to send activation email:', emailError);
+        }
+      }
+    }
+
+    console.log(`💳 Payment status updated to '${paymentStatus}' for user: ${normalizedEmail} (email: ${emailType})`);
 
     return c.json({
       success: true,
-      message: `Payment status updated to '${paymentStatus}'`,
+      message: paymentStatus === 'paid'
+        ? (emailType === 'password_setup' ? 'Paid! Login email sent.' : 'Paid! Confirmation email sent.')
+        : 'Payment status updated to unpaid.',
+      emailType,
       userUpdated: userUpdate?.length || 0,
       reservationsUpdated: resUpdate?.length || 0,
     });
