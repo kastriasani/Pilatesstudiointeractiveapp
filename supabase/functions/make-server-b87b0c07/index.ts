@@ -3384,25 +3384,23 @@ app.patch("/make-server-b87b0c07/admin/users/:email/adjust-sessions", async (c) 
     const normalizedEmail = normalizeEmail(email);
     const supabase = getSupabase();
 
-    // Get current user
-    const { data: user, error: fetchError } = await supabase
-      .from('users')
-      .select('id, email, remaining_sessions, total_sessions, package_type')
-      .eq('email', normalizedEmail)
+    // Get active/pending package (source of truth for remaining sessions)
+    const { data: activePkg, error: pkgFetchError } = await supabase
+      .from('user_packages')
+      .select('id, remaining_sessions, total_sessions, package_type, package_status')
+      .eq('user_email', normalizedEmail)
+      .in('package_status', ['active', 'pending'])
+      .order('created_at', { ascending: false })
+      .limit(1)
       .single();
 
-    if (fetchError || !user) {
-      console.error('Error fetching user:', fetchError);
-      return c.json({ error: 'User not found' }, 404);
+    if (pkgFetchError || !activePkg) {
+      console.error('Error fetching active package:', pkgFetchError);
+      return c.json({ error: 'No active package found' }, 404);
     }
 
-    // Infer total from package type if not set (fallback for legacy data)
-    const baseSessionCount = user.package_type === 'package8' ? 8
-      : user.package_type === 'package10' ? 10
-      : user.package_type === 'package12' ? 12
-      : 8; // default to 8
-    const currentRemaining = user.remaining_sessions || 0;
-    const totalSessions = user.total_sessions || baseSessionCount;
+    const currentRemaining = activePkg.remaining_sessions || 0;
+    const totalSessions = activePkg.total_sessions || 8;
     const newRemaining = currentRemaining + adjustment;
 
     // Validate bounds
@@ -3413,9 +3411,17 @@ app.patch("/make-server-b87b0c07/admin/users/:email/adjust-sessions", async (c) 
       return c.json({ error: 'Cannot exceed total sessions' }, 400);
     }
 
-    // Run both updates in parallel
+    // Update the specific package and sync users table
     const adjustedAt = new Date().toISOString();
-    const [{ error: userUpdateError }] = await Promise.all([
+    const [{ error: pkgUpdateError }, { error: userUpdateError }] = await Promise.all([
+      supabase
+        .from('user_packages')
+        .update({
+          remaining_sessions: newRemaining,
+          sessions_adjusted_at: adjustedAt,
+          updated_at: adjustedAt,
+        })
+        .eq('id', activePkg.id),
       supabase
         .from('users')
         .update({
@@ -3425,34 +3431,21 @@ app.patch("/make-server-b87b0c07/admin/users/:email/adjust-sessions", async (c) 
           updated_at: adjustedAt,
         })
         .eq('email', normalizedEmail),
-      supabase
-        .from('user_packages')
-        .update({
-          remaining_sessions: newRemaining,
-          sessions_adjusted_at: adjustedAt,
-          updated_at: adjustedAt,
-        })
-        .eq('user_email', normalizedEmail)
-        .in('package_status', ['active', 'pending']),
     ]);
 
+    if (pkgUpdateError) {
+      console.error('Error updating package:', pkgUpdateError);
+      return c.json({ error: 'Failed to update package' }, 500);
+    }
     if (userUpdateError) {
-      console.error('Error updating user:', userUpdateError);
-      return c.json({ error: 'Failed to update user' }, 500);
+      console.error('Error syncing users table:', userUpdateError);
     }
 
-    console.log(`📊 Sessions adjusted for ${normalizedEmail}: ${currentRemaining} → ${newRemaining} (${adjustment > 0 ? '+1' : '-1'})`);
+    console.log(`📊 Sessions adjusted for ${normalizedEmail} (pkg ${activePkg.id}): ${currentRemaining} → ${newRemaining} (${adjustment > 0 ? '+1' : '-1'})`);
 
     // If remaining hit 0, check if package should be marked fully_used
     if (newRemaining === 0) {
-      const { data: userPkgs } = await supabase
-        .from('user_packages')
-        .select('id')
-        .eq('user_email', normalizedEmail)
-        .in('package_status', ['active']);
-      for (const p of (userPkgs || [])) {
-        await maybeMarkPackageFullyUsed(supabase, p.id);
-      }
+      await maybeMarkPackageFullyUsed(supabase, activePkg.id);
     }
 
     return c.json({
