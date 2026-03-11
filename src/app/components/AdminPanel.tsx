@@ -2276,7 +2276,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                               const pkgUsed = pkgTotal - pkgRemaining;
                               const pkgNormalRemaining = Math.max(0, pkgBaseCount - Math.max(0, pkgUsed - pkgBonus));
                               const pkgBonusRemaining = Math.max(0, pkgBonus - Math.min(pkgUsed, pkgBonus));
-                              const isPaid = pkg.paymentStatus === 'paid' || pkg.activationStatus === 'activated';
+                              const isPaid = pkg.paymentStatus === 'paid';
                               const isActive = pkg.status === 'active';
                               const isExpired = pkg.status === 'expired';
                               const isCancelled = pkg.status === 'cancelled';
