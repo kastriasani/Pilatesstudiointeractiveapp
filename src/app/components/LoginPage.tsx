@@ -25,6 +25,12 @@ export function LoginPage({ onLogin, onBack }: LoginPageProps) {
   const [requestLoading, setRequestLoading] = useState(false);
   const [requestMessage, setRequestMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
+  // Forgot Password state
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotMessage, setForgotMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
   // Check for existing valid session on mount
   useEffect(() => {
     const session = localStorage.getItem('wellnest_session');
@@ -151,6 +157,46 @@ export function LoginPage({ onLogin, onBack }: LoginPageProps) {
     }
   };
 
+  const handleForgotPassword = async () => {
+    const emailCheck = validateEmail(forgotEmail.trim());
+    if (!forgotEmail || !emailCheck.valid) {
+      let msg = t.invalidEmail || 'Please enter a valid email address';
+      if (emailCheck.suggestion) {
+        msg = `${t.emailDidYouMean || 'Did you mean'} ${emailCheck.suggestion}?`;
+      } else if (emailCheck.reason === 'invalid_domain') {
+        msg = t.invalidEmailDomain || 'The email domain is not valid';
+      }
+      setForgotMessage({ type: 'error', text: msg });
+      return;
+    }
+
+    setForgotLoading(true);
+    setForgotMessage(null);
+
+    try {
+      const response = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/auth/forgot-password`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${publicAnonKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ email: forgotEmail.trim().toLowerCase() }),
+        }
+      );
+
+      await response.json();
+      // Always show success message to prevent email enumeration
+      setForgotMessage({ type: 'success', text: t.forgotPasswordSuccess || 'If an account exists with this email, a password reset link will be sent.' });
+    } catch (err) {
+      console.error('Forgot password error:', err);
+      setForgotMessage({ type: 'error', text: 'Something went wrong. Please try again.' });
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
   const handleBack = () => {
     if (onBack) {
       onBack();
@@ -180,7 +226,53 @@ export function LoginPage({ onLogin, onBack }: LoginPageProps) {
           </div>
         )}
 
-        {!showRequestLogin ? (
+        {showForgotPassword ? (
+          <div className="space-y-5">
+            <div>
+              <p className="text-sm text-[#6b5949] mb-4">
+                {t.forgotPasswordDescription || 'Enter your email and we will send you a link to reset your password.'}
+              </p>
+              <label className="block text-sm font-medium text-[#3d2f28] mb-2">
+                Email Address *
+              </label>
+              <input
+                type="email"
+                value={forgotEmail}
+                onChange={(e) => { setForgotEmail(e.target.value); setForgotMessage(null); }}
+                className="w-full px-4 py-3 rounded-xl border border-[#e8e6e3] focus:outline-none focus:ring-2 focus:ring-[#9ca571] bg-white text-[#3d2f28]"
+                placeholder="your@email.com"
+                disabled={forgotLoading}
+              />
+            </div>
+
+            {forgotMessage && (
+              <div className={`rounded-xl p-3 text-sm ${
+                forgotMessage.type === 'success'
+                  ? 'bg-green-50 border border-green-200 text-green-800'
+                  : 'bg-red-50 border border-red-200 text-red-800'
+              }`}>
+                {forgotMessage.text}
+              </div>
+            )}
+
+            <button
+              onClick={handleForgotPassword}
+              disabled={forgotLoading || forgotMessage?.type === 'success'}
+              className="w-full bg-[#9ca571] hover:bg-[#8a9463] text-white font-semibold py-3 rounded-xl transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+            >
+              {forgotLoading ? '...' : (t.sendResetLink || 'Send Reset Link')}
+            </button>
+
+            <div className="text-center pt-3 border-t border-[#e8e6e3]">
+              <button
+                onClick={() => { setShowForgotPassword(false); setForgotMessage(null); }}
+                className="text-sm text-[#9ca571] hover:underline font-medium"
+              >
+                &larr; Back to Login
+              </button>
+            </div>
+          </div>
+        ) : !showRequestLogin ? (
           <>
             <form onSubmit={handleSubmit} className="space-y-5">
               <div>
@@ -211,6 +303,15 @@ export function LoginPage({ onLogin, onBack }: LoginPageProps) {
                   required
                   disabled={loading}
                 />
+                <div className="text-right mt-1">
+                  <button
+                    type="button"
+                    onClick={() => { setShowForgotPassword(true); setForgotMessage(null); setForgotEmail(email || ''); }}
+                    className="text-xs text-[#9ca571] hover:underline font-medium"
+                  >
+                    {t.forgotPassword || 'Forgot your password?'}
+                  </button>
+                </div>
               </div>
 
               <button

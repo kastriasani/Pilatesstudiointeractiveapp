@@ -1,12 +1,12 @@
 # API Contract Report
 
-Generated: 2026-03-10T14:56:48.445Z
+Generated: 2026-03-11T11:18:35.915Z
 
 ## Summary
 
 - Status: PASS
-- Backend unique paths: 51
-- Frontend unique paths: 44
+- Backend unique paths: 52
+- Frontend unique paths: 45
 - Docs unique paths: 12
 
 ## Frontend Paths Missing In Backend
@@ -46,6 +46,7 @@ Generated: 2026-03-10T14:56:48.445Z
 - /admin/users/:email/payment
 - /admin/users/:email/resend-login-email
 - /auth/admin/login
+- /auth/forgot-password
 - /auth/login
 - /auth/logout
 - /auth/register

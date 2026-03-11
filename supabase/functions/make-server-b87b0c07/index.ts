@@ -752,6 +752,11 @@ function getEmailTranslations(language: string) {
       classCancelledSubject: 'Klasa e anuluar - Wellnest Pilates',
       classCancelled: 'Klasa juaj e rezervuar është anuluar.',
       classCancelledApology: 'Na vjen keq për bezrahatinë. Ju lutem rezervoni një klasë tjetër.',
+      resetPasswordSubject: 'Ndryshoni Fjalëkalimin - Wellnest Pilates',
+      resetPasswordMessage: 'Keni kërkuar ndryshimin e fjalëkalimit.',
+      resetPasswordButton: 'Ndrysho Fjalëkalimin',
+      resetLinkExpires: 'Ky link skadon pas 24 orëve.',
+      resetIgnore: 'Nëse nuk e keni kërkuar këtë, injoroni këtë email.',
     },
     mk: {
       greeting: 'Здраво',
@@ -779,6 +784,11 @@ function getEmailTranslations(language: string) {
       classCancelledSubject: 'Откажана класа - Велнест Пилатес',
       classCancelled: 'Вашата резервирана класа е откажана.',
       classCancelledApology: 'Се извинуваме за непријатноста. Ве молиме резервирајте друга класа.',
+      resetPasswordSubject: 'Промена на Лозинка - Велнест Пилатес',
+      resetPasswordMessage: 'Побаравте промена на вашата лозинка.',
+      resetPasswordButton: 'Промени Лозинка',
+      resetLinkExpires: 'Овој линк истекува за 24 часа.',
+      resetIgnore: 'Доколку не го побаравте ова, игнорирајте го овој емаил.',
     },
     en: {
       greeting: 'Hello',
@@ -806,6 +816,11 @@ function getEmailTranslations(language: string) {
       classCancelledSubject: 'Class Cancelled - Wellnest Pilates',
       classCancelled: 'Your booked class has been cancelled.',
       classCancelledApology: 'We apologize for the inconvenience. Please book another class.',
+      resetPasswordSubject: 'Reset Password - Wellnest Pilates',
+      resetPasswordMessage: 'You requested a password reset.',
+      resetPasswordButton: 'Reset Password',
+      resetLinkExpires: 'This link expires in 24 hours.',
+      resetIgnore: 'If you did not request this, please ignore this email.',
     }
   };
   return translations[lang] || translations.en;
@@ -4510,7 +4525,8 @@ app.post("/make-server-b87b0c07/auth/setup-password", async (c) => {
       return c.json({ error: "User not found" }, 404);
     }
 
-    if (user.password_hash) {
+    const isResetToken = tokenData.type === 'reset';
+    if (user.password_hash && !isResetToken) {
       return c.json({ error: "Password already set. Please log in instead." }, 400);
     }
 
@@ -4681,6 +4697,79 @@ app.post("/make-server-b87b0c07/auth/register", async (c) => {
 });
 
 // POST /auth/request-login - Public endpoint for users to request login credentials
+// POST /auth/forgot-password - Send password reset email
+app.post("/make-server-b87b0c07/auth/forgot-password", async (c) => {
+  try {
+    const body = await c.req.json();
+    const { email } = body;
+
+    if (!email) {
+      return c.json({ error: 'Email is required' }, 400);
+    }
+
+    const normalizedEmail = normalizeEmail(email);
+    const supabase = getSupabase();
+
+    // Look up user
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('email, name, password_hash, blocked, language')
+      .eq('email', normalizedEmail)
+      .maybeSingle();
+
+    // Always return success to prevent email enumeration
+    if (userError || !user || user.blocked || !user.password_hash) {
+      console.log(`Password reset requested for unknown/ineligible email: ${normalizedEmail}`);
+      return c.json({ success: true, message: 'If an account exists, a reset link will be sent.' });
+    }
+
+    // Generate reset token and store in KV
+    const resetToken = generateSecureToken('reset');
+    const tokenKey = `verification_token:${resetToken}`;
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    await kv.set(tokenKey, {
+      email: normalizedEmail,
+      expiresAt,
+      used: false,
+      type: 'reset'
+    });
+
+    // Send reset email
+    const lang = user.language || 'en';
+    const t = getEmailTranslations(lang);
+    const appUrl = 'https://app.wellnestpilates.com';
+    const resetUrl = `${appUrl}/setup-password?token=${resetToken}`;
+    const capitalizedName = capitalizeName(user.name);
+
+    const content: EmailContent = {
+      greeting: `${t.greeting}, ${capitalizedName}`,
+      message: t.resetPasswordMessage,
+      button: {
+        text: t.resetPasswordButton,
+        url: resetUrl,
+        hideUrl: true
+      },
+      instructions: {
+        title: '',
+        steps: [
+          t.resetLinkExpires,
+          t.resetIgnore
+        ]
+      }
+    };
+
+    const html = generateEmailTemplate(content, (lang?.toLowerCase() || 'en') as 'sq' | 'mk' | 'en');
+    await sendEmail(normalizedEmail, t.resetPasswordSubject, html);
+
+    console.log(`🔑 Password reset email sent to: ${normalizedEmail}`);
+    return c.json({ success: true, message: 'If an account exists, a reset link will be sent.' });
+
+  } catch (error) {
+    console.error('Error in forgot-password:', error);
+    return c.json({ error: 'Request failed', details: (error as Error).message }, 500);
+  }
+});
+
 app.post("/make-server-b87b0c07/auth/request-login", async (c) => {
   try {
     const body = await c.req.json();

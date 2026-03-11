@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-03-10T14:56:48.116Z",
+  "generatedAt": "2026-03-11T11:18:35.619Z",
   "sourceDir": "src",
-  "occurrenceCount": 55,
-  "uniquePathCount": 44,
+  "occurrenceCount": 56,
+  "uniquePathCount": 45,
   "entries": [
     {
       "method": "POST",
@@ -120,9 +120,15 @@
     },
     {
       "method": "POST",
+      "path": "/auth/forgot-password",
+      "file": "src/app/components/LoginPage.tsx",
+      "line": 178
+    },
+    {
+      "method": "POST",
       "path": "/auth/login",
       "file": "src/app/components/LoginPage.tsx",
-      "line": 61
+      "line": 67
     },
     {
       "method": "POST",
@@ -134,13 +140,13 @@
       "method": "POST",
       "path": "/auth/request-login",
       "file": "src/app/components/LoginPage.tsx",
-      "line": 128
+      "line": 134
     },
     {
       "method": "POST",
       "path": "/auth/setup-password",
       "file": "src/app/components/PasswordSetupPage.tsx",
-      "line": 58
+      "line": 60
     },
     {
       "method": "GET",

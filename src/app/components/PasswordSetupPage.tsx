@@ -14,6 +14,7 @@ export function PasswordSetupPage({ onComplete }: PasswordSetupPageProps) {
   const { language, setLanguage } = useLanguage();
   const t = translations[language];
   const [token, setToken] = useState<string>('');
+  const [isReset, setIsReset] = useState(false);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
@@ -31,6 +32,7 @@ export function PasswordSetupPage({ onComplete }: PasswordSetupPageProps) {
 
     if (foundToken) {
       setToken(foundToken);
+      setIsReset(foundToken.startsWith('reset_'));
     } else {
       setError(t.noTokenError);
     }
@@ -117,9 +119,9 @@ export function PasswordSetupPage({ onComplete }: PasswordSetupPageProps) {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
           </div>
-          <h2 className="text-2xl font-semibold text-[#3d2f28] mb-2">{t.registrationComplete}</h2>
+          <h2 className="text-2xl font-semibold text-[#3d2f28] mb-2">{isReset ? (t.passwordResetSuccess || 'Password reset successfully!') : t.registrationComplete}</h2>
           <p className="text-[#6b5949] mb-4">
-            {t.accountSetupSuccess}
+            {isReset ? '' : t.accountSetupSuccess}
           </p>
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#9ca571] mx-auto"></div>
         </div>
@@ -131,7 +133,7 @@ export function PasswordSetupPage({ onComplete }: PasswordSetupPageProps) {
     <div className="min-h-screen bg-[#f5f0ed] flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-lg p-8 max-w-md w-full">
         <div className="text-center mb-6">
-          <h1 className="text-2xl font-semibold text-[#3d2f28] mb-2">{t.completeRegistration}</h1>
+          <h1 className="text-2xl font-semibold text-[#3d2f28] mb-2">{isReset ? (t.resetPassword || 'Reset Password') : t.completeRegistration}</h1>
           <p className="text-sm text-[#6b5949]">
             WellNest Pilates - Gjuro Gjakovikj 59, Kumanovo 1300
           </p>
@@ -154,7 +156,7 @@ export function PasswordSetupPage({ onComplete }: PasswordSetupPageProps) {
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
             <label className="block text-sm font-medium text-[#3d2f28] mb-2">
-              {t.createPassword} *
+              {isReset ? (t.newPassword || 'New Password') : t.createPassword} *
             </label>
             <input
               type="password"
@@ -184,6 +186,7 @@ export function PasswordSetupPage({ onComplete }: PasswordSetupPageProps) {
             />
           </div>
 
+          {!isReset && (
           <div className="bg-[#fff8f0] border-l-4 border-[#9ca571] p-4 rounded">
             <p className="text-xs text-[#6b5949] leading-relaxed">
               <strong className="text-[#3d2f28]">{t.importantNote}</strong><br />
@@ -192,13 +195,14 @@ export function PasswordSetupPage({ onComplete }: PasswordSetupPageProps) {
               {t.loginBeforeActivation}
             </p>
           </div>
+          )}
 
           <button
             type="submit"
             disabled={!token || loading}
             className="w-full bg-[#9ca571] hover:bg-[#8a9463] text-white font-semibold py-3 rounded-xl transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
           >
-            {loading ? t.settingUp : t.completeRegistration}
+            {loading ? t.settingUp : (isReset ? (t.resetPassword || 'Reset Password') : t.completeRegistration)}
           </button>
         </form>
 
