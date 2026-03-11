@@ -2332,12 +2332,25 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                     <div className="text-sm text-[#3d2f28] font-medium">
                                       {pkgLabel}{pkgBonus > 0 ? ` + ${pkgBonus} Bonus` : ''}
                                     </div>
-                                    <div className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase ${
-                                      isPaid ? 'bg-green-100 text-green-700'
-                                      : 'bg-amber-100 text-amber-700'
-                                    }`}>
-                                      {isPaid ? 'Paid' : 'Unpaid'}
-                                    </div>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setPaymentUpdatingEmail(user.email);
+                                        updatePaymentStatus(user.email, isPaid ? 'unpaid' : 'paid').finally(() => setPaymentUpdatingEmail(null));
+                                      }}
+                                      disabled={paymentUpdatingEmail === user.email}
+                                      className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                                        isPaid ? 'bg-green-100 text-green-700 hover:bg-amber-100 hover:text-amber-700'
+                                        : 'bg-amber-100 text-amber-700 hover:bg-green-100 hover:text-green-700'
+                                      }`}
+                                      title={isPaid ? 'Click to mark as unpaid' : 'Click to mark as paid & activate'}
+                                    >
+                                      {paymentUpdatingEmail === user.email ? (
+                                        <Loader2 className="w-3 h-3 animate-spin inline" />
+                                      ) : (
+                                        isPaid ? 'Paid' : 'Unpaid'
+                                      )}
+                                    </button>
                                   </div>
 
                                   {/* Sessions bar */}
@@ -2422,55 +2435,8 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                               </div>
                             )}
 
-                            {/* Code + Action */}
-                            <div className="flex flex-wrap items-center gap-2">
-                              {user.status === 'pending' ? (
-                                <>
-                                  <button
-                                    onClick={() => { setPaymentUpdatingEmail(user.email); handleStatusChange(user.id); }}
-                                    disabled={paymentUpdatingEmail === user.email}
-                                    className="px-3 py-1.5 bg-amber-100 text-amber-700 rounded-md text-xs font-medium hover:bg-green-100 hover:text-green-700 transition-colors flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
-                                    title="Click to mark as paid & activate"
-                                  >
-                                    {paymentUpdatingEmail === user.email ? (
-                                      <Loader2 className="w-3 h-3 animate-spin" />
-                                    ) : (
-                                      <AlertCircle className="w-3 h-3" />
-                                    )}
-                                    Unpaid
-                                  </button>
-                                </>
-                              ) : user.status === 'confirmed' ? (
-                                <>
-                                  <button
-                                    onClick={() => { setPaymentUpdatingEmail(user.email); handleStatusChange(user.id); }}
-                                    disabled={paymentUpdatingEmail === user.email}
-                                    className="px-3 py-1.5 bg-green-100 text-green-700 rounded-md text-xs font-medium hover:bg-amber-100 hover:text-amber-700 transition-colors flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
-                                    title="Click to mark as unpaid"
-                                  >
-                                    {paymentUpdatingEmail === user.email ? (
-                                      <Loader2 className="w-3 h-3 animate-spin" />
-                                    ) : (
-                                      <CheckCircle className="w-3 h-3" />
-                                    )}
-                                    Paid
-                                  </button>
-                                  <button
-                                    onClick={() => handleResendLoginEmail(user)}
-                                    disabled={sendingLoginEmailTo === user.email}
-                                    className="px-3 py-1.5 bg-blue-500 text-white rounded-md text-xs font-medium hover:bg-blue-600 transition-colors flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
-                                  >
-                                    {sendingLoginEmailTo === user.email ? (
-                                      <Loader2 className="w-3 h-3 animate-spin" />
-                                    ) : (
-                                      <Mail className="w-3 h-3" />
-                                    )}
-                                    Send Login Email
-                                  </button>
-                                </>
-                              ) : null}
-
-                              {/* Delete Button */}
+                            {/* Delete */}
+                            <div className="flex flex-wrap items-center gap-2 mt-2">
                               <button
                                 onClick={() => handleDeleteUser(user)}
                                 className="px-3 py-1.5 bg-red-500 text-white rounded-md text-xs font-medium hover:bg-red-600 transition-colors flex items-center gap-1.5"
