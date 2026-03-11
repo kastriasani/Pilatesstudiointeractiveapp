@@ -2412,7 +2412,7 @@ app.post("/make-server-b87b0c07/activate", async (c) => {
         const packageIds = updatedPackages.map((p: any) => p.id);
         const { error: confirmError } = await supabase
           .from('reservations')
-          .update({ reservation_status: 'confirmed', updated_at: now })
+          .update({ reservation_status: 'confirmed', payment_status: 'paid', updated_at: now })
           .eq('user_email', normalizedEmail)
           .in('package_id', packageIds)
           .eq('reservation_status', 'pending');
@@ -3638,6 +3638,19 @@ app.get("/make-server-b87b0c07/admin/calendar", async (c) => {
 
     const dateReservations = reservations || [];
 
+    // Fetch payment_status from linked packages (source of truth)
+    const packageIds = [...new Set(dateReservations.map((r: any) => r.package_id).filter(Boolean))];
+    let packagePaymentMap: Record<string, string> = {};
+    if (packageIds.length > 0) {
+      const { data: packages } = await supabase
+        .from('user_packages')
+        .select('id, payment_status')
+        .in('id', packageIds);
+      for (const pkg of (packages || [])) {
+        packagePaymentMap[pkg.id] = pkg.payment_status;
+      }
+    }
+
     const calendarData = DEFAULT_TIME_SLOTS.map((timeSlot) => {
       // Filter pending/confirmed/attended reservations for this slot (all active bookings)
       const slotReservations = dateReservations.filter((r: any) =>
@@ -3652,7 +3665,7 @@ app.get("/make-server-b87b0c07/admin/calendar", async (c) => {
       }, 0);
       const available = hasPrivateSession ? 0 : Math.max(0, 4 - seatsOccupied);
 
-      // Map to frontend format
+      // Map to frontend format — use package payment_status as source of truth
       const mappedReservations = slotReservations.map((r: any) => ({
         id: r.id,
         userId: r.user_email,
@@ -3663,7 +3676,7 @@ app.get("/make-server-b87b0c07/admin/calendar", async (c) => {
         dateKey: r.date_key,
         timeSlot: r.time_slot,
         reservationStatus: r.reservation_status,
-        paymentStatus: r.payment_status,
+        paymentStatus: r.package_id ? (packagePaymentMap[r.package_id] || r.payment_status) : r.payment_status,
         createdAt: r.created_at,
       }));
 
