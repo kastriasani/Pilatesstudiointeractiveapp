@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-03-11T11:18:35.619Z",
+  "generatedAt": "2026-03-11T11:48:48.484Z",
   "sourceDir": "src",
-  "occurrenceCount": 56,
+  "occurrenceCount": 57,
   "uniquePathCount": 45,
   "entries": [
     {
@@ -126,6 +126,12 @@
     },
     {
       "method": "POST",
+      "path": "/auth/forgot-password",
+      "file": "src/app/components/LoginRegisterModal.tsx",
+      "line": 114
+    },
+    {
+      "method": "POST",
       "path": "/auth/login",
       "file": "src/app/components/LoginPage.tsx",
       "line": 67
@@ -134,7 +140,7 @@
       "method": "POST",
       "path": "/auth/login",
       "file": "src/app/components/LoginRegisterModal.tsx",
-      "line": 34
+      "line": 39
     },
     {
       "method": "POST",

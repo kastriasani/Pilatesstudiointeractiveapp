@@ -4,6 +4,7 @@ import { Language, translations } from '../translations';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { logo } from '../../assets/images';
+import { validateEmail } from '@/utils/emailValidation';
 
 type LoginRegisterModalProps = {
   onClose: () => void;
@@ -18,6 +19,10 @@ export function LoginRegisterModal({ onClose, onLoginSuccess, language }: LoginR
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotMessage, setForgotMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
@@ -88,6 +93,45 @@ export function LoginRegisterModal({ onClose, onLoginSuccess, language }: LoginR
     }
   };
 
+  const handleForgotPassword = async () => {
+    const emailCheck = validateEmail(forgotEmail.trim());
+    if (!forgotEmail || !emailCheck.valid) {
+      let msg = t.invalidEmail || 'Please enter a valid email address';
+      if (emailCheck.suggestion) {
+        msg = `${t.emailDidYouMean || 'Did you mean'} ${emailCheck.suggestion}?`;
+      } else if (emailCheck.reason === 'invalid_domain') {
+        msg = t.invalidEmailDomain || 'The email domain is not valid';
+      }
+      setForgotMessage({ type: 'error', text: msg });
+      return;
+    }
+
+    setForgotLoading(true);
+    setForgotMessage(null);
+
+    try {
+      const response = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/auth/forgot-password`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${publicAnonKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ email: forgotEmail.trim().toLowerCase() }),
+        }
+      );
+
+      await response.json();
+      setForgotMessage({ type: 'success', text: t.forgotPasswordSuccess || 'If an account exists with this email, a password reset link will be sent.' });
+    } catch (err) {
+      console.error('Forgot password error:', err);
+      setForgotMessage({ type: 'error', text: 'Something went wrong. Please try again.' });
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       handleLogin();
@@ -121,54 +165,114 @@ export function LoginRegisterModal({ onClose, onLoginSuccess, language }: LoginR
             </div>
           </div>
 
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm text-[#3d2f28] mb-1">{t.email}</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                onKeyPress={handleKeyPress}
-                placeholder={t.emailPlaceholder}
-                className="w-full px-4 py-3 rounded-lg bg-white border border-[#e8e6e3] text-sm text-[#3d2f28] placeholder:text-[#8b7764] focus:outline-none focus:ring-2 focus:ring-[#6b5949] focus:border-transparent"
-                disabled={isSubmitting}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm text-[#3d2f28] mb-1">{t.password}</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                onKeyPress={handleKeyPress}
-                placeholder={t.passwordPlaceholder || 'Enter your password'}
-                className="w-full px-4 py-3 rounded-lg bg-white border border-[#e8e6e3] text-sm text-[#3d2f28] placeholder:text-[#8b7764] focus:outline-none focus:ring-2 focus:ring-[#6b5949] focus:border-transparent"
-                disabled={isSubmitting}
-              />
-            </div>
-
-            {error && (
-              <div className="bg-red-100 text-red-700 px-3 py-2 rounded-lg text-sm">
-                {error}
+          {showForgotPassword ? (
+            <div className="space-y-4">
+              <p className="text-sm text-[#6b5949] mb-2">
+                {t.forgotPasswordDescription || 'Enter your email and we will send you a link to reset your password.'}
+              </p>
+              <div>
+                <label className="block text-sm text-[#3d2f28] mb-1">{t.email}</label>
+                <input
+                  type="email"
+                  value={forgotEmail}
+                  onChange={(e) => { setForgotEmail(e.target.value); setForgotMessage(null); }}
+                  placeholder={t.emailPlaceholder}
+                  className="w-full px-4 py-3 rounded-lg bg-white border border-[#e8e6e3] text-sm text-[#3d2f28] placeholder:text-[#8b7764] focus:outline-none focus:ring-2 focus:ring-[#6b5949] focus:border-transparent"
+                  disabled={forgotLoading}
+                />
               </div>
-            )}
 
-            <button
-              onClick={handleLogin}
-              disabled={isSubmitting}
-              className="w-full bg-[#6b5949] text-white py-3 rounded-lg text-sm hover:bg-[#5a4838] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader className="w-4 h-4 animate-spin" />
-                  {t.submitting || 'Loading...'}
-                </>
-              ) : (
-                t.login
+              {forgotMessage && (
+                <div className={`px-3 py-2 rounded-lg text-sm ${
+                  forgotMessage.type === 'success'
+                    ? 'bg-green-100 text-green-700'
+                    : 'bg-red-100 text-red-700'
+                }`}>
+                  {forgotMessage.text}
+                </div>
               )}
-            </button>
-          </div>
+
+              <button
+                onClick={handleForgotPassword}
+                disabled={forgotLoading || forgotMessage?.type === 'success'}
+                className="w-full bg-[#6b5949] text-white py-3 rounded-lg text-sm hover:bg-[#5a4838] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {forgotLoading ? (
+                  <>
+                    <Loader className="w-4 h-4 animate-spin" />
+                    {t.submitting || 'Loading...'}
+                  </>
+                ) : (
+                  t.sendResetLink || 'Send Reset Link'
+                )}
+              </button>
+
+              <button
+                onClick={() => { setShowForgotPassword(false); setForgotMessage(null); }}
+                className="w-full text-sm text-[#6b5949] hover:underline"
+              >
+                &larr; {t.login || 'Back to Login'}
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm text-[#3d2f28] mb-1">{t.email}</label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  placeholder={t.emailPlaceholder}
+                  className="w-full px-4 py-3 rounded-lg bg-white border border-[#e8e6e3] text-sm text-[#3d2f28] placeholder:text-[#8b7764] focus:outline-none focus:ring-2 focus:ring-[#6b5949] focus:border-transparent"
+                  disabled={isSubmitting}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm text-[#3d2f28] mb-1">{t.password}</label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  placeholder={t.passwordPlaceholder || 'Enter your password'}
+                  className="w-full px-4 py-3 rounded-lg bg-white border border-[#e8e6e3] text-sm text-[#3d2f28] placeholder:text-[#8b7764] focus:outline-none focus:ring-2 focus:ring-[#6b5949] focus:border-transparent"
+                  disabled={isSubmitting}
+                />
+                <div className="text-right mt-1">
+                  <button
+                    type="button"
+                    onClick={() => { setShowForgotPassword(true); setForgotMessage(null); setForgotEmail(email || ''); }}
+                    className="text-xs text-[#9ca571] hover:underline"
+                  >
+                    {t.forgotPassword || 'Forgot your password?'}
+                  </button>
+                </div>
+              </div>
+
+              {error && (
+                <div className="bg-red-100 text-red-700 px-3 py-2 rounded-lg text-sm">
+                  {error}
+                </div>
+              )}
+
+              <button
+                onClick={handleLogin}
+                disabled={isSubmitting}
+                className="w-full bg-[#6b5949] text-white py-3 rounded-lg text-sm hover:bg-[#5a4838] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader className="w-4 h-4 animate-spin" />
+                    {t.submitting || 'Loading...'}
+                  </>
+                ) : (
+                  t.login
+                )}
+              </button>
+            </div>
+          )}
 
         </div>
 
