@@ -2435,16 +2435,6 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                               </div>
                             )}
 
-                            {/* Delete */}
-                            <div className="flex flex-wrap items-center gap-2 mt-2">
-                              <button
-                                onClick={() => handleDeleteUser(user)}
-                                className="px-3 py-1.5 bg-red-500 text-white rounded-md text-xs font-medium hover:bg-red-600 transition-colors flex items-center gap-1.5"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                                Delete
-                              </button>
-                            </div>
                           </div>
                         )}
                       </motion.div>
