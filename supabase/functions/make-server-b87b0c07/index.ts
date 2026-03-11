@@ -5740,6 +5740,20 @@ app.post("/make-server-b87b0c07/user/packages/:id/book-session", async (c) => {
       return c.json({ error: "Package has expired" }, 400);
     }
 
+    // Block booking if an older active package still has remaining sessions
+    const { data: olderActivePkgs } = await supabase
+      .from('user_packages')
+      .select('id, remaining_sessions, created_at')
+      .eq('user_email', pkg.user_email)
+      .eq('package_status', 'active')
+      .gt('remaining_sessions', 0)
+      .lt('created_at', pkg.created_at)
+      .limit(1);
+
+    if (olderActivePkgs && olderActivePkgs.length > 0) {
+      return c.json({ error: "Please use all sessions from your current package before booking from this one" }, 400);
+    }
+
     // Auto-correct package_status if package was activated but status drifted
     // (e.g., 'fully_used' after cancel restored sessions, or admin reset to 'pending')
     if (pkg.activation_status === 'activated' && pkg.package_status !== 'active' && pkg.remaining_sessions > 0) {

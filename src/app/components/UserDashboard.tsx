@@ -1311,6 +1311,10 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
             const bonusSessions = pkg.totalSessions > baseSessionCount ? pkg.totalSessions - baseSessionCount : 0;
             const usedSessions = pkg.totalSessions - pkg.remainingSessions;
             const isInlineCalendarOpen = inlineBookingPackageId === pkg.id;
+            // Block booking from this package if an older active package still has remaining sessions
+            const hasOlderActivePackage = activePackages.some(
+              p => p.id !== pkg.id && p.packageStatus === 'active' && p.remainingSessions > 0 && p.createdAt < pkg.createdAt
+            );
 
             return (
               <motion.div
@@ -1367,6 +1371,15 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
                   </div>
                 )}
 
+                {/* Blocked by older package warning */}
+                {hasOlderActivePackage && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-4">
+                    <p className="text-xs text-blue-800 font-medium">
+                      {t.useOlderPackageFirst || 'Please use all sessions from your current package before booking from this one.'}
+                    </p>
+                  </div>
+                )}
+
                 {/* Session Slots Grid — 4-column */}
                 <div className="mb-4">
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-[#8b7764] mb-2.5">
@@ -1383,8 +1396,8 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
                       return (
                         <motion.button
                           key={slotIndex}
-                          onClick={() => !isAttended && handleSlotClick(pkg, slotIndex)}
-                          disabled={(pkg.remainingSessions <= 0 && !isBooked) || isAttended}
+                          onClick={() => !isAttended && !hasOlderActivePackage && handleSlotClick(pkg, slotIndex)}
+                          disabled={(pkg.remainingSessions <= 0 && !isBooked) || isAttended || (hasOlderActivePackage && !isBooked)}
                           initial={{ opacity: 0, scale: 0.8 }}
                           animate={{ opacity: 1, scale: 1 }}
                           transition={{ duration: 0.3, delay: 0.05 * slotIndex }}
