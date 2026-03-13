@@ -2405,24 +2405,29 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                     })()}
                                   </div>
 
-                                  {/* Upcoming reserved classes for this package */}
+                                  {/* Reserved classes (not yet attended) for this package */}
                                   {(() => {
                                     const now = getSkopjeTime();
                                     const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-                                    const upcoming = (user.reservations || [])
-                                      .filter(r => r.packageId === pkg.id && r.reservationStatus === 'confirmed' && r.dateKey >= todayKey)
+                                    const reserved = (user.reservations || [])
+                                      .filter(r => r.packageId === pkg.id && r.reservationStatus === 'confirmed')
                                       .sort((a, b) => a.dateKey.localeCompare(b.dateKey) || a.timeSlot.localeCompare(b.timeSlot));
-                                    if (upcoming.length === 0) return null;
+                                    if (reserved.length === 0) return null;
                                     return (
                                       <div className="mt-2">
                                         <p className="text-[10px] font-semibold uppercase tracking-wider text-[#8b7764] mb-1.5">Reserved classes</p>
                                         <div className="grid grid-cols-4 gap-2">
-                                          {upcoming.map(r => {
+                                          {reserved.map(r => {
                                             const d = new Date(r.dateKey + 'T00:00:00');
                                             const day = d.toLocaleDateString('en-GB', { weekday: 'short', timeZone: 'Europe/Skopje' });
                                             const date = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'Europe/Skopje' });
+                                            const isPast = r.dateKey < todayKey;
                                             return (
-                                              <div key={r.id} className="flex flex-col items-center justify-center h-14 rounded-lg bg-gradient-to-br from-[#9ca571] to-[#7A8F3A] text-white shadow-sm">
+                                              <div key={r.id} className={`flex flex-col items-center justify-center h-14 rounded-lg shadow-sm ${
+                                                isPast
+                                                  ? 'bg-gradient-to-br from-[#e97a1f] to-[#d06a15] text-white'
+                                                  : 'bg-gradient-to-br from-[#9ca571] to-[#7A8F3A] text-white'
+                                              }`}>
                                                 <span className="text-[9px] font-semibold uppercase opacity-80">{day}</span>
                                                 <span className="text-[10px] font-bold leading-tight">{date}</span>
                                                 <span className="text-[9px] opacity-90">{r.timeSlot}</span>
