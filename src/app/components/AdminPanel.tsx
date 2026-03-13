@@ -2133,18 +2133,32 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
               {/* User List */}
               <div className="p-4 space-y-2">
                 {(() => {
-                  const filtered = userSubTab === 'archived'
+                  const filtered = (userSubTab === 'archived'
                     ? users.filter(user => isUserArchived(user))
-                    : users.filter(user => user.status === userSubTab && !isUserArchived(user));
-                  console.log(`Rendering ${userSubTab} tab. Total users: ${users.length}, Filtered: ${filtered.length}`);
-                  return filtered;
-                })()
-                  .sort((a, b) => {
+                    : users.filter(user => user.status === userSubTab && !isUserArchived(user))
+                  ).sort((a, b) => {
                     const nameA = `${a.name} ${a.surname}`.toLowerCase();
                     const nameB = `${b.name} ${b.surname}`.toLowerCase();
                     return nameA.localeCompare(nameB);
-                  })
-                  .map((user, userIndex) => {
+                  });
+
+                  // Group by first letter (supports Latin + Cyrillic)
+                  const grouped: Record<string, User[]> = {};
+                  for (const u of filtered) {
+                    const letter = (u.name || '?')[0].toUpperCase();
+                    if (!grouped[letter]) grouped[letter] = [];
+                    grouped[letter].push(u);
+                  }
+                  const letters = Object.keys(grouped).sort((a, b) => a.localeCompare(b));
+
+                  let globalIndex = 0;
+                  return letters.map(letter => (
+                    <div key={letter}>
+                      <div className="sticky top-0 z-10 bg-[#f0ebe7] px-2 py-1.5 -mx-4 px-4 text-[11px] font-bold text-[#6b5949] uppercase tracking-wider">
+                        {letter}
+                      </div>
+                      {grouped[letter].map((user) => {
+                        const userIndex = globalIndex++;
                     const isExpanded = expandedUserId === user.id;
                     const baseSessionCount = user.packageType === 'package8' || user.packageType === '8classes' || user.packageType === 'duo8classes' ? 8
                       : user.packageType === 'package10' ? 10
@@ -2473,6 +2487,9 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                       </motion.div>
                     );
                   })}
+                    </div>
+                  ));
+                })()}
 
                 {/* Empty State */}
                 {(userSubTab === 'archived'
