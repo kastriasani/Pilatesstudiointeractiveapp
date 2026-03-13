@@ -53,6 +53,13 @@ export type User = {
     activationDate?: string;
     expiryDate?: string;
   }>;
+  reservations?: Array<{
+    id: string;
+    dateKey: string;
+    timeSlot: string;
+    reservationStatus: string;
+    packageId?: string;
+  }>;
   blocked?: boolean;
   // Note: activation is now admin-triggered, no activation codes needed
 };
@@ -479,6 +486,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
           remainingSessions: user.remainingSessions,
           sessionsAdjustedAt: user.sessionsAdjustedAt,
           packages: user.packages,
+          reservations: user.reservations,
           blocked: user.blocked || false,
         };
       });
@@ -2396,6 +2404,33 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                       );
                                     })()}
                                   </div>
+
+                                  {/* Upcoming reserved classes for this package */}
+                                  {(() => {
+                                    const now = getSkopjeTime();
+                                    const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+                                    const upcoming = (user.reservations || [])
+                                      .filter(r => r.packageId === pkg.id && r.reservationStatus === 'confirmed' && r.dateKey >= todayKey)
+                                      .sort((a, b) => a.dateKey.localeCompare(b.dateKey) || a.timeSlot.localeCompare(b.timeSlot));
+                                    if (upcoming.length === 0) return null;
+                                    return (
+                                      <div className="mt-2">
+                                        <p className="text-[10px] font-semibold uppercase tracking-wider text-[#8b7764] mb-1">Reserved classes</p>
+                                        <div className="flex flex-wrap gap-1.5">
+                                          {upcoming.map(r => {
+                                            const d = new Date(r.dateKey + 'T00:00:00');
+                                            const dayLabel = d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Skopje' });
+                                            return (
+                                              <span key={r.id} className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#9ca571]/15 text-[11px] text-[#3d2f28]">
+                                                <span className="font-medium">{dayLabel}</span>
+                                                <span className="text-[#8b7764]">{r.timeSlot}</span>
+                                              </span>
+                                            );
+                                          })}
+                                        </div>
+                                      </div>
+                                    );
+                                  })()}
 
                                   {/* Adjust sessions - only for active packages */}
                                   {isActive && pkgBaseCount > 1 && (
