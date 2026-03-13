@@ -2217,9 +2217,6 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                   const label = getPkgLabel(pkg.type);
                                   const total = pkg.totalSessions || 0;
                                   const remaining = pkg.remainingSessions || 0;
-                                  const expiryDate = pkg.expiryDate ? new Date(pkg.expiryDate) : null;
-                                  const daysLeft = expiryDate ? Math.ceil((expiryDate.getTime() - getSkopjeTime().getTime()) / (24 * 60 * 60 * 1000)) : null;
-
                                   return (
                                     <span key={pkg.id || i}>
                                       {i > 0 && <>{' | '}</>}
@@ -2232,13 +2229,6 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                           </span>
                                           /{total}
                                         </>
-                                      )}
-                                      {daysLeft !== null && (
-                                        <span style={{ marginLeft: '4px' }}>
-                                          · <span style={{ color: daysLeft <= 0 ? '#dc2626' : daysLeft <= 5 ? '#dc2626' : daysLeft <= 10 ? '#e97a1f' : '#8b7764' }}>
-                                            {daysLeft <= 0 ? 'expired' : `${daysLeft}d left`}
-                                          </span>
-                                        </span>
                                       )}
                                     </span>
                                   );
@@ -2393,9 +2383,18 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                     {pkg.activationDate && (
                                       <span>Activated: {new Date(pkg.activationDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'Europe/Skopje' })}</span>
                                     )}
-                                    {pkg.expiryDate && (
-                                      <span>Expires: {new Date(pkg.expiryDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'Europe/Skopje' })}</span>
-                                    )}
+                                    {pkg.expiryDate && (() => {
+                                      const pkgDaysLeft = Math.ceil((new Date(pkg.expiryDate).getTime() - getSkopjeTime().getTime()) / (24 * 60 * 60 * 1000));
+                                      return (
+                                        <span>
+                                          Expires: {new Date(pkg.expiryDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'Europe/Skopje' })}
+                                          {' '}
+                                          <span style={{ color: pkgDaysLeft <= 0 ? '#dc2626' : pkgDaysLeft <= 5 ? '#dc2626' : pkgDaysLeft <= 10 ? '#e97a1f' : '#8b7764', fontWeight: 600 }}>
+                                            ({pkgDaysLeft <= 0 ? 'expired' : `${pkgDaysLeft}d left`})
+                                          </span>
+                                        </span>
+                                      );
+                                    })()}
                                   </div>
 
                                   {/* Adjust sessions - only for active packages */}
