@@ -2415,16 +2415,18 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                     if (upcoming.length === 0) return null;
                                     return (
                                       <div className="mt-2">
-                                        <p className="text-[10px] font-semibold uppercase tracking-wider text-[#8b7764] mb-1">Reserved classes</p>
-                                        <div className="flex flex-wrap gap-1.5">
+                                        <p className="text-[10px] font-semibold uppercase tracking-wider text-[#8b7764] mb-1.5">Reserved classes</p>
+                                        <div className="grid grid-cols-4 gap-2">
                                           {upcoming.map(r => {
                                             const d = new Date(r.dateKey + 'T00:00:00');
-                                            const dayLabel = d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Skopje' });
+                                            const day = d.toLocaleDateString('en-GB', { weekday: 'short', timeZone: 'Europe/Skopje' });
+                                            const date = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'Europe/Skopje' });
                                             return (
-                                              <span key={r.id} className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#9ca571]/15 text-[11px] text-[#3d2f28]">
-                                                <span className="font-medium">{dayLabel}</span>
-                                                <span className="text-[#8b7764]">{r.timeSlot}</span>
-                                              </span>
+                                              <div key={r.id} className="flex flex-col items-center justify-center h-14 rounded-lg bg-gradient-to-br from-[#9ca571] to-[#7A8F3A] text-white shadow-sm">
+                                                <span className="text-[9px] font-semibold uppercase opacity-80">{day}</span>
+                                                <span className="text-[10px] font-bold leading-tight">{date}</span>
+                                                <span className="text-[9px] opacity-90">{r.timeSlot}</span>
+                                              </div>
                                             );
                                           })}
                                         </div>
