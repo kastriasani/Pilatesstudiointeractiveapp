@@ -2414,7 +2414,9 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                       .sort((a, b) => a.dateKey.localeCompare(b.dateKey) || a.timeSlot.localeCompare(b.timeSlot));
                                     if (upcoming.length === 0) return null;
                                     return (
-                                      <div className="mt-2 flex items-center gap-1.5">
+                                      <div className="mt-2">
+                                        <p className="text-[10px] font-semibold uppercase tracking-wider text-[#8b7764] mb-1">Upcoming classes</p>
+                                        <div className="flex items-center gap-1.5">
                                         {upcoming.map(r => {
                                           const d = new Date(r.dateKey + 'T00:00:00');
                                           const day = d.getDate();
@@ -2426,6 +2428,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                             </div>
                                           );
                                         })}
+                                        </div>
                                       </div>
                                     );
                                   })()}
