@@ -750,8 +750,18 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
   // Slot management handlers
   const handleSaveSlot = async (slotId: string) => {
     if (!selectedDate) return;
-    setSlotLoading(true);
     const isoDate = convertToISODate(selectedDate);
+
+    // Optimistic: update local state instantly
+    const prevSlots = [...customSlots];
+    setCustomSlots(prev => prev.map(s =>
+      s.id === slotId ? { ...s, start_time: editingTime, max_capacity: editingCapacity, class_type: editingClassType } : s
+    ));
+    setEditingSlotId(null);
+    setEditingTime('');
+    setEditingCapacity(4);
+    setEditingClassType('group');
+
     try {
       const response = await fetch(
         `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/admin/slots/${slotId}`,
@@ -765,20 +775,15 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
           body: JSON.stringify({ startTime: editingTime, maxCapacity: editingCapacity, date: isoDate, classType: editingClassType }),
         }
       );
-      if (response.ok) {
-        await fetchSlotsForDate(selectedDate);
-        setEditingSlotId(null);
-        setEditingTime('');
-        setEditingCapacity(4);
-        setEditingClassType('group');
-      } else {
+      if (!response.ok) {
         const data = await response.json();
         toast.error(data.details ? `${data.error}: ${data.details}` : data.error || 'Failed to update slot');
+        setCustomSlots(prevSlots); // Revert
       }
     } catch (error) {
       console.error('Error saving slot:', error);
+      setCustomSlots(prevSlots); // Revert
     }
-    setSlotLoading(false);
   };
 
   const handleDeleteSlot = (slotId: string, slotTime?: string) => {
@@ -786,6 +791,10 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
 
     showConfirm('Remove Time Slot', 'Are you sure you want to remove this time slot?', async () => {
       const isoDate = convertToISODate(selectedDate);
+
+      // Optimistic: remove from local state instantly
+      const prevSlots = [...customSlots];
+      setCustomSlots(prev => prev.filter(s => s.id !== slotId));
 
       // For default slots, include date and startTime as query params
       let url = `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/admin/slots/${slotId}`;
@@ -801,14 +810,14 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
             'X-Session-Token': getSessionToken(),
           },
         });
-        if (response.ok) {
-          await fetchSlotsForDate(selectedDate);
-        } else {
+        if (!response.ok) {
           const data = await response.json();
           toast.error(data.error || 'Failed to delete slot');
+          setCustomSlots(prevSlots); // Revert
         }
       } catch (error) {
         console.error('Error deleting slot:', error);
+        setCustomSlots(prevSlots); // Revert
       }
     });
   };
@@ -875,7 +884,14 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
         }
       );
       if (response.ok) {
-        await fetchSlotsForDate(selectedDate);
+        const data = await response.json();
+        // Optimistic: add to local state instantly
+        if (data.slot) {
+          setCustomSlots(prev => [...prev, data.slot].sort((a, b) => (a.start_time || '').localeCompare(b.start_time || '')));
+        } else {
+          // Fallback: refetch if no slot returned
+          await fetchSlotsForDate(selectedDate);
+        }
         setIsAddingSlot(false);
         setNewSlotTime('');
         setNewSlotCapacity(4);
