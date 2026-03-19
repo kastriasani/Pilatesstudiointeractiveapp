@@ -1635,34 +1635,45 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                     const slotClassType = slot.class_type || 'group';
                     const slotBorderColor = classTypeColors[slotClassType] || classTypeColors.group;
 
-                    // Quick class type change via direct selection
-                    const handleSetClassType = async (newType: string, e: React.MouseEvent) => {
+                    // Quick class type change — optimistic UI update
+                    const handleSetClassType = (newType: string, e: React.MouseEvent) => {
                       e.stopPropagation();
                       if (newType === slotClassType) return;
                       const newCapacity = newType === 'group' ? 4 : 1;
                       const isoDate = convertToISODate(selectedDate!);
-                      try {
-                        const response = await fetch(
-                          `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/admin/slots/${slot.id}`,
-                          {
-                            method: 'PATCH',
-                            headers: {
-                              'Content-Type': 'application/json',
-                              'Authorization': `Bearer ${publicAnonKey}`,
-                              'X-Session-Token': getSessionToken(),
-                            },
-                            body: JSON.stringify({ classType: newType, maxCapacity: newCapacity, date: isoDate }),
-                          }
-                        );
-                        if (response.ok) {
-                          await fetchSlotsForDate(selectedDate!);
-                        } else {
+
+                      // Instant local update
+                      setCustomSlots(prev => prev.map(s =>
+                        s.id === slot.id ? { ...s, class_type: newType, max_capacity: newCapacity } : s
+                      ));
+
+                      // Save in background
+                      fetch(
+                        `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/admin/slots/${slot.id}`,
+                        {
+                          method: 'PATCH',
+                          headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${publicAnonKey}`,
+                            'X-Session-Token': getSessionToken(),
+                          },
+                          body: JSON.stringify({ classType: newType, maxCapacity: newCapacity, date: isoDate }),
+                        }
+                      ).then(async (response) => {
+                        if (!response.ok) {
                           const data = await response.json();
                           toast.error(data.error || 'Failed to change class type');
+                          // Revert on error
+                          setCustomSlots(prev => prev.map(s =>
+                            s.id === slot.id ? { ...s, class_type: slotClassType, max_capacity: slot.max_capacity } : s
+                          ));
                         }
-                      } catch (error) {
-                        console.error('Error changing class type:', error);
-                      }
+                      }).catch(() => {
+                        // Revert on network error
+                        setCustomSlots(prev => prev.map(s =>
+                          s.id === slot.id ? { ...s, class_type: slotClassType, max_capacity: slot.max_capacity } : s
+                        ));
+                      });
                     };
 
                     return (
