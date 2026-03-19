@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-03-19T16:23:23.873Z",
+  "generatedAt": "2026-03-19T16:28:39.357Z",
   "sourceDir": "src",
-  "occurrenceCount": 61,
+  "occurrenceCount": 65,
   "uniquePathCount": 45,
   "entries": [
     {
@@ -188,7 +188,7 @@
       "method": "POST",
       "path": "/packages",
       "file": "src/app/components/DuoTraining.tsx",
-      "line": 91
+      "line": 328
     },
     {
       "method": "POST",
@@ -201,6 +201,12 @@
       "path": "/packages",
       "file": "src/app/components/PackageOverview.tsx",
       "line": 196
+    },
+    {
+      "method": "POST",
+      "path": "/packages/:param/first-session",
+      "file": "src/app/components/DuoTraining.tsx",
+      "line": 228
     },
     {
       "method": "POST",
@@ -241,6 +247,12 @@
     {
       "method": "GET",
       "path": "/slots",
+      "file": "src/app/components/DuoTraining.tsx",
+      "line": 135
+    },
+    {
+      "method": "GET",
+      "path": "/slots",
       "file": "src/app/components/IndividualTraining.tsx",
       "line": 135
     },
@@ -255,6 +267,12 @@
       "path": "/slots/availability",
       "file": "src/app/components/BookingScreen.tsx",
       "line": 72
+    },
+    {
+      "method": "GET",
+      "path": "/slots/availability",
+      "file": "src/app/components/DuoTraining.tsx",
+      "line": 117
     },
     {
       "method": "GET",
@@ -279,6 +297,12 @@
       "path": "/slots/live-days",
       "file": "src/app/components/BookingScreen.tsx",
       "line": 76
+    },
+    {
+      "method": "GET",
+      "path": "/slots/live-days",
+      "file": "src/app/components/DuoTraining.tsx",
+      "line": 121
     },
     {
       "method": "GET",
