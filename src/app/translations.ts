@@ -415,6 +415,16 @@ export const translations = {
     levelPlatinum: 'Platinë',
     levelDiamond: 'Diamant',
     sessionsLabel: 'seanca',
+
+    // Class Types
+    classTypeGroup: 'Multipack',
+    classTypeIndividual: 'Individual',
+    classTypeDuo: 'DUO',
+    slotLockedIndividual: 'Kërkon paketën Individual',
+    slotLockedDuo: 'Kërkon paketën DUO',
+    slotLockedGroup: 'Kërkon Multipack',
+    slotFull: 'Plot',
+    adminClassTypeLabel: 'Lloji i klasës',
   },
 
   MK: {
@@ -831,6 +841,16 @@ export const translations = {
     levelPlatinum: 'Платина',
     levelDiamond: 'Дијамант',
     sessionsLabel: 'сесии',
+
+    // Class Types
+    classTypeGroup: 'Мултипак',
+    classTypeIndividual: 'Индивидуал',
+    classTypeDuo: 'ДУО',
+    slotLockedIndividual: 'Потребен е Individual пакет',
+    slotLockedDuo: 'Потребен е DUO пакет',
+    slotLockedGroup: 'Потребен е Мултипак',
+    slotFull: 'Полно',
+    adminClassTypeLabel: 'Тип на класа',
   },
 
   EN: {
@@ -1247,5 +1267,15 @@ export const translations = {
     levelPlatinum: 'Platinum',
     levelDiamond: 'Diamond',
     sessionsLabel: 'sessions',
+
+    // Class Types
+    classTypeGroup: 'Multipack',
+    classTypeIndividual: 'Individual',
+    classTypeDuo: 'DUO',
+    slotLockedIndividual: 'Requires Individual package',
+    slotLockedDuo: 'Requires DUO package',
+    slotLockedGroup: 'Requires Multipack',
+    slotFull: 'Full',
+    adminClassTypeLabel: 'Class Type',
   },
 };
