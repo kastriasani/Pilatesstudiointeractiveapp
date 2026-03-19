@@ -57,6 +57,7 @@ type TimeSlot = {
   maxCapacity: number;
   isBooked: boolean;
   userBookings: number; // How many times user booked this slot
+  classType: string;
 };
 
 type DateSlot = {
@@ -75,6 +76,29 @@ type Reservation = {
   packageId: string | null;
   isFriendBooking?: boolean;
   createdAt: string;
+};
+
+// Helper: can this package type book this slot's class type?
+function canBookSlot(packageServiceType: string, slotClassType: string): boolean {
+  if (slotClassType === 'group') return ['single', 'package'].includes(packageServiceType);
+  if (slotClassType === 'individual') return packageServiceType === 'individual';
+  if (slotClassType === 'duo') return packageServiceType === 'duo';
+  return false;
+}
+
+// Helper: derive service type from package type string
+function getPackageServiceType(packageType: string): string {
+  if (packageType.startsWith('individual')) return 'individual';
+  if (packageType.startsWith('duo')) return 'duo';
+  if (packageType === 'single') return 'single';
+  return 'package';
+}
+
+// Color map for slot class types (light theme)
+const classTypeColorMap: Record<string, { bg: string; bgActive: string; border: string; text: string; label: string }> = {
+  group:      { bg: 'bg-green-50',   bgActive: 'bg-[#9ca571]', border: 'border-green-300',  text: 'text-green-700',  label: 'Group' },
+  individual: { bg: 'bg-orange-50',  bgActive: 'bg-orange-500', border: 'border-orange-300', text: 'text-orange-700', label: 'Individual' },
+  duo:        { bg: 'bg-purple-50',  bgActive: 'bg-purple-500', border: 'border-purple-300', text: 'text-purple-700', label: 'DUO' },
 };
 
 // Progress ring SVG component
@@ -522,7 +546,7 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
 
       const data = await response.json();
       const liveDays: string[] = data.dates || [];
-      const slotConfigs: Record<string, { start_time: string; max_capacity: number }[]> = data.slotConfigs || {};
+      const slotConfigs: Record<string, { start_time: string; max_capacity: number; class_type?: string }[]> = data.slotConfigs || {};
       const existingBookings: any[] = data.bookings || [];
 
       if (liveDays.length === 0) {
@@ -552,17 +576,13 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
 
         const availableTimeSlots = timeSlotList.map((time: string) => {
           const slotBookings = dayBookings.filter((b: any) => b.timeSlot === time);
-          // Calculate seats based on serviceType: duo=2, individual=4 (private), others=1
-          const seatsOccupied = slotBookings.reduce((total: number, booking: any) => {
-            if (booking.serviceType === 'duo') return total + 2;
-            if (booking.serviceType === 'individual') return total + 4;
-            return total + 1;
-          }, 0);
-          const hasPrivateSession = slotBookings.some((b: any) =>
-            b.serviceType === 'individual' || b.serviceType === 'duo'
-          );
-          const maxCapacity = daySlotConfigs.find(s => s.start_time === time)?.max_capacity || 4;
-          const available = hasPrivateSession ? 0 : Math.max(0, maxCapacity - seatsOccupied);
+          const slotConfig = daySlotConfigs.find(s => s.start_time === time);
+          const classType = slotConfig?.class_type || 'group';
+          const maxCapacity = slotConfig?.max_capacity || 4;
+
+          // Each booking = 1 seat (capacity is per-class-type now)
+          const booked = slotBookings.length;
+          const available = Math.max(0, maxCapacity - booked);
 
           // Count how many bookings the current user has on this slot
           const userSlotBookings = slotBookings.filter((b: any) =>
@@ -578,6 +598,7 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
             maxCapacity,
             isBooked: available <= 0 || isPastTime,
             userBookings: userSlotBookings,
+            classType,
           };
         });
 
@@ -793,6 +814,15 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
   // Handle inline booking from calendar
   const handleInlineBook = async (pkg: PackageDetails, dateKey: string, timeSlot: string) => {
     if (!pkg || selectedSlotIndex === null) return;
+
+    // Check class type compatibility
+    const matchingSlot = availableSlots
+      .find(ds => ds.dateKey === dateKey)
+      ?.timeSlots.find(ts => ts.time === timeSlot);
+    if (matchingSlot && !canBookSlot(getPackageServiceType(pkg.packageType), matchingSlot.classType)) {
+      toast.error('This slot requires a different package type');
+      return;
+    }
 
     // Check remaining sessions before submitting
     if (pkg.remainingSessions <= 0) {
@@ -1549,29 +1579,45 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
                                   {dateSlot.displayDate}
                                 </p>
                                 <div className="flex flex-wrap gap-1.5">
-                                  {dateSlot.timeSlots.map((timeSlot) => (
-                                    <button
-                                      key={timeSlot.time}
-                                      onClick={() => handleInlineBook(pkg, dateSlot.dateKey, timeSlot.time)}
-                                      disabled={timeSlot.available <= 0 || isRescheduling}
-                                      className={`py-1.5 px-2.5 rounded-lg text-[11px] font-medium transition-all ${
-                                        timeSlot.available > 0 && !isRescheduling
-                                          ? 'bg-[#9ca571] text-white hover:bg-[#8a9463]'
-                                          : 'bg-[#e8e6e3] text-[#8b7764] cursor-not-allowed'
-                                      }`}
-                                    >
-                                      {isRescheduling ? '...' : timeSlot.time}
-                                      {timeSlot.userBookings > 0 && (
-                                        <span className="ml-0.5 text-[9px]">{timeSlot.userBookings}</span>
-                                      )}
-                                      <span className={`ml-1 text-[9px] ${timeSlot.available > 0 ? 'text-white/80' : 'text-[#8b7764]'}`}>
-                                        {timeSlot.available <= 0
-                                          ? `· ${t.full || 'Plot'}`
-                                          : `· ${timeSlot.available}`
-                                        }
-                                      </span>
-                                    </button>
-                                  ))}
+                                  {dateSlot.timeSlots.map((timeSlot) => {
+                                    const colors = classTypeColorMap[timeSlot.classType] || classTypeColorMap.group;
+                                    const isMatchingType = canBookSlot(getPackageServiceType(pkg.packageType), timeSlot.classType);
+                                    const isFull = timeSlot.available <= 0;
+                                    const isDisabled = !isMatchingType || isFull || isRescheduling;
+
+                                    return (
+                                      <button
+                                        key={timeSlot.time}
+                                        onClick={() => isMatchingType && handleInlineBook(pkg, dateSlot.dateKey, timeSlot.time)}
+                                        disabled={isDisabled}
+                                        className={`py-1.5 px-2.5 rounded-lg text-[11px] font-medium transition-all border ${
+                                          !isMatchingType
+                                            ? `${colors.bg} ${colors.border} ${colors.text} opacity-50 cursor-not-allowed`
+                                            : isFull || isRescheduling
+                                              ? 'bg-[#e8e6e3] border-[#e8e6e3] text-[#8b7764] cursor-not-allowed'
+                                              : `${colors.bgActive} border-transparent text-white hover:opacity-90`
+                                        }`}
+                                      >
+                                        {isRescheduling ? '...' : timeSlot.time}
+                                        {timeSlot.userBookings > 0 && (
+                                          <span className="ml-0.5 text-[9px]">{timeSlot.userBookings}</span>
+                                        )}
+                                        {!isMatchingType ? (
+                                          <span className="ml-1 text-[9px] flex items-center gap-0.5 inline-flex">
+                                            <Lock className="w-2.5 h-2.5" />
+                                            {colors.label}
+                                          </span>
+                                        ) : (
+                                          <span className={`ml-1 text-[9px] ${!isFull ? 'text-white/80' : 'text-[#8b7764]'}`}>
+                                            {isFull
+                                              ? `· ${t.full || 'Plot'}`
+                                              : `· ${timeSlot.available}`
+                                            }
+                                          </span>
+                                        )}
+                                      </button>
+                                    );
+                                  })}
                                 </div>
                               </div>
                             ))}
@@ -1885,28 +1931,44 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
                         {dateSlot.displayDate}
                       </p>
                       <div className="grid grid-cols-2 gap-2">
-                        {dateSlot.timeSlots.map((timeSlot) => (
-                          <button
-                            key={timeSlot.time}
-                            onClick={() => handleModalSubmit(dateSlot.dateKey, timeSlot.time)}
-                            disabled={timeSlot.available <= 0 || isRescheduling}
-                            className={`py-3 px-3 rounded-lg text-sm font-medium transition-all ${
-                              timeSlot.available > 0 && !isRescheduling
-                                ? 'bg-gradient-to-r from-[#9ca571] to-[#8a9463] text-white hover:shadow-lg'
-                                : 'bg-[#e8e6e3] text-[#8b7764] cursor-not-allowed'
-                            }`}
-                          >
-                            <span className="font-semibold">{isRescheduling ? '...' : timeSlot.time}</span>
-                            <span className={`block text-xs mt-1 ${timeSlot.available > 0 ? 'text-white/80' : 'text-[#8b7764]'}`}>
-                              {timeSlot.available <= 0
-                                ? (t.full || 'Full')
-                                : `${timeSlot.available} ${timeSlot.available === 1
-                                    ? (t.spotFree || 'vend i lirë')
-                                    : (t.spotsFree || 'vende të lira')}`
-                              }
-                            </span>
-                          </button>
-                        ))}
+                        {dateSlot.timeSlots.map((timeSlot) => {
+                          const colors = classTypeColorMap[timeSlot.classType] || classTypeColorMap.group;
+                          const isMatchingType = selectedPackage ? canBookSlot(getPackageServiceType(selectedPackage.packageType), timeSlot.classType) : true;
+                          const isFull = timeSlot.available <= 0;
+                          const isDisabled = !isMatchingType || isFull || isRescheduling;
+
+                          return (
+                            <button
+                              key={timeSlot.time}
+                              onClick={() => isMatchingType && handleModalSubmit(dateSlot.dateKey, timeSlot.time)}
+                              disabled={isDisabled}
+                              className={`py-3 px-3 rounded-lg text-sm font-medium transition-all border ${
+                                !isMatchingType
+                                  ? `${colors.bg} ${colors.border} ${colors.text} opacity-50 cursor-not-allowed`
+                                  : isFull || isRescheduling
+                                    ? 'bg-[#e8e6e3] border-[#e8e6e3] text-[#8b7764] cursor-not-allowed'
+                                    : `${colors.bgActive} border-transparent text-white hover:shadow-lg`
+                              }`}
+                            >
+                              <span className="font-semibold">{isRescheduling ? '...' : timeSlot.time}</span>
+                              {!isMatchingType ? (
+                                <span className={`flex items-center justify-center gap-1 text-xs mt-1 ${colors.text}`}>
+                                  <Lock className="w-3 h-3" />
+                                  {colors.label}
+                                </span>
+                              ) : (
+                                <span className={`block text-xs mt-1 ${!isFull ? 'text-white/80' : 'text-[#8b7764]'}`}>
+                                  {isFull
+                                    ? (t.full || 'Full')
+                                    : `${timeSlot.available} ${timeSlot.available === 1
+                                        ? (t.spotFree || 'vend i lirë')
+                                        : (t.spotsFree || 'vende të lira')}`
+                                  }
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
                   ))}
