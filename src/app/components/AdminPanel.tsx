@@ -198,6 +198,8 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
   const [isAddingSlot, setIsAddingSlot] = useState(false);
   const [newSlotTime, setNewSlotTime] = useState('');
   const [newSlotCapacity, setNewSlotCapacity] = useState<number>(4);
+  const [newSlotClassType, setNewSlotClassType] = useState<'group' | 'individual' | 'duo'>('group');
+  const [editingClassType, setEditingClassType] = useState<'group' | 'individual' | 'duo'>('group');
   const [slotLoading, setSlotLoading] = useState(false);
   const [usesCustomSlots, setUsesCustomSlots] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
@@ -760,7 +762,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
             'Authorization': `Bearer ${publicAnonKey}`,
             'X-Session-Token': getSessionToken(),
           },
-          body: JSON.stringify({ startTime: editingTime, maxCapacity: editingCapacity, date: isoDate }),
+          body: JSON.stringify({ startTime: editingTime, maxCapacity: editingCapacity, date: isoDate, classType: editingClassType }),
         }
       );
       if (response.ok) {
@@ -768,6 +770,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
         setEditingSlotId(null);
         setEditingTime('');
         setEditingCapacity(4);
+        setEditingClassType('group');
       } else {
         const data = await response.json();
         toast.error(data.details ? `${data.error}: ${data.details}` : data.error || 'Failed to update slot');
@@ -863,7 +866,12 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
             'Authorization': `Bearer ${publicAnonKey}`,
             'X-Session-Token': getSessionToken(),
           },
-          body: JSON.stringify({ date: isoDate, startTime: newSlotTime, maxCapacity: newSlotCapacity }),
+          body: JSON.stringify({
+            date: isoDate,
+            startTime: newSlotTime,
+            maxCapacity: newSlotClassType === 'group' ? 4 : 1,
+            classType: newSlotClassType,
+          }),
         }
       );
       if (response.ok) {
@@ -871,6 +879,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
         setIsAddingSlot(false);
         setNewSlotTime('');
         setNewSlotCapacity(4);
+        setNewSlotClassType('group');
       } else {
         const data = await response.json();
         toast.error(data.error || 'Failed to add slot');
@@ -1613,14 +1622,28 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
 
                     const isEditingThis = editingSlotId === slot.id;
 
+                    const classTypeColors: Record<string, string> = {
+                      group: '#22c55e',
+                      individual: '#f97316',
+                      duo: '#a855f7',
+                    };
+                    const classTypeLabels: Record<string, string> = {
+                      group: 'Multipack',
+                      individual: 'Individual',
+                      duo: 'DUO',
+                    };
+                    const slotClassType = slot.class_type || 'group';
+                    const slotBorderColor = classTypeColors[slotClassType] || classTypeColors.group;
+
                     return (
                       <div key={slot.id}>
                         <div
                           className={`
                             w-full flex items-center gap-3 px-4 py-3 min-h-[52px]
-                            border-l-2 transition-all
-                            ${isSelected ? 'border-l-stone-600 bg-stone-50' : 'border-l-transparent hover:bg-stone-50'}
+                            border-l-4 transition-all
+                            ${isSelected ? 'bg-stone-50' : 'hover:bg-stone-50'}
                           `}
+                          style={{ borderLeftColor: slotBorderColor }}
                         >
                           {/* Status Dot */}
                           <div className={`w-2 h-2 rounded-full flex-shrink-0 ${dotColor}`} />
@@ -1654,7 +1677,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                 {slotLoading ? 'Saving...' : 'Save'}
                               </button>
                               <button
-                                onClick={() => { setEditingSlotId(null); setEditingTime(''); setEditingCapacity(4); }}
+                                onClick={() => { setEditingSlotId(null); setEditingTime(''); setEditingCapacity(4); setEditingClassType('group'); }}
                                 className="text-sm text-stone-500 hover:text-stone-700"
                               >
                                 Cancel
@@ -1669,6 +1692,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                     setEditingSlotId(slot.id);
                                     setEditingTime(slotTime);
                                     setEditingCapacity(slot.max_capacity || 4);
+                                    setEditingClassType(slot.class_type || 'group');
                                   } else {
                                     // Normal mode: toggle expanded bookings view
                                     setSelectedTimeSlot(isSelected ? null : timeSlotKey);
@@ -1677,6 +1701,15 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                 className="flex items-center gap-3 flex-1"
                               >
                                 <span className="text-sm font-medium text-stone-800 w-12">{slotTime}</span>
+                                <span
+                                  className="text-[10px] font-semibold px-1.5 py-0.5 rounded"
+                                  style={{
+                                    backgroundColor: slotBorderColor + '20',
+                                    color: slotBorderColor,
+                                  }}
+                                >
+                                  {classTypeLabels[slotClassType] || 'Multipack'}
+                                </span>
                                 <div className="flex-1 text-left">
                                   <span className="text-sm text-stone-600">
                                     {bookingCount === 0 ? 'Available' : `${bookingCount} booked`}
@@ -1834,39 +1867,61 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                   {/* Add Slot Section - only in edit mode */}
                   {isEditMode && (
                     isAddingSlot ? (
-                      <div className="flex items-center gap-3 px-4 py-3 bg-stone-50">
-                        <div className="w-2 h-2 rounded-full bg-stone-300" />
-                        <input
-                          type="time"
-                          value={newSlotTime}
-                          onChange={(e) => setNewSlotTime(e.target.value)}
-                          className="border border-stone-300 rounded px-2 py-1 w-24 text-sm"
-                          autoFocus
-                        />
-                        <select
-                          value={newSlotCapacity}
-                          onChange={(e) => setNewSlotCapacity(Number(e.target.value))}
-                          className="border border-stone-300 rounded px-2 py-1 text-sm w-16"
-                          title="Max capacity"
-                        >
-                          <option value={1}>1</option>
-                          <option value={2}>2</option>
-                          <option value={3}>3</option>
-                          <option value={4}>4</option>
-                        </select>
-                        <button
-                          onClick={handleAddSlot}
-                          disabled={slotLoading || !newSlotTime}
-                          className="text-sm text-green-600 hover:text-green-800 disabled:opacity-50"
-                        >
-                          {slotLoading ? 'Adding...' : 'Add'}
-                        </button>
-                        <button
-                          onClick={() => { setIsAddingSlot(false); setNewSlotTime(''); setNewSlotCapacity(4); }}
-                          className="text-sm text-stone-500 hover:text-stone-700"
-                        >
-                          Cancel
-                        </button>
+                      <div className="px-4 py-3 bg-stone-50">
+                        {/* Class Type Selector */}
+                        <div className="flex gap-2 mb-3">
+                          {[
+                            { type: 'group' as const, label: 'Multipack', color: '#22c55e' },
+                            { type: 'individual' as const, label: 'Individual', color: '#f97316' },
+                            { type: 'duo' as const, label: 'DUO', color: '#a855f7' },
+                          ].map((ct) => (
+                            <button
+                              key={ct.type}
+                              onClick={() => setNewSlotClassType(ct.type)}
+                              className={`px-3 py-2 rounded-lg text-xs font-semibold border-2 transition-all ${
+                                newSlotClassType === ct.type
+                                  ? 'text-white'
+                                  : 'opacity-50 hover:opacity-75'
+                              }`}
+                              style={{
+                                borderColor: ct.color,
+                                backgroundColor: newSlotClassType === ct.type ? ct.color : 'transparent',
+                                color: newSlotClassType === ct.type ? '#fff' : ct.color,
+                              }}
+                            >
+                              {ct.label}
+                              <span className="block text-[10px] opacity-75">
+                                {ct.type === 'group' ? '4 spots' : '1 spot'}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className="w-2 h-2 rounded-full bg-stone-300" />
+                          <input
+                            type="time"
+                            value={newSlotTime}
+                            onChange={(e) => setNewSlotTime(e.target.value)}
+                            className="border border-stone-300 rounded px-2 py-1 w-24 text-sm"
+                            autoFocus
+                          />
+                          <span className="text-xs text-stone-500">
+                            {newSlotClassType === 'group' ? 'Cap: 4' : 'Cap: 1'}
+                          </span>
+                          <button
+                            onClick={handleAddSlot}
+                            disabled={slotLoading || !newSlotTime}
+                            className="text-sm text-green-600 hover:text-green-800 disabled:opacity-50"
+                          >
+                            {slotLoading ? 'Adding...' : 'Add'}
+                          </button>
+                          <button
+                            onClick={() => { setIsAddingSlot(false); setNewSlotTime(''); setNewSlotCapacity(4); setNewSlotClassType('group'); }}
+                            className="text-sm text-stone-500 hover:text-stone-700"
+                          >
+                            Cancel
+                          </button>
+                        </div>
                       </div>
                     ) : (
                       <button
