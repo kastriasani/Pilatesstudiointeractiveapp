@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-03-19T16:28:39.357Z",
+  "generatedAt": "2026-03-19T16:32:40.755Z",
   "sourceDir": "src",
-  "occurrenceCount": 65,
+  "occurrenceCount": 66,
   "uniquePathCount": 45,
   "entries": [
     {
@@ -87,6 +87,12 @@
       "path": "/admin/slots/:param",
       "file": "src/app/components/AdminPanel.tsx",
       "line": 757
+    },
+    {
+      "method": "PATCH",
+      "path": "/admin/slots/:param",
+      "file": "src/app/components/AdminPanel.tsx",
+      "line": 1648
     },
     {
       "method": "GET",

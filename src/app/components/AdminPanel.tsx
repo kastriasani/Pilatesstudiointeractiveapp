@@ -1635,6 +1635,38 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                     const slotClassType = slot.class_type || 'group';
                     const slotBorderColor = classTypeColors[slotClassType] || classTypeColors.group;
 
+                    // Quick class type cycle: group → individual → duo → group
+                    const handleQuickClassTypeChange = async (e: React.MouseEvent) => {
+                      e.stopPropagation();
+                      const cycleOrder = ['group', 'individual', 'duo'];
+                      const currentIdx = cycleOrder.indexOf(slotClassType);
+                      const nextType = cycleOrder[(currentIdx + 1) % 3];
+                      const nextCapacity = nextType === 'group' ? 4 : 1;
+                      const isoDate = convertToISODate(selectedDate!);
+                      try {
+                        const response = await fetch(
+                          `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/admin/slots/${slot.id}`,
+                          {
+                            method: 'PATCH',
+                            headers: {
+                              'Content-Type': 'application/json',
+                              'Authorization': `Bearer ${publicAnonKey}`,
+                              'X-Session-Token': getSessionToken(),
+                            },
+                            body: JSON.stringify({ classType: nextType, maxCapacity: nextCapacity, date: isoDate }),
+                          }
+                        );
+                        if (response.ok) {
+                          await fetchSlotsForDate(selectedDate!);
+                        } else {
+                          const data = await response.json();
+                          toast.error(data.error || 'Failed to change class type');
+                        }
+                      } catch (error) {
+                        console.error('Error changing class type:', error);
+                      }
+                    };
+
                     return (
                       <div key={slot.id}>
                         <div
@@ -1701,15 +1733,30 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                 className="flex items-center gap-3 flex-1"
                               >
                                 <span className="text-sm font-medium text-stone-800 w-12">{slotTime}</span>
-                                <span
-                                  className="text-[10px] font-semibold px-1.5 py-0.5 rounded"
-                                  style={{
-                                    backgroundColor: slotBorderColor + '20',
-                                    color: slotBorderColor,
-                                  }}
-                                >
-                                  {classTypeLabels[slotClassType] || 'Multipack'}
-                                </span>
+                                {isEditMode ? (
+                                  <span
+                                    onClick={handleQuickClassTypeChange}
+                                    className="text-[10px] font-semibold px-1.5 py-0.5 rounded cursor-pointer hover:ring-2 hover:ring-offset-1 transition-all active:scale-95"
+                                    style={{
+                                      backgroundColor: slotBorderColor + '20',
+                                      color: slotBorderColor,
+                                      ['--tw-ring-color' as any]: slotBorderColor,
+                                    }}
+                                    title="Click to change class type"
+                                  >
+                                    {classTypeLabels[slotClassType] || 'Multipack'} ↻
+                                  </span>
+                                ) : (
+                                  <span
+                                    className="text-[10px] font-semibold px-1.5 py-0.5 rounded"
+                                    style={{
+                                      backgroundColor: slotBorderColor + '20',
+                                      color: slotBorderColor,
+                                    }}
+                                  >
+                                    {classTypeLabels[slotClassType] || 'Multipack'}
+                                  </span>
+                                )}
                                 <div className="flex-1 text-left">
                                   <span className="text-sm text-stone-600">
                                     {bookingCount === 0 ? 'Available' : `${bookingCount} booked`}
