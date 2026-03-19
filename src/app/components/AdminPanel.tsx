@@ -1635,13 +1635,11 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                     const slotClassType = slot.class_type || 'group';
                     const slotBorderColor = classTypeColors[slotClassType] || classTypeColors.group;
 
-                    // Quick class type cycle: group → individual → duo → group
-                    const handleQuickClassTypeChange = async (e: React.MouseEvent) => {
+                    // Quick class type change via direct selection
+                    const handleSetClassType = async (newType: string, e: React.MouseEvent) => {
                       e.stopPropagation();
-                      const cycleOrder = ['group', 'individual', 'duo'];
-                      const currentIdx = cycleOrder.indexOf(slotClassType);
-                      const nextType = cycleOrder[(currentIdx + 1) % 3];
-                      const nextCapacity = nextType === 'group' ? 4 : 1;
+                      if (newType === slotClassType) return;
+                      const newCapacity = newType === 'group' ? 4 : 1;
                       const isoDate = convertToISODate(selectedDate!);
                       try {
                         const response = await fetch(
@@ -1653,7 +1651,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                               'Authorization': `Bearer ${publicAnonKey}`,
                               'X-Session-Token': getSessionToken(),
                             },
-                            body: JSON.stringify({ classType: nextType, maxCapacity: nextCapacity, date: isoDate }),
+                            body: JSON.stringify({ classType: newType, maxCapacity: newCapacity, date: isoDate }),
                           }
                         );
                         if (response.ok) {
@@ -1733,30 +1731,15 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                 className="flex items-center gap-3 flex-1"
                               >
                                 <span className="text-sm font-medium text-stone-800 w-12">{slotTime}</span>
-                                {isEditMode ? (
-                                  <span
-                                    onClick={handleQuickClassTypeChange}
-                                    className="text-[10px] font-semibold px-1.5 py-0.5 rounded cursor-pointer hover:ring-2 hover:ring-offset-1 transition-all active:scale-95"
-                                    style={{
-                                      backgroundColor: slotBorderColor + '20',
-                                      color: slotBorderColor,
-                                      ['--tw-ring-color' as any]: slotBorderColor,
-                                    }}
-                                    title="Click to change class type"
-                                  >
-                                    {classTypeLabels[slotClassType] || 'Multipack'} ↻
-                                  </span>
-                                ) : (
-                                  <span
-                                    className="text-[10px] font-semibold px-1.5 py-0.5 rounded"
-                                    style={{
-                                      backgroundColor: slotBorderColor + '20',
-                                      color: slotBorderColor,
-                                    }}
-                                  >
-                                    {classTypeLabels[slotClassType] || 'Multipack'}
-                                  </span>
-                                )}
+                                <span
+                                  className="text-[10px] font-semibold px-1.5 py-0.5 rounded"
+                                  style={{
+                                    backgroundColor: slotBorderColor + '20',
+                                    color: slotBorderColor,
+                                  }}
+                                >
+                                  {classTypeLabels[slotClassType] || 'Multipack'}
+                                </span>
                                 <div className="flex-1 text-left">
                                   <span className="text-sm text-stone-600">
                                     {bookingCount === 0 ? 'Available' : `${bookingCount} booked`}
@@ -1788,6 +1771,35 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                             </>
                           )}
                         </div>
+
+                        {/* Class type selector - shown in edit mode */}
+                        {isEditMode && !isEditingThis && (
+                          <div className="flex items-center gap-1.5 px-4 py-2 bg-stone-50/80 border-t border-stone-100">
+                            <span className="text-[10px] text-stone-400 mr-1">Type:</span>
+                            {(['group', 'individual', 'duo'] as const).map((type) => {
+                              const isActive = slotClassType === type;
+                              const color = classTypeColors[type];
+                              return (
+                                <button
+                                  key={type}
+                                  onClick={(e) => handleSetClassType(type, e)}
+                                  className={`text-[10px] font-semibold px-2.5 py-1 rounded-md transition-all ${
+                                    isActive
+                                      ? 'ring-2 ring-offset-1 shadow-sm scale-105'
+                                      : 'opacity-40 hover:opacity-70'
+                                  }`}
+                                  style={{
+                                    backgroundColor: color + (isActive ? '25' : '10'),
+                                    color: color,
+                                    ['--tw-ring-color' as any]: isActive ? color : 'transparent',
+                                  }}
+                                >
+                                  {classTypeLabels[type]}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
 
                         {/* Expanded bookings */}
                         {isSelected && bookingCount > 0 && (
