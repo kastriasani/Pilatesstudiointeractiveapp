@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-03-11T12:44:31.951Z",
-  "fileCount": 5,
-  "occurrenceCount": 15,
-  "uniquePathCount": 12,
+  "generatedAt": "2026-03-19T15:12:10.491Z",
+  "fileCount": 7,
+  "occurrenceCount": 38,
+  "uniquePathCount": 17,
   "entries": [
     {
       "file": "README.md",
@@ -14,6 +14,54 @@
       "file": "README.md",
       "line": 176,
       "path": "/admin/calendar",
+      "pattern": "method-route"
+    },
+    {
+      "file": "docs/superpowers/plans/2026-03-19-individual-duo-training.md",
+      "line": 261,
+      "path": "/admin/slots",
+      "pattern": "method-route"
+    },
+    {
+      "file": "docs/superpowers/plans/2026-03-19-individual-duo-training.md",
+      "line": 263,
+      "path": "/admin/slots",
+      "pattern": "method-route"
+    },
+    {
+      "file": "docs/superpowers/plans/2026-03-19-individual-duo-training.md",
+      "line": 367,
+      "path": "/admin/slots",
+      "pattern": "method-route"
+    },
+    {
+      "file": "docs/superpowers/plans/2026-03-19-individual-duo-training.md",
+      "line": 420,
+      "path": "/admin/slots",
+      "pattern": "method-route"
+    },
+    {
+      "file": "docs/superpowers/specs/2026-03-19-individual-duo-training-design.md",
+      "line": 107,
+      "path": "/admin/slots",
+      "pattern": "method-route"
+    },
+    {
+      "file": "docs/superpowers/plans/2026-03-19-individual-duo-training.md",
+      "line": 262,
+      "path": "/admin/slots/:id",
+      "pattern": "method-route"
+    },
+    {
+      "file": "docs/superpowers/plans/2026-03-19-individual-duo-training.md",
+      "line": 389,
+      "path": "/admin/slots/:id",
+      "pattern": "method-route"
+    },
+    {
+      "file": "docs/superpowers/specs/2026-03-19-individual-duo-training-design.md",
+      "line": 120,
+      "path": "/admin/slots/:id",
       "pattern": "method-route"
     },
     {
@@ -47,6 +95,12 @@
       "pattern": "method-route"
     },
     {
+      "file": "docs/superpowers/specs/2026-03-19-individual-duo-training-design.md",
+      "line": 227,
+      "path": "/packages",
+      "pattern": "method-route"
+    },
+    {
       "file": "README.md",
       "line": 166,
       "path": "/packages",
@@ -59,9 +113,39 @@
       "pattern": "method-route"
     },
     {
+      "file": "docs/superpowers/plans/2026-03-19-individual-duo-training.md",
+      "line": 435,
+      "path": "/packages/:id/first-session",
+      "pattern": "method-route"
+    },
+    {
+      "file": "docs/superpowers/plans/2026-03-19-individual-duo-training.md",
+      "line": 809,
+      "path": "/packages/:id/first-session",
+      "pattern": "method-route"
+    },
+    {
+      "file": "docs/superpowers/specs/2026-03-19-individual-duo-training-design.md",
+      "line": 143,
+      "path": "/packages/:id/first-session",
+      "pattern": "method-route"
+    },
+    {
+      "file": "docs/superpowers/specs/2026-03-19-individual-duo-training-design.md",
+      "line": 228,
+      "path": "/packages/:id/first-session",
+      "pattern": "method-route"
+    },
+    {
       "file": "README.md",
       "line": 167,
       "path": "/packages/:id/first-session",
+      "pattern": "method-route"
+    },
+    {
+      "file": "docs/superpowers/plans/2026-03-19-individual-duo-training.md",
+      "line": 442,
+      "path": "/reservations",
       "pattern": "method-route"
     },
     {
@@ -92,6 +176,60 @@
       "file": "README.md",
       "line": 172,
       "path": "/reservations/:id/status",
+      "pattern": "method-route"
+    },
+    {
+      "file": "docs/superpowers/plans/2026-03-19-individual-duo-training.md",
+      "line": 259,
+      "path": "/slots/availability",
+      "pattern": "method-route"
+    },
+    {
+      "file": "docs/superpowers/plans/2026-03-19-individual-duo-training.md",
+      "line": 344,
+      "path": "/slots/availability",
+      "pattern": "method-route"
+    },
+    {
+      "file": "docs/superpowers/plans/2026-03-19-individual-duo-training.md",
+      "line": 877,
+      "path": "/slots/availability",
+      "pattern": "method-route"
+    },
+    {
+      "file": "docs/superpowers/specs/2026-03-19-individual-duo-training-design.md",
+      "line": 124,
+      "path": "/slots/availability",
+      "pattern": "method-route"
+    },
+    {
+      "file": "docs/superpowers/plans/2026-03-19-individual-duo-training.md",
+      "line": 260,
+      "path": "/slots/user-calendar",
+      "pattern": "method-route"
+    },
+    {
+      "file": "docs/superpowers/plans/2026-03-19-individual-duo-training.md",
+      "line": 324,
+      "path": "/slots/user-calendar",
+      "pattern": "method-route"
+    },
+    {
+      "file": "docs/superpowers/specs/2026-03-19-individual-duo-training-design.md",
+      "line": 124,
+      "path": "/slots/user-calendar",
+      "pattern": "method-route"
+    },
+    {
+      "file": "docs/superpowers/plans/2026-03-19-individual-duo-training.md",
+      "line": 450,
+      "path": "/user/packages/:id/book-session",
+      "pattern": "method-route"
+    },
+    {
+      "file": "docs/superpowers/specs/2026-03-19-individual-duo-training-design.md",
+      "line": 139,
+      "path": "/user/packages/:id/book-session",
       "pattern": "method-route"
     }
   ]

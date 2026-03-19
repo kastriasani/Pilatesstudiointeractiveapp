@@ -10,7 +10,7 @@ import { Hono } from "npm:hono";
 import { cors } from "npm:hono/cors";
 import { logger } from "npm:hono/logger";
 import * as kv from "./kv_store.ts";
-import { getSkopjeTime, parseDateKey, isValidBookingDate, isTimeSlotPast, formatDateKey } from "./dateUtils.ts";
+import { getSkopjeTime, getSkopjeToday, parseDateKey, isValidBookingDate, isTimeSlotPast, formatDateKey } from "./dateUtils.ts";
 
 const app = new Hono();
 
@@ -53,12 +53,12 @@ const PACKAGE_PRICING = {
   package8: { price: 3500, label: '8 Classes Package', description: '8 group classes' },
   package10: { price: 4200, label: '10 Classes Package', description: '10 group classes' },
   package12: { price: 4800, label: '12 Classes Package', description: '12 group classes' },
-  individual1: { price: 1600, label: '1-on-1 Single Session', description: 'Private training' },
-  individual8: { price: 12000, label: '1-on-1 8 Sessions', description: '8 private sessions' },
-  individual12: { price: 16800, label: '1-on-1 12 Sessions', description: '12 private sessions' },
-  duo1: { price: 1200, label: 'DUO Single Session', description: 'For 2 people' },
-  duo8: { price: 8800, label: 'DUO 8 Sessions', description: '8 duo sessions' },
-  duo12: { price: 12000, label: 'DUO 12 Sessions', description: '12 duo sessions' },
+  individual1: { price: 1200, label: '1-on-1 Single Session', description: 'Private training' },
+  individual8: { price: 7000, label: '1-on-1 8 Sessions', description: '8 private sessions' },
+  individual12: { price: 9500, label: '1-on-1 12 Sessions', description: '12 private sessions' },
+  duo1: { price: 2100, label: 'DUO Single Session', description: 'For 2 people' },
+  duo8: { price: 13400, label: 'DUO 8 Sessions', description: '8 duo sessions' },
+  duo12: { price: 18400, label: 'DUO 12 Sessions', description: '12 duo sessions' },
 };
 
 const STUDIO_INFO = {
@@ -372,46 +372,38 @@ function getDateKeyVariants(dateKey: string): string[] {
   return [dateKey, altDateKey];
 }
 
-async function calculateSlotCapacity(dateKey: string, timeSlot: string): Promise<{available: number, isBlocked: boolean, isPrivate: boolean}> {
+async function calculateSlotCapacity(dateKey: string, timeSlot: string): Promise<{available: number, isBlocked: boolean, classType: string, maxCapacity: number}> {
   const supabase = getSupabase();
-
   const dateKeyVariants = getDateKeyVariants(dateKey);
 
-  // Query Supabase for reservations at this slot (including pending - they still occupy seats)
-  // Match both date key formats to catch all bookings for this date
+  const { data: slotConfig } = await supabase
+    .from('time_slots')
+    .select('class_type, max_capacity')
+    .eq('date', dateKey)
+    .eq('start_time', timeSlot)
+    .single();
+
+  const classType = slotConfig?.class_type || 'group';
+  const maxCapacity = slotConfig?.max_capacity || 4;
+
   const { data: slotReservations, error } = await supabase
     .from('reservations')
-    .select('service_type, reservation_status')
+    .select('id')
     .in('date_key', dateKeyVariants)
     .eq('time_slot', timeSlot)
     .in('reservation_status', ['pending', 'confirmed', 'attended']);
 
   if (error) {
-    console.error('Error fetching slot capacity:', error);
-    // Return full capacity on error to be safe
-    return { available: 0, isBlocked: true, isPrivate: false };
+    return { available: 0, isBlocked: true, classType, maxCapacity };
   }
 
-  const reservations = slotReservations || [];
+  const booked = (slotReservations || []).length;
 
-  const hasPrivateSession = reservations.some((r: any) =>
-    r.service_type === 'individual' || r.service_type === 'duo'
-  );
-  if (hasPrivateSession) {
-    return { available: 0, isBlocked: true, isPrivate: true };
-  }
-
-  const seatsOccupied = reservations.reduce((total: number, r: any) => {
-    if (r.service_type === 'duo') return total + 2;
-    if (r.service_type === 'individual') return total + 4;
-    return total + 1;
-  }, 0);
-
-  // TODO: Read max_capacity from time_slots table instead of hardcoding 4
   return {
-    available: Math.max(0, 4 - seatsOccupied),
-    isBlocked: seatsOccupied >= 4,
-    isPrivate: false
+    available: Math.max(0, maxCapacity - booked),
+    isBlocked: booked >= maxCapacity,
+    classType,
+    maxCapacity
   };
 }
 
@@ -1403,11 +1395,6 @@ app.post("/make-server-b87b0c07/packages/:id/first-session", async (c) => {
 
     const serviceType = extractServiceType(pkg.package_type);
 
-    // DUO validation (before RPC for better error message)
-    if (serviceType === 'duo' && (!partnerName || !partnerSurname)) {
-      return c.json({ error: "Partner name and surname required for DUO bookings" }, 400);
-    }
-
     const dateString = formatDateString(dateKey, pkg.language || 'en');
     const endTime = calculateEndTime(timeSlot);
 
@@ -1707,11 +1694,6 @@ app.post("/make-server-b87b0c07/reservations", async (c) => {
     const emailCheck = validateEmail(email);
     if (!emailCheck.valid) {
       return c.json({ error: emailCheck.reason === 'typo' ? `Invalid email domain. Did you mean ${emailCheck.suggestion}?` : 'Invalid email address', suggestion: emailCheck.suggestion }, 400);
-    }
-
-    // DUO validation (keep this check before RPC for better error message)
-    if (serviceType === 'duo' && (!partnerName || !partnerSurname)) {
-      return c.json({ error: "Partner information required for DUO bookings" }, 400);
     }
 
     const normalizedEmail = normalizeEmail(email);
@@ -3144,7 +3126,7 @@ app.get("/make-server-b87b0c07/admin/consistency-check", async (c) => {
             return formatDateKey(dt) >= todayDateKey;
           }).length;
 
-          if (upcomingActiveCount > 2) {
+          if (upcomingActiveCount > 1) {
             issues.push({
               code: 'unpaid_package_booking_limit_violation',
               details: `package_id=${pkg.id} is unpaid and has ${upcomingActiveCount} upcoming pending/confirmed bookings`
@@ -3981,7 +3963,19 @@ app.get("/make-server-b87b0c07/slots/availability", async (c) => {
       };
     });
 
-    return c.json({ success: true, bookings });
+    // Fetch slot configs for live dates
+    const { data: slotConfigData } = await supabase
+      .from('time_slots')
+      .select('date, start_time, class_type, max_capacity')
+      .in('date', liveDates);
+
+    const slotConfigs = (slotConfigData || []).reduce((acc: any, s: any) => {
+      if (!acc[s.date]) acc[s.date] = {};
+      acc[s.date][s.start_time] = { classType: s.class_type || 'group', maxCapacity: s.max_capacity };
+      return acc;
+    }, {});
+
+    return c.json({ success: true, bookings, slotConfigs });
   } catch (error) {
     console.error('Error fetching slot availability:', error);
     return c.json({ error: 'Failed to fetch availability', details: (error as Error).message }, 500);
@@ -4025,7 +4019,7 @@ app.get("/make-server-b87b0c07/slots/user-calendar", async (c) => {
     const [slotsResult, reservationsResult] = await Promise.all([
       supabase
         .from('time_slots')
-        .select('date, start_time, max_capacity')
+        .select('date, start_time, max_capacity, class_type')
         .in('date', liveDates)
         .order('start_time', { ascending: true }),
       supabase
@@ -4045,11 +4039,11 @@ app.get("/make-server-b87b0c07/slots/user-calendar", async (c) => {
     }
 
     // 3. Build slotConfigs grouped by date
-    const slotConfigs: Record<string, { start_time: string; max_capacity: number }[]> = {};
+    const slotConfigs: Record<string, { start_time: string; max_capacity: number; class_type: string }[]> = {};
     for (const slot of slotsResult.data || []) {
       const st = slot.start_time.length > 5 ? slot.start_time.substring(0, 5) : slot.start_time;
       if (!slotConfigs[slot.date]) slotConfigs[slot.date] = [];
-      slotConfigs[slot.date].push({ start_time: st, max_capacity: slot.max_capacity });
+      slotConfigs[slot.date].push({ start_time: st, max_capacity: slot.max_capacity, class_type: slot.class_type || 'group' });
     }
 
     // 4. Normalize bookings — keep ISO dateKey, include lowercased email
@@ -4119,6 +4113,7 @@ app.get("/make-server-b87b0c07/admin/slots", async (c) => {
         date,
         start_time: time,
         max_capacity: DEFAULT_MAX_CAPACITY,
+        class_type: 'group',
         isDefault: true,
       }));
       return c.json({ success: true, slots: defaultSlots, isDefault: true, dayStatus });
@@ -4213,10 +4208,13 @@ app.post("/make-server-b87b0c07/admin/slots", async (c) => {
       return c.json({ error: adminAuth.error }, 401);
     }
 
-    const { date, startTime, maxCapacity = 4 } = await c.req.json();
+    const { date, startTime, maxCapacity, classType } = await c.req.json();
     if (!date || !startTime) {
       return c.json({ error: 'Date and startTime required' }, 400);
     }
+
+    const effectiveClassType = classType || 'group';
+    const effectiveMaxCapacity = maxCapacity || (effectiveClassType === 'group' ? 4 : 1);
 
     const supabase = getSupabase();
 
@@ -4234,6 +4232,7 @@ app.post("/make-server-b87b0c07/admin/slots", async (c) => {
         date,
         start_time: time,
         max_capacity: DEFAULT_MAX_CAPACITY,
+        class_type: 'group',
       }));
       await supabase.from('time_slots').insert(defaultInserts);
     }
@@ -4244,7 +4243,8 @@ app.post("/make-server-b87b0c07/admin/slots", async (c) => {
       .insert({
         date,
         start_time: startTime,
-        max_capacity: maxCapacity,
+        max_capacity: effectiveMaxCapacity,
+        class_type: effectiveClassType,
       })
       .select()
       .single();
@@ -4274,7 +4274,7 @@ app.patch("/make-server-b87b0c07/admin/slots/:id", async (c) => {
     }
 
     const id = c.req.param('id');
-    const { startTime, maxCapacity, date } = await c.req.json();
+    const { startTime, maxCapacity, date, classType } = await c.req.json();
 
     const supabase = getSupabase();
 
@@ -4297,6 +4297,7 @@ app.patch("/make-server-b87b0c07/admin/slots/:id", async (c) => {
         date,
         start_time: idx === defaultIndex ? (startTime || time) : time,
         max_capacity: idx === defaultIndex ? (maxCapacity ?? DEFAULT_MAX_CAPACITY) : DEFAULT_MAX_CAPACITY,
+        class_type: idx === defaultIndex ? (classType || 'group') : 'group',
       }));
 
       const { data: inserted, error: insertError } = await supabase
@@ -4322,6 +4323,7 @@ app.patch("/make-server-b87b0c07/admin/slots/:id", async (c) => {
     const updates: Record<string, any> = { updated_at: new Date().toISOString() };
     if (startTime) updates.start_time = startTime;
     if (maxCapacity !== undefined) updates.max_capacity = maxCapacity;
+    if (classType) updates.class_type = classType;
 
     const { data, error } = await supabase
       .from('time_slots')
@@ -5243,6 +5245,25 @@ app.get("/make-server-b87b0c07/user/packages", async (c) => {
       return c.json({ error: 'Failed to fetch packages', details: pkgError.message }, 500);
     }
 
+    // Auto-expire packages past their expiry_date
+    const now = getSkopjeTime();
+    const expiredPkgs = (packages || []).filter((pkg: any) =>
+      pkg.package_status === 'active' && pkg.expiry_date && new Date(pkg.expiry_date) < now
+    );
+    if (expiredPkgs.length > 0) {
+      for (const pkg of expiredPkgs) {
+        const { error: expErr } = await supabase
+          .from('user_packages')
+          .update({ package_status: 'expired', remaining_sessions: 0, updated_at: new Date().toISOString() })
+          .eq('id', pkg.id);
+        if (!expErr) {
+          pkg.package_status = 'expired';
+          pkg.remaining_sessions = 0;
+          console.log(`⏰ Auto-expired package ${pkg.id} for ${session.email} (expired ${pkg.expiry_date})`);
+        }
+      }
+    }
+
     // Fetch reservations from Supabase
     const { data: reservations, error: resError } = await supabase
       .from('reservations')
@@ -5456,11 +5477,18 @@ app.post("/make-server-b87b0c07/user/packages/:id/reschedule", async (c) => {
     const serviceType = extractServiceType(pkg.package_type);
     const capacity = await calculateSlotCapacity(dateKey, timeSlot);
 
-    if (serviceType === 'individual' && capacity.available < 4) {
-      return c.json({ error: "Slot not available for 1-on-1 session" }, 400);
-    } else if (serviceType === 'duo' && capacity.available < 2) {
-      return c.json({ error: "Slot not available for DUO session" }, 400);
-    } else if (capacity.available < 1) {
+    // Validate class type compatibility
+    if (capacity.classType === 'group' && !['single', 'package'].includes(serviceType)) {
+      return c.json({ error: "This slot is for group classes only" }, 400);
+    }
+    if (capacity.classType === 'individual' && serviceType !== 'individual') {
+      return c.json({ error: "This slot is for Individual training only" }, 400);
+    }
+    if (capacity.classType === 'duo' && serviceType !== 'duo') {
+      return c.json({ error: "This slot is for DUO training only" }, 400);
+    }
+
+    if (capacity.available < 1) {
       return c.json({ error: "Slot is full" }, 400);
     }
 
@@ -5735,23 +5763,54 @@ app.post("/make-server-b87b0c07/user/packages/:id/book-session", async (c) => {
       return c.json({ error: "Package not found" }, 404);
     }
 
-    // Check package expiry
-    if (pkg.expiry_date && new Date() > new Date(pkg.expiry_date)) {
+    // Check package expiry — also persist the status change
+    if (pkg.expiry_date && getSkopjeTime() > new Date(pkg.expiry_date)) {
+      await supabase.from('user_packages')
+        .update({ package_status: 'expired', remaining_sessions: 0, updated_at: now })
+        .eq('id', pkg.id);
       return c.json({ error: "Package has expired" }, 400);
     }
 
-    // Block booking if an older active package still has remaining sessions
+    // Auto-expire any older packages past their expiry_date before checking the block rule
     const { data: olderActivePkgs } = await supabase
       .from('user_packages')
-      .select('id, remaining_sessions, created_at')
+      .select('id, remaining_sessions, created_at, expiry_date')
       .eq('user_email', pkg.user_email)
       .eq('package_status', 'active')
       .gt('remaining_sessions', 0)
-      .lt('created_at', pkg.created_at)
-      .limit(1);
+      .lt('created_at', pkg.created_at);
 
-    if (olderActivePkgs && olderActivePkgs.length > 0) {
+    const skopjeNow = getSkopjeTime();
+    const stillBlocking = [];
+    for (const older of (olderActivePkgs || [])) {
+      if (older.expiry_date && new Date(older.expiry_date) < skopjeNow) {
+        // Auto-expire stale package
+        await supabase.from('user_packages')
+          .update({ package_status: 'expired', remaining_sessions: 0, updated_at: now })
+          .eq('id', older.id);
+        console.log(`⏰ Auto-expired blocking package ${older.id} for ${pkg.user_email}`);
+      } else {
+        stillBlocking.push(older);
+      }
+    }
+
+    if (stillBlocking.length > 0) {
       return c.json({ error: "Please use all sessions from your current package before booking from this one" }, 400);
+    }
+
+    // Unpaid packages: allow at most 1 upcoming active booking
+    if (pkg.payment_status !== 'paid') {
+      const todayKey = formatDateKey(getSkopjeToday());
+      const { data: upcomingBookings } = await supabase
+        .from('reservations')
+        .select('id')
+        .eq('package_id', packageId)
+        .in('reservation_status', ['pending', 'confirmed'])
+        .gte('date_key', todayKey);
+
+      if (upcomingBookings && upcomingBookings.length >= 1) {
+        return c.json({ error: "Please complete payment to book more sessions" }, 400);
+      }
     }
 
     // Auto-correct package_status if package was activated but status drifted
@@ -5765,6 +5824,26 @@ app.post("/make-server-b87b0c07/user/packages/:id/book-session", async (c) => {
     }
 
     const serviceType = extractServiceType(pkg.package_type);
+
+    // Validate class type compatibility
+    const { data: slotConfig } = await supabase
+      .from('time_slots')
+      .select('class_type')
+      .eq('date', dateKey)
+      .eq('start_time', timeSlot)
+      .single();
+
+    const slotClassType = slotConfig?.class_type || 'group';
+
+    if (slotClassType === 'group' && !['single', 'package'].includes(serviceType)) {
+      return c.json({ error: 'This slot is for group classes only' }, 400);
+    }
+    if (slotClassType === 'individual' && serviceType !== 'individual') {
+      return c.json({ error: 'This slot is for Individual training only' }, 400);
+    }
+    if (slotClassType === 'duo' && serviceType !== 'duo') {
+      return c.json({ error: 'This slot is for DUO training only' }, 400);
+    }
 
     const dateString = formatDateString(dateKey, pkg.language || 'en');
     const endTime = calculateEndTime(timeSlot);

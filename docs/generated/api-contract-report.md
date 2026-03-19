@@ -1,13 +1,13 @@
 # API Contract Report
 
-Generated: 2026-03-11T12:44:32.005Z
+Generated: 2026-03-19T15:12:10.557Z
 
 ## Summary
 
 - Status: PASS
 - Backend unique paths: 52
 - Frontend unique paths: 45
-- Docs unique paths: 12
+- Docs unique paths: 17
 
 ## Frontend Paths Missing In Backend
 
@@ -38,8 +38,6 @@ Generated: 2026-03-11T12:44:32.005Z
 - /admin/login-requests
 - /admin/login-requests/:id/approve
 - /admin/login-requests/:id/dismiss
-- /admin/slots
-- /admin/slots/:id
 - /admin/sync-user-sessions
 - /admin/users
 - /admin/users/:email/adjust-sessions
@@ -56,13 +54,10 @@ Generated: 2026-03-11T12:44:32.005Z
 - /debug/check-users
 - /packages/:id
 - /slots
-- /slots/availability
 - /slots/live-days
-- /slots/user-calendar
 - /upload-logo
 - /user/language
 - /user/packages
-- /user/packages/:id/book-session
 - /user/packages/:id/reschedule
 - /user/packages/:id/reservations/:reservationId
 - /user/packages/purchase
