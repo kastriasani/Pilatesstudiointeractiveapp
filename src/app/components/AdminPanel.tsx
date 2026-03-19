@@ -752,10 +752,15 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
     if (!selectedDate) return;
     const isoDate = convertToISODate(selectedDate);
 
+    // Capture values before resetting state
+    const saveTime = editingTime;
+    const saveCapacity = editingCapacity;
+    const saveClassType = editingClassType;
+
     // Optimistic: update local state instantly
     const prevSlots = [...customSlots];
     setCustomSlots(prev => prev.map(s =>
-      s.id === slotId ? { ...s, start_time: editingTime, max_capacity: editingCapacity, class_type: editingClassType } : s
+      s.id === slotId ? { ...s, start_time: saveTime, max_capacity: saveCapacity, class_type: saveClassType } : s
     ));
     setEditingSlotId(null);
     setEditingTime('');
@@ -772,7 +777,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
             'Authorization': `Bearer ${publicAnonKey}`,
             'X-Session-Token': getSessionToken(),
           },
-          body: JSON.stringify({ startTime: editingTime, maxCapacity: editingCapacity, date: isoDate, classType: editingClassType }),
+          body: JSON.stringify({ startTime: saveTime, maxCapacity: saveCapacity, date: isoDate, classType: saveClassType }),
         }
       );
       if (!response.ok) {
