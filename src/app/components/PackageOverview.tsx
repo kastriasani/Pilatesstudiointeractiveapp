@@ -905,7 +905,7 @@ export function PackageOverview({ onBack, language }: PackageOverviewProps) {
                   <input
                     type="email"
                     value={formData.email}
-                    onChange={(e) => { setFormData({ ...formData, email: e.target.value }); setFieldErrors(prev => ({ ...prev, email: false })); }}
+                    onChange={(e) => { setFormData({ ...formData, email: e.target.value }); setFieldErrors(prev => ({ ...prev, email: false })); setIsEmailRegistered(false); }}
                     placeholder={t.emailPlaceholder}
                     className={`w-full px-4 py-2.5 rounded-xl bg-gradient-to-br from-[#f5f0ed] to-[#f0ebe6] text-sm text-[#3d2f28] placeholder:text-[#8b7764]/60 focus:outline-none focus:ring-2 focus:bg-white transition-all shadow-inner border ${fieldErrors.email ? 'border-red-400 focus:ring-red-400/50' : 'border-[#e8e6e3]/50 focus:ring-[#9ca571]/50'}`}
                   />

@@ -1152,8 +1152,8 @@ app.post("/make-server-b87b0c07/packages", async (c) => {
       return c.json({ error: 'Failed to check user', details: userCheckError.message }, 500);
     }
 
-    if (existingUser) {
-      // Block registered users from using the public booking flow again
+    if (existingUser && existingUser.password_hash) {
+      // Block fully registered users (with password) from using the public booking flow
       console.log(`⚠️ Blocked duplicate registration for ${normalizedEmail} via /packages`);
       return c.json({
         error: 'This email is already registered. Please log in to your account to purchase a new package.',
@@ -1161,25 +1161,34 @@ app.post("/make-server-b87b0c07/packages", async (c) => {
       }, 400);
     }
 
-    // Create new user
-    const { error: userCreateError } = await supabase
-      .from('users')
-      .insert({
-        email: normalizedEmail,
-        name,
-        surname,
-        mobile,
-        language: language?.toLowerCase() || 'sq',
-        created_at: now,
-        updated_at: now,
-        blocked: false
-      });
+    if (existingUser) {
+      // User exists but hasn't completed registration (no password) — allow creating another package
+      // Update their info in case it changed
+      await supabase
+        .from('users')
+        .update({ name, surname, mobile, language: language?.toLowerCase() || 'sq', updated_at: now })
+        .eq('email', normalizedEmail);
+    } else {
+      // Create new user
+      const { error: userCreateError } = await supabase
+        .from('users')
+        .insert({
+          email: normalizedEmail,
+          name,
+          surname,
+          mobile,
+          language: language?.toLowerCase() || 'sq',
+          created_at: now,
+          updated_at: now,
+          blocked: false
+        });
 
-    if (userCreateError) {
-      console.error('Error creating user:', userCreateError);
-      return c.json({ error: 'Failed to create user', details: userCreateError.message }, 500);
+      if (userCreateError) {
+        console.error('Error creating user:', userCreateError);
+        return c.json({ error: 'Failed to create user', details: userCreateError.message }, 500);
+      }
+      console.log(`User created in Supabase: ${normalizedEmail}`);
     }
-    console.log(`User created in Supabase: ${normalizedEmail}`);
 
     let totalSessions = extractSessionCount(packageType);
     let bonusClasses = 0;
@@ -5772,9 +5781,10 @@ app.post("/make-server-b87b0c07/user/packages/:id/book-session", async (c) => {
     }
 
     // Auto-expire any older packages past their expiry_date before checking the block rule
+    // Only block within the same service type (group blocks group, individual blocks individual, etc.)
     const { data: olderActivePkgs } = await supabase
       .from('user_packages')
-      .select('id, remaining_sessions, created_at, expiry_date')
+      .select('id, remaining_sessions, created_at, expiry_date, package_type')
       .eq('user_email', pkg.user_email)
       .eq('package_status', 'active')
       .gt('remaining_sessions', 0)
@@ -5789,7 +5799,8 @@ app.post("/make-server-b87b0c07/user/packages/:id/book-session", async (c) => {
           .update({ package_status: 'expired', remaining_sessions: 0, updated_at: now })
           .eq('id', older.id);
         console.log(`⏰ Auto-expired blocking package ${older.id} for ${pkg.user_email}`);
-      } else {
+      } else if (extractServiceType(older.package_type) === serviceType) {
+        // Only block if the older package is the same service type
         stillBlocking.push(older);
       }
     }

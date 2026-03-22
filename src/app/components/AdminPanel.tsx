@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { motion } from 'motion/react';
-import { Calendar, Users, LogOut, Mail, X, CheckCircle, Trash2, Ban, ShieldAlert, Settings, UserMinus, Send, AlertCircle, Loader2, Pencil, Plus, ChevronDown, ChevronUp, Clock, XCircle, Bell, RefreshCw, CheckCircle2 } from 'lucide-react';
+import { Calendar, Users, LogOut, Mail, X, CheckCircle, Trash2, Ban, ShieldAlert, Settings, UserMinus, Send, AlertCircle, Loader2, Pencil, Plus, ChevronDown, ChevronUp, Clock, Bell, RefreshCw, CheckCircle2 } from 'lucide-react';
 import { logo } from '../../assets/images';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { DevTools } from './DevTools';
@@ -201,6 +201,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
   const [newSlotClassType, setNewSlotClassType] = useState<'group' | 'individual' | 'duo'>('group');
   const [editingClassType, setEditingClassType] = useState<'group' | 'individual' | 'duo'>('group');
   const [slotLoading, setSlotLoading] = useState(false);
+  const classTypeAbortRef = useRef<Record<string, AbortController>>({});
   const [usesCustomSlots, setUsesCustomSlots] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [dayStatus, setDayStatus] = useState<'live' | 'draft'>('draft');
@@ -791,11 +792,45 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
     }
   };
 
-  const handleDeleteSlot = (slotId: string, slotTime?: string) => {
+  const handleDeleteSlot = (slotId: string, slotTime?: string, bookingCount?: number) => {
     if (!selectedDate) return;
 
-    showConfirm('Remove Time Slot', 'Are you sure you want to remove this time slot?', async () => {
+    const hasBookings = bookingCount && bookingCount > 0;
+    const title = hasBookings ? 'Cancel Class & Remove Slot' : 'Remove Time Slot';
+    const message = hasBookings
+      ? `This will cancel ${bookingCount} booking(s), restore session credits, notify users by email, and remove the time slot.`
+      : 'Are you sure you want to remove this time slot?';
+
+    showConfirm(title, message, async () => {
       const isoDate = convertToISODate(selectedDate);
+
+      // If there are bookings, cancel them first
+      if (hasBookings && slotTime) {
+        try {
+          const cancelResponse = await fetch(
+            `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/admin/cancel-class`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${publicAnonKey}`,
+                'X-Session-Token': getSessionToken(),
+              },
+              body: JSON.stringify({ date: isoDate, timeSlot: slotTime }),
+            }
+          );
+          if (!cancelResponse.ok) {
+            const data = await cancelResponse.json();
+            toast.error(data.error || 'Failed to cancel bookings');
+            return;
+          }
+          await fetchBookings();
+        } catch (error) {
+          console.error('Error cancelling class:', error);
+          toast.error('Failed to cancel bookings');
+          return;
+        }
+      }
 
       // Optimistic: remove from local state instantly
       const prevSlots = [...customSlots];
@@ -819,50 +854,14 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
           const data = await response.json();
           toast.error(data.error || 'Failed to delete slot');
           setCustomSlots(prevSlots); // Revert
+        } else {
+          toast.success(hasBookings ? 'Class cancelled and slot removed' : 'Slot removed');
         }
       } catch (error) {
         console.error('Error deleting slot:', error);
         setCustomSlots(prevSlots); // Revert
       }
     });
-  };
-
-  const handleCancelClass = (slotTime: string, bookingCount: number) => {
-    if (!selectedDate) return;
-
-    showConfirm(
-      'Cancel Entire Class',
-      `Are you sure you want to cancel the ${slotTime} class? This will cancel ${bookingCount} booking(s), restore session credits, and notify all booked users by email.`,
-      async () => {
-        const isoDate = convertToISODate(selectedDate);
-        try {
-          const response = await fetch(
-            `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/admin/cancel-class`,
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${publicAnonKey}`,
-                'X-Session-Token': getSessionToken(),
-              },
-              body: JSON.stringify({ date: isoDate, timeSlot: slotTime }),
-            }
-          );
-          if (response.ok) {
-            const data = await response.json();
-            toast.success(data.message || 'Class cancelled successfully');
-            await fetchBookings();
-            await fetchSlotsForDate(selectedDate);
-          } else {
-            const data = await response.json();
-            toast.error(data.error || 'Failed to cancel class');
-          }
-        } catch (error) {
-          console.error('Error cancelling class:', error);
-          toast.error('Network error. Please check your connection.');
-        }
-      }
-    );
   };
 
   const handleAddSlot = async () => {
@@ -1663,6 +1662,17 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                       const newCapacity = newType === 'group' ? 4 : 1;
                       const isoDate = convertToISODate(selectedDate!);
 
+                      // Abort any in-flight request for this slot
+                      if (classTypeAbortRef.current[slot.id]) {
+                        classTypeAbortRef.current[slot.id].abort();
+                      }
+                      const controller = new AbortController();
+                      classTypeAbortRef.current[slot.id] = controller;
+
+                      // Snapshot current state before optimistic update (for revert)
+                      const prevClassType = slotClassType;
+                      const prevCapacity = slot.max_capacity;
+
                       // Instant local update
                       setCustomSlots(prev => prev.map(s =>
                         s.id === slot.id ? { ...s, class_type: newType, max_capacity: newCapacity } : s
@@ -1679,6 +1689,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                             'X-Session-Token': getSessionToken(),
                           },
                           body: JSON.stringify({ classType: newType, maxCapacity: newCapacity, date: isoDate }),
+                          signal: controller.signal,
                         }
                       ).then(async (response) => {
                         if (!response.ok) {
@@ -1686,13 +1697,14 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                           toast.error(data.error || 'Failed to change class type');
                           // Revert on error
                           setCustomSlots(prev => prev.map(s =>
-                            s.id === slot.id ? { ...s, class_type: slotClassType, max_capacity: slot.max_capacity } : s
+                            s.id === slot.id ? { ...s, class_type: prevClassType, max_capacity: prevCapacity } : s
                           ));
                         }
-                      }).catch(() => {
+                      }).catch((err) => {
+                        if (err.name === 'AbortError') return; // Superseded by newer request
                         // Revert on network error
                         setCustomSlots(prev => prev.map(s =>
-                          s.id === slot.id ? { ...s, class_type: slotClassType, max_capacity: slot.max_capacity } : s
+                          s.id === slot.id ? { ...s, class_type: prevClassType, max_capacity: prevCapacity } : s
                         ));
                       });
                     };
@@ -1780,22 +1792,12 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                 <span className="text-sm text-stone-400">{effectiveSeats}/{slot.max_capacity || 4}</span>
                               </button>
 
-                              {/* Cancel entire class button - in edit mode when bookings exist */}
-                              {isEditMode && hasBookings && (
+                              {/* Delete button - always visible in edit mode, cancels bookings first if needed */}
+                              {isEditMode && (
                                 <button
-                                  onClick={(e) => { e.stopPropagation(); handleCancelClass(slotTime, bookingCount); }}
+                                  onClick={(e) => { e.stopPropagation(); handleDeleteSlot(slot.id, slotTime, bookingCount); }}
                                   className="p-1.5 text-stone-400 hover:text-red-500 transition-colors"
-                                  title="Cancel entire class (refund sessions & notify users)"
-                                >
-                                  <XCircle className="w-4 h-4" />
-                                </button>
-                              )}
-                              {/* Delete button - only in edit mode and if no bookings */}
-                              {isEditMode && !hasBookings && (
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); handleDeleteSlot(slot.id, slotTime); }}
-                                  className="p-1.5 text-stone-400 hover:text-red-500 transition-colors"
-                                  title="Remove slot"
+                                  title={hasBookings ? `Cancel ${bookingCount} booking(s) & remove slot` : 'Remove slot'}
                                 >
                                   <Trash2 className="w-4 h-4" />
                                 </button>

@@ -154,7 +154,9 @@ export function ConfirmationScreen({ bookingData, onConfirm, onBack, onPaymentTo
             <div className="pt-2 border-t border-[#f5f0ed]">
               <div className="flex justify-between items-center">
                 <p className="text-sm text-[#6b5949]">{t.price}:</p>
-                <p className="text-base text-[#3d2f28]">600 DEN</p>
+                <p className="text-base text-[#3d2f28]">
+                  {bookingData.trainingType === 'individual' ? '1200' : bookingData.trainingType === 'duo' ? '2100' : '600'} DEN
+                </p>
               </div>
             </div>
           )}
