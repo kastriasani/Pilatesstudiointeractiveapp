@@ -491,6 +491,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
           packages: user.packages,
           reservations: user.reservations,
           blocked: user.blocked || false,
+          createdAt: user.createdAt,
         };
       });
 
@@ -2422,6 +2423,12 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                 <div>
                                   <p className="text-xs text-[#8b7764] mb-1">Phone:</p>
                                   <p className="text-sm text-[#3d2f28]">{formatPhone(user.mobile)}</p>
+                                </div>
+                              )}
+                              {user.createdAt && (
+                                <div>
+                                  <p className="text-xs text-[#8b7764] mb-1">Created:</p>
+                                  <p className="text-sm text-[#3d2f28]">{new Date(user.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
                                 </div>
                               )}
                             </div>
