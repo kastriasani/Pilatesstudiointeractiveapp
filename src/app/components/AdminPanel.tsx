@@ -2412,13 +2412,19 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                         {/* Expanded View */}
                         {isExpanded && (
                           <div className="px-4 pb-4 border-t border-[#e8dfd8] bg-[#f5f0ed] bg-opacity-50">
-                            {/* Phone Number */}
-                            {user.mobile && (
-                              <div className="mt-3 mb-3 p-3 bg-[#F5F0EE] rounded-md">
-                                <p className="text-xs text-[#8b7764] mb-1">Phone:</p>
-                                <p className="text-sm text-[#3d2f28]">{formatPhone(user.mobile)}</p>
+                            {/* Email & Phone */}
+                            <div className="mt-3 mb-3 p-3 bg-[#F5F0EE] rounded-md space-y-2">
+                              <div>
+                                <p className="text-xs text-[#8b7764] mb-1">Email:</p>
+                                <p className="text-sm text-[#3d2f28] break-all">{user.email}</p>
                               </div>
-                            )}
+                              {user.mobile && (
+                                <div>
+                                  <p className="text-xs text-[#8b7764] mb-1">Phone:</p>
+                                  <p className="text-sm text-[#3d2f28]">{formatPhone(user.mobile)}</p>
+                                </div>
+                              )}
+                            </div>
 
                             {/* All Packages */}
                             {(user.packages && user.packages.length > 0) ? user.packages.map((pkg, pkgIndex) => {
