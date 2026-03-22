@@ -1075,8 +1075,8 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
     }
   };
 
-  // Buy new package eligibility: all active/pending packages must have remaining_sessions <= 1
-  const isEligibleForNewPackage = packages.length > 0 && packages
+  // Buy new package eligibility: no active/pending packages with more than 1 session remaining
+  const isEligibleForNewPackage = packages
     .filter(p => p.packageStatus === 'active' || p.packageStatus === 'pending')
     .every(p => p.remainingSessions <= 1);
 
@@ -1309,27 +1309,7 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
       )}
 
       {/* Content: Packages + Reservations */}
-      {packages.length === 0 && reservations.filter(r => !r.packageId).length === 0 ? (
-        // Empty state
-        <motion.div
-          className="text-center py-12"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.4 }}
-        >
-          <Calendar className="w-16 h-16 text-[#e8e6e3] mx-auto mb-4" />
-          <p className="text-sm text-[#6b5949] mb-4">
-            {t.whenIsNextClass || 'When is your next class?'}
-          </p>
-          <button
-            onClick={() => window.location.href = '/'}
-            className="bg-[#9ca571] text-white px-6 py-3 rounded-full text-sm font-medium hover:bg-[#8a9463] transition-colors"
-          >
-            {t.bookNow || 'Book Now'}
-          </button>
-        </motion.div>
-      ) : (
-        <div className="space-y-5">
+      <div className="space-y-5">
           {(() => {
             const terminalStatuses = ['fully_used', 'expired', 'cancelled'];
             const activePackages = packages.filter(p => !terminalStatuses.includes(p.packageStatus));
@@ -1728,8 +1708,7 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
           })()}
 
           {/* Buy New Package Section — Compact cards with left accent bar */}
-          {packages.length > 0 && (
-            <div className="mt-4">
+          <div className="mt-4">
               <div className="flex items-center gap-2 mb-3">
                 <ShoppingBag className="w-4 h-4 text-[#6b5949]" />
                 <h3 className="text-[10px] font-semibold uppercase tracking-wider text-[#8b7764]">
@@ -1803,8 +1782,7 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
                   </p>
                 )}
               </div>
-            </div>
-          )}
+          </div>
 
           {/* Single Session Reservations */}
           {reservations.filter(r => {
@@ -1874,8 +1852,7 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
               </button>
             </div>
           )}
-        </div>
-      )}
+      </div>
 
 
       {/* Reschedule/Book Modal */}
