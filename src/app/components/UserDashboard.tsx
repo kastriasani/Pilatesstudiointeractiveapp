@@ -1076,9 +1076,9 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
     }
   };
 
-  // Buy new package eligibility: no active/pending packages with more than 1 session remaining
-  const isEligibleForNewPackage = packages
-    .filter(p => p.packageStatus === 'active' || p.packageStatus === 'pending')
+  // Buy new package eligibility: per service type — only blocked by packages of the same type
+  const isEligibleForCategory = (category: 'group' | 'individual' | 'duo') => packages
+    .filter(p => (p.packageStatus === 'active' || p.packageStatus === 'pending') && getServiceType(p.packageType) === category)
     .every(p => p.remainingSessions <= 1);
 
   // New package options grouped by category
@@ -1136,6 +1136,12 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
       toast.error('An error occurred. Please try again.');
       setIsBuyingPackage(false);
     }
+  };
+
+  const getServiceType = (packageType: string): string => {
+    if (packageType.startsWith('individual') || packageType === '1class' || packageType === '8classes' || packageType === '12classes') return 'individual';
+    if (packageType.startsWith('duo')) return 'duo';
+    return 'group';
   };
 
   const getPackageDisplayName = (packageType: string): string => {
@@ -1332,9 +1338,10 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
             const bonusSessions = pkg.totalSessions > baseSessionCount ? pkg.totalSessions - baseSessionCount : 0;
             const usedSessions = pkg.totalSessions - pkg.remainingSessions;
             const isInlineCalendarOpen = inlineBookingPackageId === pkg.id;
-            // Block booking from this package if an older active package still has remaining sessions
+            // Block booking from this package if an older active package of the SAME service type still has remaining sessions
+            const pkgServiceType = getServiceType(pkg.packageType);
             const hasOlderActivePackage = activePackages.some(
-              p => p.id !== pkg.id && p.packageStatus === 'active' && p.remainingSessions > 0 && p.createdAt < pkg.createdAt
+              p => p.id !== pkg.id && p.packageStatus === 'active' && p.remainingSessions > 0 && p.createdAt < pkg.createdAt && getServiceType(p.packageType) === pkgServiceType
             );
 
             return (
@@ -1767,17 +1774,17 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
                     className="relative"
                   >
                     {/* Locked state */}
-                    {!isEligibleForNewPackage && (
+                    {!isEligibleForCategory(packageCategory) && (
                       <div className="absolute inset-0 bg-white/60 z-10 rounded-xl" />
                     )}
                     <button
                       onClick={() => {
-                        if (!isEligibleForNewPackage || isBuyingPackage) return;
+                        if (!isEligibleForCategory(packageCategory) || isBuyingPackage) return;
                         handlePurchasePackage(pkg.type);
                       }}
-                      disabled={!isEligibleForNewPackage || isBuyingPackage}
+                      disabled={!isEligibleForCategory(packageCategory) || isBuyingPackage}
                       className={`w-full flex items-stretch rounded-xl overflow-hidden border transition-all ${
-                        isEligibleForNewPackage
+                        isEligibleForCategory(packageCategory)
                           ? pkg.isRecommended
                             ? 'border-[#9ca571]/40 shadow-md bg-white'
                             : 'border-[#e8e6e3] shadow-sm bg-white'
@@ -1812,14 +1819,14 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
                 })}
 
                 {/* Lock message below cards */}
-                {!isEligibleForNewPackage && (
+                {!isEligibleForCategory(packageCategory) && (
                   <div className="flex items-center justify-center gap-1.5 py-2 text-xs text-[#8b7764]">
                     <Lock className="w-3.5 h-3.5" />
                     <span>{t.packageLockedMessage || 'Available when you have 1 class remaining'}</span>
                   </div>
                 )}
 
-                {isEligibleForNewPackage && (
+                {isEligibleForCategory(packageCategory) && (
                   <p className="text-[10px] text-[#8b7764] text-center mt-1">
                     {t.payAtStudio || 'Payment is made at the studio'}
                   </p>

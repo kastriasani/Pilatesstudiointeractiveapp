@@ -5599,8 +5599,8 @@ app.post("/make-server-b87b0c07/user/packages/purchase", async (c) => {
       return c.json({ error: 'User not found' }, 404);
     }
 
-    // Check eligibility: user must have a nearly-finished active package
-    // (7/8, 9/10, or 11/12 sessions used — i.e. remaining_sessions <= 1)
+    // Check eligibility: only blocked by active packages of the SAME service type
+    const requestedServiceType = extractServiceType(packageType as PackageType);
     const { data: activePackages } = await supabase
       .from('user_packages')
       .select('id, package_type, remaining_sessions, package_status')
@@ -5608,8 +5608,11 @@ app.post("/make-server-b87b0c07/user/packages/purchase", async (c) => {
       .in('package_status', ['active'])
       .gt('remaining_sessions', 1);
 
-    // If user has any active package with more than 1 remaining session, block purchase
-    if (activePackages && activePackages.length > 0) {
+    // Only block if there's an active package of the same service type with >1 remaining
+    const blockingPackages = (activePackages || []).filter(
+      (p: any) => extractServiceType(p.package_type) === requestedServiceType
+    );
+    if (blockingPackages.length > 0) {
       return c.json({
         error: 'You can only purchase a new package when your current package has 1 or fewer sessions remaining.',
         errorType: 'PACKAGE_NOT_ELIGIBLE'
