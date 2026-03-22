@@ -5579,7 +5579,8 @@ app.post("/make-server-b87b0c07/user/packages/purchase", async (c) => {
     const body = await c.req.json();
     const { packageType, couponCode } = body;
 
-    if (!packageType || !['package8', 'package10', 'package12'].includes(packageType)) {
+    const allowedTypes = ['package8', 'package10', 'package12', 'individual1', 'individual8', 'individual12', 'duo1', 'duo8', 'duo12'];
+    if (!packageType || !allowedTypes.includes(packageType)) {
       return c.json({ error: 'Invalid package type' }, 400);
     }
 

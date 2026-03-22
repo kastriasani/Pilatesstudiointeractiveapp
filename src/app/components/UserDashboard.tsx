@@ -175,6 +175,7 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
   // Buy new package state
   const [isBuyingPackage, setIsBuyingPackage] = useState(false);
   const [showArchivedPackages, setShowArchivedPackages] = useState(false);
+  const [packageCategory, setPackageCategory] = useState<'group' | 'individual' | 'duo'>('group');
 
   // Avatar upload state
   const [profileImageUrl, setProfileImageUrl] = useState<string | null>(() => {
@@ -1080,15 +1081,25 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
     .filter(p => p.packageStatus === 'active' || p.packageStatus === 'pending')
     .every(p => p.remainingSessions <= 1);
 
-  // New package options (same as PackageOverview)
-  const newPackageOptions = [
+  // New package options grouped by category
+  const groupPackageOptions = [
     { type: 'package8' as const, sessions: 8, label: t.package8Sessions || '8 CLASSES', price: 3500, isRecommended: false },
     { type: 'package10' as const, sessions: 10, label: t.package10Sessions || '10 CLASSES', price: 4200, isRecommended: true },
     { type: 'package12' as const, sessions: 12, label: t.package12Sessions || '12 CLASSES', price: 4800, isRecommended: false },
   ];
+  const individualPackageOptions = [
+    { type: 'individual1' as const, sessions: 1, label: t.individual1Session || '1 SESSION', price: 1200, isRecommended: false },
+    { type: 'individual8' as const, sessions: 8, label: t.individual8Sessions || '8 SESSIONS', price: 7000, isRecommended: true },
+    { type: 'individual12' as const, sessions: 12, label: t.individual12Sessions || '12 SESSIONS', price: 9500, isRecommended: false },
+  ];
+  const duoPackageOptions = [
+    { type: 'duo1' as const, sessions: 1, label: t.duo1Session || '1 SESSION', price: 2100, isRecommended: false },
+    { type: 'duo8' as const, sessions: 8, label: t.duo8Sessions || '8 SESSIONS', price: 13400, isRecommended: true },
+    { type: 'duo12' as const, sessions: 12, label: t.duo12Sessions || '12 SESSIONS', price: 18400, isRecommended: false },
+  ];
 
   // Handle purchase of a new package
-  const handlePurchasePackage = async (packageType: 'package8' | 'package10' | 'package12') => {
+  const handlePurchasePackage = async (packageType: string) => {
     setIsBuyingPackage(true);
 
     try {
@@ -1707,7 +1718,7 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
             );
           })()}
 
-          {/* Buy New Package Section — Compact cards with left accent bar */}
+          {/* Buy New Package Section */}
           <div className="mt-4">
               <div className="flex items-center gap-2 mb-3">
                 <ShoppingBag className="w-4 h-4 text-[#6b5949]" />
@@ -1715,8 +1726,39 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
                   {t.buyNewPackage || 'Buy New Package'}
                 </h3>
               </div>
+
+              {/* Package category tabs */}
+              <div className="flex gap-1 mb-3 bg-[#f5f0ed] rounded-lg p-1">
+                {([
+                  { key: 'group' as const, label: t.groupClass || 'Group' },
+                  { key: 'individual' as const, label: t.individualTraining || 'Individual' },
+                  { key: 'duo' as const, label: t.duoTraining || 'DUO' },
+                ]).map(tab => (
+                  <button
+                    key={tab.key}
+                    onClick={() => setPackageCategory(tab.key)}
+                    className={`flex-1 py-2 text-xs font-medium rounded-md transition-all ${
+                      packageCategory === tab.key
+                        ? 'bg-white text-[#3d2f28] shadow-sm'
+                        : 'text-[#8b7764] hover:text-[#6b5949]'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
               <div className="space-y-2.5">
-                {newPackageOptions.map((pkg, i) => (
+                {(packageCategory === 'group' ? groupPackageOptions
+                  : packageCategory === 'individual' ? individualPackageOptions
+                  : duoPackageOptions
+                ).map((pkg, i) => {
+                  const categoryLabel = packageCategory === 'group'
+                    ? (t.groupClass || 'Group')
+                    : packageCategory === 'individual'
+                    ? (t.individualTraining || 'Individual')
+                    : (t.duoTraining || 'DUO');
+                  return (
                   <motion.div
                     key={pkg.type}
                     initial={{ opacity: 0, x: -16 }}
@@ -1756,17 +1798,18 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
                           <div>
                             <p className="text-sm font-bold text-[#3d2f28]">{pkg.sessions} {t.sessions || 'CLASSES'}</p>
                             <p className="text-[10px] text-[#8b7764] mt-0.5">
-                              {t.classDuration || '50 min'} · {t.validityPeriod || '35 days'} · {t.groupClass || 'Group'}
+                              {t.classDuration || '50 min'} · {t.validityPeriod || '35 days'} · {categoryLabel}
                             </p>
                           </div>
                           <p className="text-lg font-bold text-[#3d2f28]">
-                            {pkg.price} <span className="text-xs font-semibold text-[#8b7764]">DEN</span>
+                            {pkg.price.toLocaleString()} <span className="text-xs font-semibold text-[#8b7764]">DEN</span>
                           </p>
                         </div>
                       </div>
                     </button>
                   </motion.div>
-                ))}
+                  );
+                })}
 
                 {/* Lock message below cards */}
                 {!isEligibleForNewPackage && (
