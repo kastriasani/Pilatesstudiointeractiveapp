@@ -1783,11 +1783,11 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
                         handlePurchasePackage(pkg.type);
                       }}
                       disabled={!isEligibleForCategory(packageCategory) || isBuyingPackage}
-                      className={`w-full flex items-stretch rounded-xl overflow-hidden border transition-all ${
+                      className={`w-full flex items-stretch rounded-xl overflow-hidden border transition-all duration-200 ${
                         isEligibleForCategory(packageCategory)
                           ? pkg.isRecommended
-                            ? 'border-[#9ca571]/40 shadow-md bg-white'
-                            : 'border-[#e8e6e3] shadow-sm bg-white'
+                            ? 'border-[#9ca571]/40 shadow-md bg-white hover:shadow-lg hover:border-[#9ca571]/60 active:scale-[0.98] cursor-pointer'
+                            : 'border-[#e8e6e3] shadow-sm bg-white hover:shadow-md hover:border-[#9ca571]/30 active:scale-[0.98] cursor-pointer'
                           : 'border-gray-200 bg-gray-50 opacity-60'
                       }`}
                     >
