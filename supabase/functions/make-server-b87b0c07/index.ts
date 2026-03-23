@@ -1116,28 +1116,32 @@ app.post("/make-server-b87b0c07/packages", async (c) => {
     const now = new Date().toISOString();
 
     // Prevent duplicate packages: check if user already has a pending package of the same type
-    const { data: existingPkg } = await supabase
-      .from('user_packages')
-      .select('id, created_at')
-      .eq('user_email', normalizedEmail)
-      .eq('package_type', packageType)
-      .eq('package_status', 'pending')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    // Single-session packages (individual1, duo1) are exempt — users can buy as many as they want
+    const isSingleSession = packageType === 'individual1' || packageType === 'duo1';
+    if (!isSingleSession) {
+      const { data: existingPkg } = await supabase
+        .from('user_packages')
+        .select('id, created_at')
+        .eq('user_email', normalizedEmail)
+        .eq('package_type', packageType)
+        .eq('package_status', 'pending')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-    if (existingPkg) {
-      // Return the existing package instead of creating a duplicate
-      console.log(`⚠️ Duplicate package prevented for ${normalizedEmail} (type: ${packageType}). Returning existing: ${existingPkg.id}`);
-      return c.json({
-        success: true,
-        package: { id: existingPkg.id },
-        packageId: existingPkg.id,
-        requiresFirstSessionBooking: true,
-        bonusClasses: 0,
-        redeemedCoupon: null,
-        message: "Package already exists. Please select date and time for your first session."
-      });
+      if (existingPkg) {
+        // Return the existing package instead of creating a duplicate
+        console.log(`⚠️ Duplicate package prevented for ${normalizedEmail} (type: ${packageType}). Returning existing: ${existingPkg.id}`);
+        return c.json({
+          success: true,
+          package: { id: existingPkg.id },
+          packageId: existingPkg.id,
+          requiresFirstSessionBooking: true,
+          bonusClasses: 0,
+          redeemedCoupon: null,
+          message: "Package already exists. Please select date and time for your first session."
+        });
+      }
     }
 
     // Upsert user in Supabase users table
@@ -5620,24 +5624,28 @@ app.post("/make-server-b87b0c07/user/packages/purchase", async (c) => {
     }
 
     // Prevent duplicate pending packages of the same type
-    const { data: existingPkg } = await supabase
-      .from('user_packages')
-      .select('id')
-      .eq('user_email', normalizedEmail)
-      .eq('package_type', packageType)
-      .eq('package_status', 'pending')
-      .maybeSingle();
+    // Single-session packages (individual1, duo1) are exempt — users can buy as many as they want
+    const isSingleSession = packageType === 'individual1' || packageType === 'duo1';
+    if (!isSingleSession) {
+      const { data: existingPkg } = await supabase
+        .from('user_packages')
+        .select('id')
+        .eq('user_email', normalizedEmail)
+        .eq('package_type', packageType)
+        .eq('package_status', 'pending')
+        .maybeSingle();
 
-    if (existingPkg) {
-      return c.json({
-        success: true,
-        package: { id: existingPkg.id },
-        packageId: existingPkg.id,
-        requiresFirstSessionBooking: true,
-        bonusClasses: 0,
-        redeemedCoupon: null,
-        message: 'Package already exists. Please select date and time for your first session.'
-      });
+      if (existingPkg) {
+        return c.json({
+          success: true,
+          package: { id: existingPkg.id },
+          packageId: existingPkg.id,
+          requiresFirstSessionBooking: true,
+          bonusClasses: 0,
+          redeemedCoupon: null,
+          message: 'Package already exists. Please select date and time for your first session.'
+        });
+      }
     }
 
     let totalSessions = extractSessionCount(packageType);

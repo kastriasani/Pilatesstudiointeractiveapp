@@ -649,11 +649,15 @@ export function IndividualTraining({ onBack, language, onLogoClick }: Individual
         {packages.map((pkg) => (
           <div
             key={pkg.type}
-            className={`w-full rounded-3xl transition-all backdrop-blur-sm ${
-              pkg.isRecommended
-                ? 'bg-gradient-to-br from-white via-white to-[#f8f9f4] border-2 border-[#b5a582]/40 shadow-[0_8px_30px_rgb(181,165,130,0.15)] hover:shadow-[0_12px_40px_rgb(181,165,130,0.25)]'
-                : 'bg-white/90 border border-[#e8e6e3] shadow-[0_4px_20px_rgba(0,0,0,0.06)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.1)]'
-            } hover:scale-[1.01] duration-300`}
+            className={`w-full rounded-3xl transition-all backdrop-blur-sm cursor-pointer ${
+              expandedPackage === pkg.type
+                ? pkg.isRecommended
+                  ? 'bg-gradient-to-br from-white via-white to-[#f8f9f4] border-2 border-[#9ca571]/60 shadow-[0_12px_40px_rgb(156,165,113,0.2)] scale-[1.01]'
+                  : 'bg-white border-2 border-[#9ca571]/40 shadow-[0_8px_30px_rgba(156,165,113,0.15)] scale-[1.01]'
+                : pkg.isRecommended
+                  ? 'bg-gradient-to-br from-white via-white to-[#f8f9f4] border-2 border-[#b5a582]/40 shadow-[0_8px_30px_rgb(181,165,130,0.15)] hover:shadow-[0_12px_40px_rgb(181,165,130,0.25)]'
+                  : 'bg-white/90 border border-[#e8e6e3] shadow-[0_4px_20px_rgba(0,0,0,0.06)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.1)]'
+            } hover:scale-[1.01] active:scale-[0.99] duration-200`}
           >
             {/* Package Header - Clickable */}
             <button
