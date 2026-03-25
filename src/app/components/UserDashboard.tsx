@@ -102,38 +102,6 @@ const classTypeColorMap: Record<string, { bg: string; bgActive: string; border: 
 };
 
 // Progress ring SVG component
-function ProgressRing({ used, total, size = 64, stroke = 5 }: { used: number; total: number; size?: number; stroke?: number }) {
-  const radius = (size - stroke) / 2;
-  const circumference = 2 * Math.PI * radius;
-  const progress = total > 0 ? used / total : 0;
-  const offset = circumference * (1 - progress);
-
-  return (
-    <svg width={size} height={size} className="transform -rotate-90">
-      <circle
-        cx={size / 2}
-        cy={size / 2}
-        r={radius}
-        fill="none"
-        stroke="#e8e6e3"
-        strokeWidth={stroke}
-      />
-      <motion.circle
-        cx={size / 2}
-        cy={size / 2}
-        r={radius}
-        fill="none"
-        stroke="#7A8F3A"
-        strokeWidth={stroke}
-        strokeLinecap="round"
-        strokeDasharray={circumference}
-        initial={{ strokeDashoffset: circumference }}
-        animate={{ strokeDashoffset: offset }}
-        transition={{ duration: 1, delay: 0.5, ease: 'easeOut' }}
-      />
-    </svg>
-  );
-}
 
 export function UserDashboard({ onBack, onLogout, language, sessionToken, userEmail, userName, userSurname }: UserDashboardProps) {
   const { setLanguage } = useLanguage();
@@ -1336,7 +1304,6 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
               {activePackages.map((pkg, pkgIndex) => {
             const baseSessionCount = pkg.packageType === 'package8' ? 8 : pkg.packageType === 'package10' ? 10 : pkg.packageType === 'package12' ? 12 : pkg.totalSessions;
             const bonusSessions = pkg.totalSessions > baseSessionCount ? pkg.totalSessions - baseSessionCount : 0;
-            const usedSessions = pkg.totalSessions - pkg.remainingSessions;
             const isInlineCalendarOpen = inlineBookingPackageId === pkg.id;
             // Block booking from this package if an older active package of the SAME service type still has remaining sessions
             const pkgServiceType = getServiceType(pkg.packageType);
@@ -1352,41 +1319,33 @@ export function UserDashboard({ onBack, onLogout, language, sessionToken, userEm
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.4, delay: pkgIndex * 0.1 }}
               >
-                {/* Package Header with Progress Ring */}
-                <div className="flex items-center gap-4 mb-4">
-                  <div className="relative flex-shrink-0">
-                    <ProgressRing used={usedSessions} total={pkg.totalSessions} />
-                    <div className="absolute inset-0 flex flex-col items-center justify-center">
-                      <span className="text-sm font-bold text-[#3d2f28]">{usedSessions}/{pkg.totalSessions}</span>
-                    </div>
-                  </div>
+                {/* Package Header */}
+                <div className="flex items-start justify-between gap-2 mb-4">
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2">
-                      <h3 className="text-base font-semibold text-[#3d2f28] truncate">
-                        {getPackageDisplayName(pkg.packageType)}
-                      </h3>
-                      {/* Status Badge */}
-                      <div className={`flex-shrink-0 px-2.5 py-1 rounded-full text-[10px] font-semibold flex items-center gap-1 ${
-                        pkg.packageStatus === 'active'
-                          ? 'bg-green-100 text-green-700'
-                          : pkg.packageStatus === 'fully_used'
-                          ? 'bg-stone-100 text-stone-600'
-                          : pkg.packageStatus === 'expired'
-                          ? 'bg-red-50 text-red-600'
-                          : pkg.packageStatus === 'cancelled'
-                          ? 'bg-red-100 text-red-700'
-                          : 'bg-amber-100 text-amber-700'
-                      }`}>
-                        {pkg.packageStatus === 'active' ? (
-                          <><CheckCircle className="w-3 h-3" />{t.paid || 'Paid'}</>
-                        ) : pkg.packageStatus === 'pending' ? (
-                          <><AlertCircle className="w-3 h-3" />{t.needsPayment || 'Needs Payment'}</>
-                        ) : null}
-                      </div>
-                    </div>
+                    <h3 className="text-base font-semibold text-[#3d2f28] truncate">
+                      {getPackageDisplayName(pkg.packageType)}
+                    </h3>
                     <p className="text-xs text-[#8b7764] mt-0.5">
                       {pkg.remainingSessions} {t.sessionsRemaining || 'remaining'}
                     </p>
+                  </div>
+                  {/* Status Badge */}
+                  <div className={`flex-shrink-0 px-2.5 py-1 rounded-full text-[10px] font-semibold flex items-center gap-1 ${
+                    pkg.packageStatus === 'active'
+                      ? 'bg-green-100 text-green-700'
+                      : pkg.packageStatus === 'fully_used'
+                      ? 'bg-stone-100 text-stone-600'
+                      : pkg.packageStatus === 'expired'
+                      ? 'bg-red-50 text-red-600'
+                      : pkg.packageStatus === 'cancelled'
+                      ? 'bg-red-100 text-red-700'
+                      : 'bg-amber-100 text-amber-700'
+                  }`}>
+                    {pkg.packageStatus === 'active' ? (
+                      <><CheckCircle className="w-3 h-3" />{t.paid || 'Paid'}</>
+                    ) : pkg.packageStatus === 'pending' ? (
+                      <><AlertCircle className="w-3 h-3" />{t.needsPayment || 'Needs Payment'}</>
+                    ) : null}
                   </div>
                 </div>
 
