@@ -1,12 +1,12 @@
 # API Contract Report
 
-Generated: 2026-03-25T01:14:28.361Z
+Generated: 2026-03-25T01:17:23.812Z
 
 ## Summary
 
 - Status: WARN
 - Backend unique paths: 53
-- Frontend unique paths: 46
+- Frontend unique paths: 45
 - Docs unique paths: 21
 
 ## Frontend Paths Missing In Backend
@@ -19,6 +19,7 @@ Generated: 2026-03-25T01:14:28.361Z
 
 ## Backend Paths Not Used By Frontend
 
+- /activate
 - /admin/calendar
 - /admin/sync-user-sessions
 - /auth/logout

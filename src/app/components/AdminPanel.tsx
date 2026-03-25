@@ -222,7 +222,6 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
     userName?: string;
     firstName?: string;
     lastName?: string;
-    userSubTab?: string;
     userId?: string;
   };
   type ConsistencyCheckResult = {
@@ -302,11 +301,6 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
     const result: Alert[] = [];
     const now = getSkopjeTime();
 
-    const getSubTab = (u: User): 'confirmed' | 'pending' | 'archived' => {
-      if (u.blocked) return 'archived';
-      return u.status === 'confirmed' ? 'confirmed' : 'pending';
-    };
-
     const pkgLabel = (type: string) => {
       const map: Record<string, string> = {
         '1class': '1 class', '8classes': '8 classes', '12classes': '12 classes',
@@ -321,7 +315,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
       if (u.blocked || u.flag === 'inactive') continue;
 
       const pkgs = u.packages || [];
-      const base = { userEmail: u.email, userName: `${u.name} ${u.surname}`, firstName: u.name, lastName: u.surname, userSubTab: 'all' as any, userId: u.id };
+      const base = { userEmail: u.email, userName: `${u.name} ${u.surname}`, firstName: u.name, lastName: u.surname, userId: u.id };
 
       for (const pkg of pkgs) {
         if (pkg.status === 'active' && pkg.expiryDate) {
@@ -350,7 +344,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
         if (cu.issueCount === 0) continue;
         const localUser = users.find(u => u.email.toLowerCase() === cu.email.toLowerCase());
         if (!localUser || localUser.blocked || localUser.flag === 'inactive') continue;
-        const base = { userEmail: cu.email, userName: `${localUser.name} ${localUser.surname}`, firstName: localUser.name, lastName: localUser.surname, userSubTab: 'all' as any, userId: localUser.id };
+        const base = { userEmail: cu.email, userName: `${localUser.name} ${localUser.surname}`, firstName: localUser.name, lastName: localUser.surname, userId: localUser.id };
 
         for (const issue of cu.issues) {
           if (issue.code === 'users_remaining_sessions_mismatch') {
@@ -1064,23 +1058,6 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
     }
   };
 
-  const handleStatusChange = (userId: string) => {
-    const user = users.find(u => u.id === userId);
-    if (!user) return;
-
-    // Toggle between 'pending' (unpaid) and 'confirmed' (paid)
-    const newStatus: UserStatus = user.status === 'pending' ? 'confirmed' : 'pending';
-    const paymentStatus = newStatus === 'confirmed' ? 'paid' : 'unpaid';
-
-    // Optimistic UI update
-    setUsers(prevUsers =>
-      prevUsers.map(u => u.id === userId ? { ...u, status: newStatus } : u)
-    );
-
-    // Update payment status in backend
-    updatePaymentStatus(user.email, paymentStatus);
-  };
-
   const updatePaymentStatus = async (email: string, paymentStatus: 'paid' | 'unpaid') => {
     try {
       const response = await fetch(
@@ -1160,62 +1137,6 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
       console.error('Error updating package payment:', error);
       toast.error(error.message || 'Failed to update payment');
     }
-  };
-
-  // Activate user (admin action after cash payment in studio)
-  const handleActivateUser = (user: User) => {
-    showConfirm(
-      'Activate User',
-      `Activate ${user.name} ${user.surname}?\n\nThis will:\n• Set status to Activated\n• Set payment to Paid\n• Send login email with password setup link`,
-      async () => {
-        setIsSendingEmail(true);
-
-        try {
-          const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/activate`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${publicAnonKey}`,
-              'X-Session-Token': getSessionToken(),
-            },
-            body: JSON.stringify({
-              email: user.email,
-            }),
-          });
-
-          if (!response.ok) {
-            const errorText = await response.text();
-            console.error('Failed to activate user:', errorText);
-
-            try {
-              const errorData = JSON.parse(errorText);
-              toast.error(errorData.error || 'Failed to activate user. Please try again.');
-            } catch {
-              toast.error('Failed to activate user. Please try again.');
-            }
-
-            setIsSendingEmail(false);
-            return;
-          }
-
-          const data = await response.json();
-          console.log('User activated successfully:', data);
-
-          const emailMsg = data.emailType === 'payment_confirmation'
-            ? 'Confirmation email sent'
-            : 'Login email sent';
-          toast.success(`${user.name} ${user.surname} activated! ${emailMsg} to ${user.email}`);
-          setIsSendingEmail(false);
-
-          // Refresh user list to show updated status
-          fetchBookings(); // fetchBookings() fetches both bookings AND users
-        } catch (error) {
-          console.error('Error activating user:', error);
-          toast.error('Network error. Please check your connection.');
-          setIsSendingEmail(false);
-        }
-      }
-    );
   };
 
   const handleDeleteUser = (user: User) => {
