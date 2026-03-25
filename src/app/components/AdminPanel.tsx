@@ -61,6 +61,8 @@ export type User = {
     packageId?: string;
   }>;
   blocked?: boolean;
+  flag?: string;
+  flagMessage?: string;
   // Note: activation is now admin-triggered, no activation codes needed
 };
 
@@ -81,6 +83,7 @@ export type Booking = {
   isFriendBooking?: boolean;
   serviceType?: string;
   paymentStatus?: string;
+  packageId?: string;
   createdAt: string;
 };
 
@@ -126,7 +129,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState<'calendar' | 'users' | 'alerts'>('calendar');
-  const [userSubTab, setUserSubTab] = useState<'confirmed' | 'pending' | 'archived'>('confirmed');
+  const [userFilter, setUserFilter] = useState<'all' | 'needs_attention' | 'active' | 'inactive'>('all');
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<string | null>(null);
   const [users, setUsers] = useState<User[]>([]);
@@ -219,7 +222,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
     userName?: string;
     firstName?: string;
     lastName?: string;
-    userSubTab?: 'confirmed' | 'pending' | 'archived';
+    userSubTab?: string;
     userId?: string;
   };
   type ConsistencyCheckResult = {
@@ -315,10 +318,10 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
 
     for (const u of users) {
       // Only active (confirmed, non-blocked) users
-      if (u.blocked || u.status !== 'confirmed') continue;
+      if (u.blocked || u.flag === 'inactive') continue;
 
       const pkgs = u.packages || [];
-      const base = { userEmail: u.email, userName: `${u.name} ${u.surname}`, firstName: u.name, lastName: u.surname, userSubTab: getSubTab(u) as 'confirmed' | 'pending' | 'archived', userId: u.id };
+      const base = { userEmail: u.email, userName: `${u.name} ${u.surname}`, firstName: u.name, lastName: u.surname, userSubTab: 'all' as any, userId: u.id };
 
       for (const pkg of pkgs) {
         if (pkg.status === 'active' && pkg.expiryDate) {
@@ -346,8 +349,8 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
       for (const cu of consistencyData.users) {
         if (cu.issueCount === 0) continue;
         const localUser = users.find(u => u.email.toLowerCase() === cu.email.toLowerCase());
-        if (!localUser || localUser.blocked || localUser.status !== 'confirmed') continue;
-        const base = { userEmail: cu.email, userName: `${localUser.name} ${localUser.surname}`, firstName: localUser.name, lastName: localUser.surname, userSubTab: 'confirmed' as const, userId: localUser.id };
+        if (!localUser || localUser.blocked || localUser.flag === 'inactive') continue;
+        const base = { userEmail: cu.email, userName: `${localUser.name} ${localUser.surname}`, firstName: localUser.name, lastName: localUser.surname, userSubTab: 'all' as any, userId: localUser.id };
 
         for (const issue of cu.issues) {
           if (issue.code === 'users_remaining_sessions_mismatch') {
@@ -426,7 +429,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
     if (scrollContainerRef.current) {
       scrollContainerRef.current.scrollTop = 0;
     }
-  }, [activeTab, userSubTab]);
+  }, [activeTab, userFilter]);
 
   const fetchBookings = async (silent = false) => {
     try {
@@ -491,6 +494,8 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
           packages: user.packages,
           reservations: user.reservations,
           blocked: user.blocked || false,
+          flag: user.flag,
+          flagMessage: user.flagMessage,
           createdAt: user.createdAt,
         };
       });
@@ -1120,6 +1125,40 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
       fetchBookings();
     } finally {
       setPaymentUpdatingEmail(null);
+    }
+  };
+
+  const updatePackagePayment = async (packageId: string, paymentStatus: 'paid' | 'unpaid') => {
+    try {
+      const res = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/admin/packages/${packageId}/payment`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${publicAnonKey}`,
+            'Content-Type': 'application/json',
+            'X-Session-Token': getSessionToken(),
+          },
+          body: JSON.stringify({ paymentStatus }),
+        }
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update');
+      if (paymentStatus === 'paid') {
+        if (data.emailType === 'password_setup') {
+          toast.success('Paid & login email sent!');
+        } else if (data.emailType === 'payment_confirmation') {
+          toast.success('Paid & confirmation email sent!');
+        } else {
+          toast.success('Package marked as paid');
+        }
+      } else {
+        toast.success('Package marked as unpaid');
+      }
+      await fetchBookings();
+    } catch (error: any) {
+      console.error('Error updating package payment:', error);
+      toast.error(error.message || 'Failed to update payment');
     }
   };
 
@@ -1868,7 +1907,14 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                     {/* Payment Badge */}
                                     {isPaid ? (
                                       <button
-                                        onClick={(e) => { e.stopPropagation(); setPaymentUpdatingEmail(booking.email); updatePaymentStatus(booking.email, 'unpaid').finally(() => setPaymentUpdatingEmail(null)); }}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setPaymentUpdatingEmail(booking.email);
+                                          (booking.packageId
+                                            ? updatePackagePayment(booking.packageId, 'unpaid')
+                                            : updatePaymentStatus(booking.email, 'unpaid')
+                                          ).finally(() => setPaymentUpdatingEmail(null));
+                                        }}
                                         disabled={isUpdatingPayment}
                                         className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium text-green-700 bg-green-100 border border-green-300 hover:bg-green-200 transition-colors disabled:opacity-50 cursor-pointer"
                                       >
@@ -1884,7 +1930,10 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                         onClick={(e) => {
                                           e.stopPropagation();
                                           setPaymentUpdatingEmail(booking.email);
-                                          updatePaymentStatus(booking.email, 'paid').finally(() => setPaymentUpdatingEmail(null));
+                                          (booking.packageId
+                                            ? updatePackagePayment(booking.packageId, 'paid')
+                                            : updatePaymentStatus(booking.email, 'paid')
+                                          ).finally(() => setPaymentUpdatingEmail(null));
                                         }}
                                         disabled={isUpdatingPayment}
                                         className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium text-amber-700 bg-amber-100 border border-amber-300 hover:bg-amber-200 transition-colors disabled:opacity-50 cursor-pointer"
@@ -2194,51 +2243,39 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                 </div>
               )}
 
-              {/* Paid / Pending / Archived Tabs */}
-              <div className="flex border-b border-[#e8dfd8] px-4">
-                <button
-                  onClick={() => setUserSubTab('confirmed')}
-                  className={`px-4 py-3 text-sm transition-colors relative ${
-                    userSubTab === 'confirmed'
-                      ? 'text-green-700 font-medium'
-                      : 'text-[#8b7764] hover:text-[#6b5949]'
-                  }`}
-                >
-                  Paid ({users.filter(u => u.status === 'confirmed' && !isUserArchived(u)).length})
-                  {userSubTab === 'confirmed' && (
-                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-green-700" />
-                  )}
-                </button>
-                <button
-                  onClick={() => setUserSubTab('pending')}
-                  className={`px-4 py-3 text-sm transition-colors relative ${
-                    userSubTab === 'pending'
-                      ? 'text-amber-700 font-medium'
-                      : 'text-[#8b7764] hover:text-[#6b5949]'
-                  }`}
-                >
-                  Not Paid ({users.filter(u => u.status === 'pending' && !isUserArchived(u)).length})
-                  {userSubTab === 'pending' && (
-                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-700" />
-                  )}
-                </button>
-                <button
-                  onClick={() => setUserSubTab('archived')}
-                  className={`px-4 py-3 text-sm transition-colors relative ${
-                    userSubTab === 'archived'
-                      ? 'text-stone-600 font-medium'
-                      : 'text-[#8b7764] hover:text-[#6b5949]'
-                  }`}
-                >
-                  Archived ({users.filter(u => isUserArchived(u)).length})
-                  {userSubTab === 'archived' && (
-                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-stone-500" />
-                  )}
-                </button>
+              {/* User Filter Bar */}
+              <div className="flex gap-1.5 mb-4 bg-stone-100 rounded-lg p-1 overflow-x-auto mx-4">
+                {([
+                  { key: 'all' as const, label: 'All' },
+                  { key: 'needs_attention' as const, label: '\u25CF Needs Attention' },
+                  { key: 'active' as const, label: 'Active' },
+                  { key: 'inactive' as const, label: 'Inactive' },
+                ]).map(tab => {
+                  const count = users.filter(u => {
+                    if (tab.key === 'all') return true;
+                    if (tab.key === 'needs_attention') return u.flag === 'needs_payment' || u.flag === 'new_user' || u.flag === 'expiring';
+                    if (tab.key === 'active') return u.flag === 'active';
+                    if (tab.key === 'inactive') return u.flag === 'inactive';
+                    return true;
+                  }).length;
+                  return (
+                    <button
+                      key={tab.key}
+                      onClick={() => setUserFilter(tab.key)}
+                      className={`flex-1 min-w-fit py-2 px-3 text-xs font-medium rounded-md transition-all whitespace-nowrap ${
+                        userFilter === tab.key
+                          ? 'bg-white text-stone-900 shadow-sm'
+                          : 'text-stone-500 hover:text-stone-700'
+                      }`}
+                    >
+                      {tab.label} ({count})
+                    </button>
+                  );
+                })}
               </div>
 
               {/* Archived Users Bulk Email Bar */}
-              {userSubTab === 'archived' && (
+              {userFilter === 'inactive' && (
                 <div className="px-4 pt-3">
                   <div className="flex items-center justify-between mb-2">
                     <label className="flex items-center gap-2 text-sm text-[#6b5949]">
@@ -2282,10 +2319,13 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
               {/* User List */}
               <div className="p-4 space-y-2">
                 {(() => {
-                  const filtered = (userSubTab === 'archived'
-                    ? users.filter(user => isUserArchived(user))
-                    : users.filter(user => user.status === userSubTab && !isUserArchived(user))
-                  ).sort((a, b) => {
+                  const filtered = users.filter(u => {
+                    if (userFilter === 'all') return true;
+                    if (userFilter === 'needs_attention') return u.flag === 'needs_payment' || u.flag === 'new_user' || u.flag === 'expiring';
+                    if (userFilter === 'active') return u.flag === 'active';
+                    if (userFilter === 'inactive') return u.flag === 'inactive';
+                    return true;
+                  }).sort((a, b) => {
                     const nameA = `${a.name} ${a.surname}`.toLowerCase();
                     const nameB = `${b.name} ${b.surname}`.toLowerCase();
                     return nameA.localeCompare(nameB);
@@ -2337,7 +2377,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                       >
                         {/* Compact View (Always Visible) */}
                         <div className="flex items-center">
-                          {userSubTab === 'archived' && (
+                          {userFilter === 'inactive' && (
                             <div className="pl-3 flex items-center gap-1">
                               <input
                                 type="checkbox"
@@ -2366,7 +2406,10 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                           className="w-full px-4 py-3 text-left hover:bg-[#f5f0ed] transition-colors"
                         >
                           <div className="flex items-center justify-between">
-                            <span className="text-sm text-[#3d2f28] font-medium">
+                            <span className="text-sm text-[#3d2f28] font-medium flex items-center gap-1.5">
+                              {(user.flag === 'needs_payment' || user.flag === 'new_user' || user.flag === 'expiring') && (
+                                <span className="w-2.5 h-2.5 rounded-full bg-orange-400 flex-shrink-0" />
+                              )}
                               {user.name} {user.surname}
                             </span>
                             <span className="text-xs text-[#8b7764] text-right">
@@ -2432,6 +2475,12 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                 </div>
                               )}
                             </div>
+
+                            {user.flagMessage && (
+                              <p className="text-xs text-stone-500 mt-1 mb-3">
+                                {user.flagMessage}
+                              </p>
+                            )}
 
                             {/* All Packages */}
                             {(user.packages && user.packages.length > 0) ? user.packages.map((pkg, pkgIndex) => {
@@ -2507,7 +2556,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                       onClick={(e) => {
                                         e.stopPropagation();
                                         setPaymentUpdatingEmail(user.email);
-                                        updatePaymentStatus(user.email, isPaid ? 'unpaid' : 'paid').finally(() => setPaymentUpdatingEmail(null));
+                                        updatePackagePayment(pkg.id, isPaid ? 'unpaid' : 'paid').finally(() => setPaymentUpdatingEmail(null));
                                       }}
                                       disabled={paymentUpdatingEmail === user.email}
                                       className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
@@ -2653,14 +2702,17 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                 })()}
 
                 {/* Empty State */}
-                {(userSubTab === 'archived'
-                  ? users.filter(user => isUserArchived(user)).length === 0
-                  : users.filter(user => user.status === userSubTab && !isUserArchived(user)).length === 0
-                ) && (
+                {users.filter(u => {
+                  if (userFilter === 'all') return true;
+                  if (userFilter === 'needs_attention') return u.flag === 'needs_payment' || u.flag === 'new_user' || u.flag === 'expiring';
+                  if (userFilter === 'active') return u.flag === 'active';
+                  if (userFilter === 'inactive') return u.flag === 'inactive';
+                  return true;
+                }).length === 0 && (
                   <div className="text-center py-12 text-[#8b7764]">
                     <Users className="w-16 h-16 mx-auto mb-3 opacity-30" />
                     <p className="text-sm">
-                      No {userSubTab === 'archived' ? 'archived' : userSubTab} users yet
+                      No {userFilter === 'all' ? '' : userFilter.replace('_', ' ')} users yet
                     </p>
                   </div>
                 )}
