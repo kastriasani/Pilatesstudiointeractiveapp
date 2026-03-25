@@ -1,13 +1,13 @@
 # API Contract Report
 
-Generated: 2026-03-22T00:58:29.808Z
+Generated: 2026-03-25T01:06:48.027Z
 
 ## Summary
 
-- Status: PASS
-- Backend unique paths: 52
+- Status: WARN
+- Backend unique paths: 53
 - Frontend unique paths: 45
-- Docs unique paths: 17
+- Docs unique paths: 21
 
 ## Frontend Paths Missing In Backend
 
@@ -15,11 +15,12 @@ Generated: 2026-03-22T00:58:29.808Z
 
 ## Docs Paths Missing In Backend
 
-- None
+- /admin/bookings
 
 ## Backend Paths Not Used By Frontend
 
 - /admin/calendar
+- /admin/packages/:id/payment
 - /admin/sync-user-sessions
 - /auth/logout
 - /auth/register
@@ -39,9 +40,7 @@ Generated: 2026-03-22T00:58:29.808Z
 - /admin/login-requests/:id/approve
 - /admin/login-requests/:id/dismiss
 - /admin/sync-user-sessions
-- /admin/users
 - /admin/users/:email/adjust-sessions
-- /admin/users/:email/payment
 - /admin/users/:email/resend-login-email
 - /auth/admin/login
 - /auth/forgot-password

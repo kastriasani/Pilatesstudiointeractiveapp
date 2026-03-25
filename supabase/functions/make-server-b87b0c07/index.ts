@@ -3354,6 +3354,168 @@ app.patch("/make-server-b87b0c07/admin/users/:email/payment", async (c) => {
   }
 });
 
+// Activate a SINGLE package by ID
+// PATCH /admin/packages/:id/payment
+app.patch("/make-server-b87b0c07/admin/packages/:id/payment", async (c) => {
+  try {
+    const adminAuth = await verifyAdminSession(c);
+    if (!adminAuth.valid) {
+      return c.json({ error: adminAuth.error }, 401);
+    }
+
+    const packageId = c.req.param('id');
+    const { paymentStatus } = await c.req.json();
+
+    if (!paymentStatus || !['paid', 'unpaid'].includes(paymentStatus)) {
+      return c.json({ error: 'Invalid paymentStatus' }, 400);
+    }
+
+    const supabase = getSupabase();
+
+    // Fetch the package
+    const { data: pkg, error: pkgError } = await supabase
+      .from('user_packages')
+      .select('*')
+      .eq('id', packageId)
+      .single();
+
+    if (pkgError || !pkg) {
+      return c.json({ error: 'Package not found' }, 404);
+    }
+
+    const userEmail = pkg.user_email;
+
+    // Fetch the user
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', userEmail)
+      .single();
+
+    if (userError || !user) {
+      return c.json({ error: 'User not found' }, 404);
+    }
+
+    if (paymentStatus === 'paid') {
+      const now = getSkopjeTime();
+
+      if (pkg.activation_status === 'pending') {
+        const expiryDate = new Date(now);
+        expiryDate.setDate(expiryDate.getDate() + 35);
+
+        await supabase
+          .from('user_packages')
+          .update({
+            payment_status: 'paid',
+            activation_status: 'activated',
+            package_status: 'active',
+            activation_date: now.toISOString(),
+            expiry_date: expiryDate.toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', packageId);
+      } else {
+        await supabase
+          .from('user_packages')
+          .update({
+            payment_status: 'paid',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', packageId);
+      }
+
+      // Confirm pending reservations linked to THIS package only
+      const { data: pendingRes } = await supabase
+        .from('reservations')
+        .select('id')
+        .eq('package_id', packageId)
+        .eq('reservation_status', 'pending');
+
+      if (pendingRes && pendingRes.length > 0) {
+        const pendingIds = pendingRes.map((r: any) => r.id);
+        await supabase
+          .from('reservations')
+          .update({
+            reservation_status: 'confirmed',
+            payment_status: 'paid',
+            updated_at: new Date().toISOString(),
+          })
+          .in('id', pendingIds);
+      }
+
+      // Ensure user is activated (first-time onboarding)
+      if (user.activation_status !== 'activated') {
+        await supabase
+          .from('users')
+          .update({
+            activation_status: 'activated',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('email', userEmail);
+      }
+
+      // Email logic
+      let emailType = 'none';
+      const userLang = pkg.language || user.language || 'en';
+      const appUrl = 'https://app.wellnestpilates.com';
+
+      try {
+        if (user.password_hash) {
+          await sendPaymentConfirmationEmail(userEmail, user.name || pkg.name || '', userLang);
+          emailType = 'payment_confirmation';
+        } else {
+          const verificationToken = generateSecureToken('verify');
+          const tokenKey = `verification_token:${verificationToken}`;
+          const tokenExpiry = new Date();
+          tokenExpiry.setHours(tokenExpiry.getHours() + 24);
+
+          await kv.set(tokenKey, {
+            id: tokenKey,
+            token: verificationToken,
+            email: userEmail,
+            expiresAt: tokenExpiry.toISOString(),
+            used: false,
+            createdAt: now.toISOString(),
+          });
+
+          await sendActivationEmail(userEmail, user.name || pkg.name || '', verificationToken, appUrl, userLang);
+          emailType = 'password_setup';
+        }
+      } catch (emailError) {
+        console.error(`Email sending failed for ${userEmail}:`, emailError);
+      }
+
+      console.log(`✅ Package ${packageId} marked paid for ${userEmail} (email: ${emailType})`);
+      return c.json({ success: true, emailType });
+
+    } else {
+      // MARK THIS PACKAGE UNPAID
+      await supabase
+        .from('user_packages')
+        .update({
+          payment_status: 'unpaid',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', packageId);
+
+      await supabase
+        .from('reservations')
+        .update({
+          payment_status: 'unpaid',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('package_id', packageId);
+
+      console.log(`❌ Package ${packageId} marked unpaid for ${userEmail}`);
+      return c.json({ success: true });
+    }
+
+  } catch (error) {
+    console.error('Error updating package payment:', error);
+    return c.json({ error: 'Failed to update payment', details: (error as Error).message }, 500);
+  }
+});
+
 // Adjust remaining sessions for a user (+1 or -1)
 // PATCH /admin/users/:email/adjust-sessions
 app.patch("/make-server-b87b0c07/admin/users/:email/adjust-sessions", async (c) => {

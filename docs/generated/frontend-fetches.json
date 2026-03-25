@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-22T00:58:29.470Z",
+  "generatedAt": "2026-03-25T01:06:47.635Z",
   "sourceDir": "src",
   "occurrenceCount": 66,
   "uniquePathCount": 45,
@@ -8,31 +8,31 @@
       "method": "POST",
       "path": "/activate",
       "file": "src/app/components/AdminPanel.tsx",
-      "line": 1134
+      "line": 1135
     },
     {
       "method": "POST",
       "path": "/admin/archived-users/send-email",
       "file": "src/app/components/AdminPanel.tsx",
-      "line": 918
+      "line": 919
     },
     {
       "method": "GET",
       "path": "/admin/booking-changes",
       "file": "src/app/components/AdminPanel.tsx",
-      "line": 587
+      "line": 588
     },
     {
       "method": "POST",
       "path": "/admin/booking-changes/archive",
       "file": "src/app/components/AdminPanel.tsx",
-      "line": 607
+      "line": 608
     },
     {
       "method": "POST",
       "path": "/admin/cancel-class",
       "file": "src/app/components/AdminPanel.tsx",
-      "line": 811
+      "line": 812
     },
     {
       "method": "GET",
@@ -44,55 +44,55 @@
       "method": "PATCH",
       "path": "/admin/days/:param/status",
       "file": "src/app/components/AdminPanel.tsx",
-      "line": 698
+      "line": 699
     },
     {
       "method": "GET",
       "path": "/admin/login-requests",
       "file": "src/app/components/AdminPanel.tsx",
-      "line": 505
+      "line": 506
     },
     {
       "method": "POST",
       "path": "/admin/login-requests/:param/approve",
       "file": "src/app/components/AdminPanel.tsx",
-      "line": 531
+      "line": 532
     },
     {
       "method": "POST",
       "path": "/admin/login-requests/:param/dismiss",
       "file": "src/app/components/AdminPanel.tsx",
-      "line": 561
+      "line": 562
     },
     {
       "method": "GET",
       "path": "/admin/slots",
       "file": "src/app/components/AdminPanel.tsx",
-      "line": 639
+      "line": 640
     },
     {
       "method": "POST",
       "path": "/admin/slots",
       "file": "src/app/components/AdminPanel.tsx",
-      "line": 874
+      "line": 875
     },
     {
       "method": "DELETE",
       "path": "/admin/slots/:param",
       "file": "src/app/components/AdminPanel.tsx",
-      "line": 840
+      "line": 841
     },
     {
       "method": "PATCH",
       "path": "/admin/slots/:param",
       "file": "src/app/components/AdminPanel.tsx",
-      "line": 773
+      "line": 774
     },
     {
       "method": "PATCH",
       "path": "/admin/slots/:param",
       "file": "src/app/components/AdminPanel.tsx",
-      "line": 1683
+      "line": 1684
     },
     {
       "method": "GET",
@@ -104,19 +104,19 @@
       "method": "PATCH",
       "path": "/admin/users/:param/adjust-sessions",
       "file": "src/app/components/AdminPanel.tsx",
-      "line": 1252
+      "line": 1253
     },
     {
       "method": "PATCH",
       "path": "/admin/users/:param/payment",
       "file": "src/app/components/AdminPanel.tsx",
-      "line": 1081
+      "line": 1082
     },
     {
       "method": "POST",
       "path": "/admin/users/:param/resend-login-email",
       "file": "src/app/components/AdminPanel.tsx",
-      "line": 1319
+      "line": 1320
     },
     {
       "method": "POST",
@@ -164,7 +164,7 @@
       "method": "GET",
       "path": "/auth/verify",
       "file": "src/app/components/UserDashboard.tsx",
-      "line": 473
+      "line": 442
     },
     {
       "method": "GET",
@@ -236,13 +236,13 @@
       "method": "DELETE",
       "path": "/reservations/:param",
       "file": "src/app/components/AdminPanel.tsx",
-      "line": 1405
+      "line": 1406
     },
     {
       "method": "PATCH",
       "path": "/reservations/:param/status",
       "file": "src/app/components/AdminPanel.tsx",
-      "line": 1364
+      "line": 1365
     },
     {
       "method": "GET",
@@ -296,7 +296,7 @@
       "method": "GET",
       "path": "/slots/live-days",
       "file": "src/app/components/AdminPanel.tsx",
-      "line": 662
+      "line": 663
     },
     {
       "method": "GET",
@@ -326,7 +326,7 @@
       "method": "GET",
       "path": "/slots/user-calendar",
       "file": "src/app/components/UserDashboard.tsx",
-      "line": 538
+      "line": 507
     },
     {
       "method": "POST",
@@ -344,49 +344,49 @@
       "method": "GET",
       "path": "/user/packages",
       "file": "src/app/components/UserDashboard.tsx",
-      "line": 428
+      "line": 397
     },
     {
       "method": "POST",
       "path": "/user/packages/:param/book-session",
       "file": "src/app/components/UserDashboard.tsx",
-      "line": 740
+      "line": 709
     },
     {
       "method": "POST",
       "path": "/user/packages/:param/book-session",
       "file": "src/app/components/UserDashboard.tsx",
-      "line": 874
+      "line": 843
     },
     {
       "method": "POST",
       "path": "/user/packages/:param/reschedule",
       "file": "src/app/components/UserDashboard.tsx",
-      "line": 684
+      "line": 653
     },
     {
       "method": "DELETE",
       "path": "/user/packages/:param/reservations/:param",
       "file": "src/app/components/UserDashboard.tsx",
-      "line": 1043
+      "line": 1012
     },
     {
       "method": "POST",
       "path": "/user/packages/purchase",
       "file": "src/app/components/UserDashboard.tsx",
-      "line": 1096
+      "line": 1075
     },
     {
       "method": "POST",
       "path": "/user/upload-avatar",
       "file": "src/app/components/UserDashboard.tsx",
-      "line": 384
+      "line": 353
     },
     {
       "method": "DELETE",
       "path": "/users/:param",
       "file": "src/app/components/AdminPanel.tsx",
-      "line": 1187
+      "line": 1188
     },
     {
       "method": "POST",

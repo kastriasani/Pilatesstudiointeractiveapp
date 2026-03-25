@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-03-22T00:58:29.742Z",
-  "fileCount": 7,
-  "occurrenceCount": 38,
-  "uniquePathCount": 17,
+  "generatedAt": "2026-03-25T01:06:47.933Z",
+  "fileCount": 8,
+  "occurrenceCount": 48,
+  "uniquePathCount": 21,
   "entries": [
     {
       "file": "README.md",
@@ -11,9 +11,33 @@
       "pattern": "method-route"
     },
     {
+      "file": "docs/superpowers/plans/2026-03-25-per-package-payment.md",
+      "line": 299,
+      "path": "/admin/bookings",
+      "pattern": "method-route"
+    },
+    {
+      "file": "docs/superpowers/plans/2026-03-25-per-package-payment.md",
+      "line": 301,
+      "path": "/admin/calendar",
+      "pattern": "method-route"
+    },
+    {
       "file": "README.md",
       "line": 176,
       "path": "/admin/calendar",
+      "pattern": "method-route"
+    },
+    {
+      "file": "docs/superpowers/plans/2026-03-25-per-package-payment.md",
+      "line": 7,
+      "path": "/admin/packages/:id/payment",
+      "pattern": "method-route"
+    },
+    {
+      "file": "docs/superpowers/plans/2026-03-25-per-package-payment.md",
+      "line": 22,
+      "path": "/admin/packages/:id/payment",
       "pattern": "method-route"
     },
     {
@@ -62,6 +86,42 @@
       "file": "docs/superpowers/specs/2026-03-19-individual-duo-training-design.md",
       "line": 120,
       "path": "/admin/slots/:id",
+      "pattern": "method-route"
+    },
+    {
+      "file": "docs/superpowers/plans/2026-03-25-per-package-payment.md",
+      "line": 17,
+      "path": "/admin/users",
+      "pattern": "method-route"
+    },
+    {
+      "file": "docs/superpowers/plans/2026-03-25-per-package-payment.md",
+      "line": 225,
+      "path": "/admin/users",
+      "pattern": "method-route"
+    },
+    {
+      "file": "docs/superpowers/plans/2026-03-25-per-package-payment.md",
+      "line": 228,
+      "path": "/admin/users",
+      "pattern": "method-route"
+    },
+    {
+      "file": "docs/superpowers/plans/2026-03-25-per-package-payment.md",
+      "line": 232,
+      "path": "/admin/users",
+      "pattern": "method-route"
+    },
+    {
+      "file": "docs/superpowers/plans/2026-03-25-per-package-payment.md",
+      "line": 25,
+      "path": "/admin/users/:email/payment",
+      "pattern": "method-route"
+    },
+    {
+      "file": "docs/superpowers/plans/2026-03-25-per-package-payment.md",
+      "line": 29,
+      "path": "/admin/users/:email/payment",
       "pattern": "method-route"
     },
     {
