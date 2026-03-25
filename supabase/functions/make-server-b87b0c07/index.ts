@@ -2882,6 +2882,52 @@ app.get("/make-server-b87b0c07/admin/users", async (c) => {
       );
       const effectivePaymentStatus = (userPaymentStatus === 'paid' || hasPaidOrActivatedPackage) ? 'paid' : 'unpaid';
 
+      // Derive user flag from package state
+      const hasUnpaidPackage = packages.some((p: any) =>
+        p.paymentStatus === 'unpaid' && p.status === 'pending'
+      );
+      const isNewUser = !user.password_hash;
+      const hasActivePackage = packages.some((p: any) =>
+        p.status === 'active'
+      );
+      const now = getSkopjeTime();
+      const hasExpiringPackage = packages.some((p: any) => {
+        if (p.status !== 'active' || !p.expiryDate) return false;
+        const daysLeft = (new Date(p.expiryDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+        return daysLeft <= 5 && daysLeft > 0;
+      });
+      const terminalStatuses = ['fully_used', 'expired', 'cancelled'];
+      const allTerminal = packages.length > 0 && packages.every((p: any) => terminalStatuses.includes(p.status));
+
+      let flag: string;
+      let flagMessage: string;
+      if (hasUnpaidPackage) {
+        const unpaidCount = packages.filter((p: any) => p.paymentStatus === 'unpaid' && p.status === 'pending').length;
+        flag = 'needs_payment';
+        flagMessage = `${unpaidCount} package${unpaidCount > 1 ? 's' : ''} awaiting payment`;
+      } else if (isNewUser && hasActivePackage) {
+        flag = 'new_user';
+        flagMessage = 'New user, password not yet set';
+      } else if (hasExpiringPackage) {
+        const expiringPkg = packages.find((p: any) => {
+          if (p.status !== 'active' || !p.expiryDate) return false;
+          const daysLeft = (new Date(p.expiryDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+          return daysLeft <= 5 && daysLeft > 0;
+        });
+        const daysLeft = Math.ceil((new Date(expiringPkg.expiryDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+        flag = 'expiring';
+        flagMessage = `Package expiring in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}`;
+      } else if (hasActivePackage) {
+        flag = 'active';
+        flagMessage = 'All packages active';
+      } else if (allTerminal) {
+        flag = 'inactive';
+        flagMessage = 'No active packages';
+      } else {
+        flag = 'inactive';
+        flagMessage = 'No packages';
+      }
+
       return {
         id: user.id,
         name: user.name,
@@ -2908,6 +2954,8 @@ app.get("/make-server-b87b0c07/admin/users", async (c) => {
         sessionsAdjustedAt: user.sessions_adjusted_at || null,
         createdAt: user.created_at,
         blocked: user.blocked || false,
+        flag,
+        flagMessage,
       };
     });
 
@@ -3755,6 +3803,7 @@ app.get("/make-server-b87b0c07/bookings", async (c) => {
       paymentStatus: r.payment_status,
       isFriendBooking: r.is_friend_booking || false,
       serviceType: r.service_type || 'single',
+      packageId: r.package_id,
     }));
 
     console.log(`📅 Retrieved ${bookings.length} bookings from Supabase`);
