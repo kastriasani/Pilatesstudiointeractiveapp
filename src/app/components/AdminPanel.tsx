@@ -2131,19 +2131,28 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
 
                                 const getPkgLabel = (type: string) =>
                                   type === 'single' ? 'Single'
-                                  : type === '1class' ? 'Individual'
-                                  : type === 'duo1class' ? 'DUO'
-                                  : type === 'package8' || type === '8classes' || type === 'duo8classes' ? '8-pack'
+                                  : type === '1class' || type === 'individual1' ? 'Individual'
+                                  : type === 'duo1class' || type === 'duo1' ? 'DUO'
+                                  : type === 'package8' || type === '8classes' || type === 'duo8classes' || type === 'individual8' ? '8-pack'
                                   : type === 'package10' ? '10-pack'
                                   : type === 'package12' || type === '12classes' || type === 'duo12classes' ? '12-pack'
                                   : type;
 
-                                return activeOrPending.map((pkg, i) => {
+                                // Show active/pending packages, or fall back to most recent terminal package
+                                const displayPkgs = activeOrPending.length > 0
+                                  ? activeOrPending
+                                  : [pkgs[pkgs.length - 1]];
+                                const isTerminalOnly = activeOrPending.length === 0;
+
+                                return displayPkgs.map((pkg, i) => {
                                   const label = getPkgLabel(pkg.type);
                                   const total = pkg.totalSessions || 0;
                                   const remaining = pkg.remainingSessions || 0;
+                                  const statusLabel = pkg.status === 'fully_used' ? 'Done'
+                                    : pkg.status === 'expired' ? 'Exp.'
+                                    : pkg.status === 'cancelled' ? 'Canc.' : '';
                                   return (
-                                    <span key={pkg.id || i}>
+                                    <span key={pkg.id || i} style={isTerminalOnly ? { opacity: 0.55 } : undefined}>
                                       {i > 0 && <>{' | '}</>}
                                       {label}
                                       {total > 0 && (
@@ -2154,6 +2163,9 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                           </span>
                                           /{total}
                                         </>
+                                      )}
+                                      {isTerminalOnly && statusLabel && (
+                                        <span className="ml-1 text-[10px] text-[#8b7764]">({statusLabel})</span>
                                       )}
                                     </span>
                                   );
@@ -2210,7 +2222,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                             {/* All Packages */}
                             {(user.packages && user.packages.length > 0) ? user.packages.map((pkg, pkgIndex) => {
                               const pkgBaseCount = pkg.baseSessions || (
-                                pkg.type === 'package8' || pkg.type === '8classes' || pkg.type === 'duo8classes' ? 8
+                                pkg.type === 'package8' || pkg.type === '8classes' || pkg.type === 'duo8classes' || pkg.type === 'individual8' ? 8
                                 : pkg.type === 'package10' ? 10
                                 : pkg.type === 'package12' || pkg.type === '12classes' || pkg.type === 'duo12classes' ? 12
                                 : 1
@@ -2227,14 +2239,14 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                               const isCancelled = pkg.status === 'cancelled';
                               const isFullyUsed = pkg.status === 'fully_used';
 
-                              const pkgLabel = pkg.type === 'package8' ? '8 Sessions'
+                              const pkgLabel = pkg.type === 'package8' || pkg.type === 'individual8' ? '8 Sessions'
                                 : pkg.type === 'package10' ? '10 Sessions'
                                 : pkg.type === 'package12' ? '12 Sessions'
                                 : pkg.type === 'single' ? 'Single'
-                                : pkg.type === '1class' ? '1 Individual'
+                                : pkg.type === '1class' || pkg.type === 'individual1' ? '1 Individual'
                                 : pkg.type === '8classes' ? '8 Individual'
                                 : pkg.type === '12classes' ? '12 Individual'
-                                : pkg.type === 'duo1class' ? '1 DUO'
+                                : pkg.type === 'duo1class' || pkg.type === 'duo1' ? '1 DUO'
                                 : pkg.type === 'duo8classes' ? '8 DUO'
                                 : pkg.type === 'duo12classes' ? '12 DUO'
                                 : pkg.type;
