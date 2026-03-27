@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { motion } from 'motion/react';
-import { Calendar, Users, LogOut, Mail, X, CheckCircle, Trash2, Ban, ShieldAlert, Settings, UserMinus, Send, AlertCircle, Loader2, Pencil, Plus, ChevronDown, ChevronUp, Clock, Bell, RefreshCw, CheckCircle2 } from 'lucide-react';
+import { Calendar, Users, LogOut, Mail, X, CheckCircle, Trash2, Ban, ShieldAlert, Settings, UserMinus, Send, AlertCircle, Loader2, Pencil, Plus, ChevronDown, ChevronUp, Clock } from 'lucide-react';
 import { logo } from '../../assets/images';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { DevTools } from './DevTools';
@@ -128,7 +128,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
   };
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const [activeTab, setActiveTab] = useState<'calendar' | 'users' | 'alerts'>('calendar');
+  const [activeTab, setActiveTab] = useState<'calendar' | 'users'>('calendar');
   const [userFilter, setUserFilter] = useState<'all' | 'needs_attention' | 'active' | 'inactive'>('all');
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<string | null>(null);
@@ -155,6 +155,14 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
   const showConfirm = (title: string, description: string, onConfirm: () => void) => {
     setConfirmDialog({ open: true, title, description, onConfirm });
   };
+
+  // Delete user dialog state
+  const [deleteDialog, setDeleteDialog] = useState<{
+    open: boolean;
+    user: User | null;
+    confirmText: string;
+    isDeleting: boolean;
+  } | null>(null);
 
   // Archived users email state
   const [selectedArchivedUsers, setSelectedArchivedUsers] = useState<string[]>([]);
@@ -209,196 +217,6 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
   const [isEditMode, setIsEditMode] = useState(false);
   const [dayStatus, setDayStatus] = useState<'live' | 'draft'>('draft');
   const [liveDays, setLiveDays] = useState<string[]>([]);
-
-  // Alerts tab state
-  type AlertSeverity = 'critical' | 'warning' | 'info';
-  type Alert = {
-    id: string;
-    severity: AlertSeverity;
-    category: string;
-    title: string;
-    description?: string;
-    userEmail?: string;
-    userName?: string;
-    firstName?: string;
-    lastName?: string;
-    userId?: string;
-  };
-  type ConsistencyCheckResult = {
-    success: boolean;
-    checkedAt: string;
-    summary: { totalUsers: number; usersWithIssues: number; totalIssues: number };
-    users: Array<{
-      userId: string;
-      email: string;
-      issueCount: number;
-      issues: Array<{ code: string; details: string }>;
-      stats: {
-        packageCount: number;
-        reservationCount: number;
-        usersRemainingSessions: number | null;
-        usersUsedSessions: number | null;
-        aggregatedRemainingSessions: number;
-        aggregatedUsedSessions: number;
-      };
-    }>;
-  };
-
-  const [consistencyData, setConsistencyData] = useState<ConsistencyCheckResult | null>(null);
-  const [isLoadingConsistency, setIsLoadingConsistency] = useState(false);
-  const [consistencyError, setConsistencyError] = useState<string | null>(null);
-  const [dismissedAlerts, setDismissedAlerts] = useState<string[]>(() => {
-    try {
-      return JSON.parse(localStorage.getItem('wellnest_dismissed_alerts') || '[]');
-    } catch { return []; }
-  });
-
-  const dismissAlert = (alertId: string) => {
-    setDismissedAlerts(prev => {
-      const next = [...prev, alertId];
-      localStorage.setItem('wellnest_dismissed_alerts', JSON.stringify(next));
-      return next;
-    });
-  };
-
-  const fetchConsistencyCheck = async () => {
-    setIsLoadingConsistency(true);
-    setConsistencyError(null);
-    try {
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/admin/consistency-check`,
-        {
-          headers: {
-            'Authorization': `Bearer ${publicAnonKey}`,
-            'X-Session-Token': getSessionToken(),
-          },
-        }
-      );
-      if (!response.ok) {
-        const data = await response.json();
-        if (handleSessionError(data.error)) return;
-        setConsistencyError(data.error || 'Failed to run consistency check');
-        return;
-      }
-      const data = await response.json();
-      setConsistencyData(data);
-    } catch (error) {
-      setConsistencyError('Network error running consistency check');
-    } finally {
-      setIsLoadingConsistency(false);
-    }
-  };
-
-  // Lazy-load consistency check when alerts tab is first opened
-  useEffect(() => {
-    if (activeTab === 'alerts' && !consistencyData && !isLoadingConsistency) {
-      fetchConsistencyCheck();
-    }
-  }, [activeTab]);
-
-  // Plain-language, user-focused alerts for the studio trainer
-  const alerts = useMemo<Alert[]>(() => {
-    const result: Alert[] = [];
-    const now = getSkopjeTime();
-
-    const pkgLabel = (type: string) => {
-      const map: Record<string, string> = {
-        '1class': '1 class', '8classes': '8 classes', '12classes': '12 classes',
-        'duo1class': 'Duo 1 class', 'duo8classes': 'Duo 8 classes', 'duo12classes': 'Duo 12 classes',
-        'package8': '8 classes', 'package10': '10 classes', 'package12': '12 classes',
-      };
-      return map[type] || type;
-    };
-
-    for (const u of users) {
-      // Only active (confirmed, non-blocked) users
-      if (u.blocked || u.flag === 'inactive') continue;
-
-      const pkgs = u.packages || [];
-      const base = { userEmail: u.email, userName: `${u.name} ${u.surname}`, firstName: u.name, lastName: u.surname, userId: u.id };
-
-      for (const pkg of pkgs) {
-        if (pkg.status === 'active' && pkg.expiryDate) {
-          // Parse expiry as Skopje midnight to match getSkopjeTime()
-          const [ey, em, ed] = pkg.expiryDate.split('-').map(Number);
-          const expiry = new Date(now);
-          expiry.setFullYear(ey, em - 1, ed);
-          expiry.setHours(23, 59, 59, 999);
-          const daysLeft = Math.ceil((expiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-          if (daysLeft <= 0) {
-            result.push({ id: `expired-${pkg.id}`, severity: 'critical', category: 'Expired', title: `Expired ${Math.abs(daysLeft)} day(s) ago — ${pkgLabel(pkg.type)}`, ...base });
-          } else if (daysLeft <= 5) {
-            result.push({ id: `expiring-${pkg.id}`, severity: 'warning', category: 'Expiring soon', title: `Expires in ${daysLeft} day(s) — ${pkgLabel(pkg.type)}`, ...base });
-          }
-        }
-
-        if (pkg.remainingSessions < 0) {
-          result.push({ id: `overshoot-${pkg.id}`, severity: 'critical', category: 'Over limit', title: `${Math.abs(pkg.remainingSessions)} extra class(es) used — ${pkgLabel(pkg.type)}`, ...base });
-        }
-      }
-    }
-
-    // Server-side consistency
-    if (consistencyData) {
-      for (const cu of consistencyData.users) {
-        if (cu.issueCount === 0) continue;
-        const localUser = users.find(u => u.email.toLowerCase() === cu.email.toLowerCase());
-        if (!localUser || localUser.blocked || localUser.flag === 'inactive') continue;
-        const base = { userEmail: cu.email, userName: `${localUser.name} ${localUser.surname}`, firstName: localUser.name, lastName: localUser.surname, userId: localUser.id };
-
-        for (const issue of cu.issues) {
-          if (issue.code === 'users_remaining_sessions_mismatch') {
-            // Legacy users table field vs aggregated packages — not visible in UI, internal DB inconsistency
-            result.push({ id: `sessions-${cu.userId}`, severity: 'warning', category: 'Session count', title: `Legacy DB field: ${cu.stats.usersRemainingSessions ?? '?'} classes left\nActual (packages): ${cu.stats.aggregatedRemainingSessions} classes left`, ...base });
-          }
-
-          if (issue.code === 'package_remaining_sessions_mismatch') {
-            const match = issue.details.match(/remaining_sessions=(\d+), expected=(\d+)/);
-            if (match && match[1] !== match[2]) {
-              result.push({ id: `pkg-count-${cu.userId}-${issue.details.slice(0, 15)}`, severity: 'critical', category: 'Session count', title: `Admin + Dashboard show: ${match[1]} classes left\nShould be: ${match[2]} based on bookings`, ...base });
-            }
-          }
-
-          if (issue.code === 'cancelled_reservation_still_in_sessions_booked') {
-            const countMatch = issue.details.match(/(\d+) cancelled/);
-            const count = countMatch ? countMatch[1] : '?';
-            result.push({ id: `cancelled-counted-${cu.userId}-${issue.details.slice(0, 15)}`, severity: 'warning', category: 'Cancelled class', title: `${count} cancelled class(es) still counted`, ...base });
-          }
-        }
-      }
-    }
-
-    const order: Record<AlertSeverity, number> = { critical: 0, warning: 1, info: 2 };
-    result.sort((a, b) => order[a.severity] - order[b.severity]);
-
-    // Filter out dismissed alerts
-    return result.filter(a => !dismissedAlerts.includes(a.id));
-  }, [users, consistencyData, dismissedAlerts]);
-
-  // Group alerts by category
-  const groupedAlerts = useMemo(() => {
-    const categoryDescriptions: Record<string, string> = {
-      'Expired': 'Package expired but still active — client can still book.',
-      'Over limit': 'More classes used than purchased.',
-      'Session count': 'Remaining classes don\'t match between your view and the client\'s.',
-      'Expiring soon': 'Package expires within 5 days.',
-      'Cancelled class': 'Cancelled class not returned to the package.',
-    };
-
-    const groups: Array<{ category: string; description: string; alerts: Alert[] }> = [];
-    const map = new Map<string, typeof groups[number]>();
-
-    for (const alert of alerts) {
-      if (!map.has(alert.category)) {
-        const group = { category: alert.category, description: categoryDescriptions[alert.category] || '', alerts: [] };
-        map.set(alert.category, group);
-        groups.push(group);
-      }
-      map.get(alert.category)!.alerts.push(alert);
-    }
-
-    return groups;
-  }, [alerts]);
 
   // Fetch all bookings on component mount
   useEffect(() => {
@@ -1139,57 +957,8 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
     }
   };
 
-  const handleDeleteUser = (user: User) => {
-    showConfirm(
-      'Delete User',
-      `Are you sure you want to delete ${user.name} ${user.surname}? This will delete all their bookings and cannot be undone.`,
-      async () => {
-        try {
-          const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/users/${encodeURIComponent(user.email)}`, {
-            method: 'DELETE',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${publicAnonKey}`,
-              'X-Session-Token': getSessionToken(),
-            },
-          });
-
-          if (!response.ok) {
-            let errorMessage = `HTTP ${response.status}`;
-            try {
-              const data = await response.json();
-              errorMessage = data.error || data.message || errorMessage;
-            } catch {
-              // Response might not be JSON
-            }
-            console.error('Failed to delete user:', response.status, errorMessage);
-            toast.error(`Failed to delete user: ${errorMessage}`);
-            return;
-          }
-
-          // Success - response might be empty or JSON
-          let data;
-          try {
-            data = await response.json();
-          } catch {
-            data = { success: true };
-          }
-          console.log('User deleted successfully:', data);
-
-          // Refresh the bookings list to reflect the deletion
-          await fetchBookings();
-
-          // Close the expanded view if this was the expanded user
-          if (expandedUserId === user.id) {
-            setExpandedUserId(null);
-          }
-        } catch (error) {
-          console.error('Error deleting user:', error);
-          const message = error instanceof Error ? error.message : 'Unknown error';
-          toast.error(`Failed to delete user: ${message}`);
-        }
-      }
-    );
+  const openDeleteDialog = (user: User) => {
+    setDeleteDialog({ open: true, user, confirmText: '', isDeleting: false });
   };
 
   // Handle session adjustment (+1 or -1)
@@ -1265,6 +1034,43 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
       toast.error('Network error. Please check your connection.');
     } finally {
       setAdjustingSessionsEmail(null);
+    }
+  };
+
+  // Handle delete user
+  const handleDeleteUser = async () => {
+    if (!deleteDialog?.user || deleteDialog.confirmText.toLowerCase() !== 'delete') return;
+
+    setDeleteDialog(prev => prev ? { ...prev, isDeleting: true } : null);
+    try {
+      const response = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/users/${encodeURIComponent(deleteDialog.user.email)}`,
+        {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${publicAnonKey}`,
+            'X-Session-Token': getSessionToken(),
+          },
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        if (handleSessionError(data.error)) return;
+        toast.error(`Failed to delete user: ${data.error || 'Unknown error'}`);
+        return;
+      }
+
+      // Remove user from local state
+      setUsers(prevUsers => prevUsers.filter(u => u.email !== deleteDialog.user!.email));
+      setExpandedUserId(null);
+      toast.success(`${deleteDialog.user.name} ${deleteDialog.user.surname} deleted successfully`);
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      toast.error('Network error. Please check your connection.');
+    } finally {
+      setDeleteDialog(null);
     }
   };
 
@@ -1458,22 +1264,6 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
             {loginRequests.length > 0 && (
               <span className="bg-amber-500 text-white text-xs px-2 py-0.5 rounded-full">
                 {loginRequests.length}
-              </span>
-            )}
-          </button>
-          <button
-            onClick={() => setActiveTab('alerts')}
-            className={`flex items-center gap-2 px-4 py-3 text-sm transition-colors ${
-              activeTab === 'alerts'
-                ? 'text-[#6b5949] border-b-2 border-[#6b5949] font-medium'
-                : 'text-[#8b7764] hover:text-[#6b5949]'
-            }`}
-          >
-            <Bell className="w-4 h-4" />
-            Alerts
-            {alerts.length > 0 && (
-              <span className="text-white text-xs px-2 py-0.5 rounded-full bg-red-500">
-                {alerts.length}
               </span>
             )}
           </button>
@@ -2403,6 +2193,20 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                               </p>
                             )}
 
+                            {/* Delete User Button */}
+                            <div className="flex justify-end mb-3">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openDeleteDialog(user);
+                                }}
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-red-600 bg-red-50 border border-red-200 rounded-md hover:bg-red-100 transition-colors"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                Delete User
+                              </button>
+                            </div>
+
                             {/* All Packages */}
                             {(user.packages && user.packages.length > 0) ? user.packages.map((pkg, pkgIndex) => {
                               const pkgBaseCount = pkg.baseSessions || (
@@ -2640,92 +2444,6 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
               </div>
             </div>
           </div>
-        ) : activeTab === 'alerts' ? (
-          <div className="space-y-4">
-            {/* Header */}
-            <div className="bg-[#F5F0EE] rounded-xl p-3 shadow-sm flex items-center justify-between">
-              <h2 className="text-base font-medium text-[#3d2f28]">Alerts</h2>
-              <button
-                onClick={() => fetchConsistencyCheck()}
-                disabled={isLoadingConsistency}
-                className="flex items-center gap-2 px-3 py-1.5 text-sm bg-white border border-[#e8dfd8] rounded-lg hover:bg-[#f5f0ee] transition-colors disabled:opacity-50"
-              >
-                <RefreshCw className={`w-4 h-4 ${isLoadingConsistency ? 'animate-spin' : ''}`} />
-                Re-check
-              </button>
-            </div>
-
-            {/* Loading state */}
-            {isLoadingConsistency && !consistencyData && (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="w-6 h-6 animate-spin text-[#8b7764]" />
-                <span className="ml-2 text-sm text-[#8b7764]">Checking…</span>
-              </div>
-            )}
-
-            {consistencyError && (
-              <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-                {consistencyError}
-              </div>
-            )}
-
-            {/* Grouped alert list */}
-            {groupedAlerts.length > 0 ? (
-              <div className="space-y-4">
-                {groupedAlerts.map((group, gi) => (
-                  <motion.div
-                    key={group.category}
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.2, delay: Math.min(gi * 0.05, 0.3) }}
-                    className="bg-white rounded-xl shadow-sm overflow-hidden"
-                  >
-                    <div className="px-4 pt-3 pb-1">
-                      <p className="text-sm font-semibold text-[#3d2f28]">{group.category}</p>
-                      <p className="text-xs text-[#8b7764] mt-0.5">{group.description}</p>
-                    </div>
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-t border-[#f0ebe7]">
-                          <th className="px-4 py-1.5 text-left text-xs font-medium text-[#8b7764]">Name</th>
-                          <th className="px-4 py-1.5 text-left text-xs font-medium text-[#8b7764]">Detail</th>
-                          <th className="w-10"></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {group.alerts.map(alert => (
-                          <tr key={alert.id} className="border-t border-[#f5f0ee]">
-                            <td className="px-4 py-2 text-[#3d2f28] whitespace-nowrap align-top">
-                              <div className="leading-tight">
-                                <div className="font-medium">{alert.firstName}</div>
-                                <div className="text-xs text-[#8b7764]">{alert.lastName}</div>
-                              </div>
-                            </td>
-                            <td className="px-4 py-2 text-[#8b7764] whitespace-pre-line align-top">{alert.title}</td>
-                            <td className="pr-3 align-top pt-2">
-                              <button
-                                onClick={() => dismissAlert(alert.id)}
-                                className="text-[#c4b5a8] hover:text-red-400 transition-colors"
-                                title="Remove"
-                              >
-                                <X className="w-4 h-4" />
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </motion.div>
-                ))}
-              </div>
-            ) : !isLoadingConsistency ? (
-              <div className="flex flex-col items-center justify-center py-12 text-[#8b7764]">
-                <CheckCircle2 className="w-12 h-12 text-green-500 mb-3" />
-                <p className="text-sm font-medium">No alerts found</p>
-                <p className="text-xs mt-1">Everything looks good</p>
-              </div>
-            ) : null}
-          </div>
         ) : null}
       </motion.div>
 
@@ -2754,6 +2472,59 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
             }}>
               Confirm
             </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete User Confirmation Dialog */}
+      <AlertDialog open={deleteDialog?.open} onOpenChange={(open) => !open && !deleteDialog?.isDeleting && setDeleteDialog(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-red-600">Delete User</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3">
+              <span className="block">
+                This will permanently delete <strong className="text-[#3d2f28]">{deleteDialog?.user?.name} {deleteDialog?.user?.surname}</strong> ({deleteDialog?.user?.email}) and all their data including packages, reservations, and sessions.
+              </span>
+              <span className="block font-semibold text-red-600">This action cannot be undone.</span>
+              <span className="block text-sm">
+                Type <strong>delete</strong> to confirm:
+              </span>
+              <input
+                type="text"
+                value={deleteDialog?.confirmText || ''}
+                onChange={(e) => setDeleteDialog(prev => prev ? { ...prev, confirmText: e.target.value } : null)}
+                placeholder="delete"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                autoFocus
+                disabled={deleteDialog?.isDeleting}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && deleteDialog?.confirmText.toLowerCase() === 'delete') {
+                    handleDeleteUser();
+                  }
+                }}
+              />
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteDialog?.isDeleting}>Cancel</AlertDialogCancel>
+            <button
+              onClick={handleDeleteUser}
+              disabled={deleteDialog?.confirmText.toLowerCase() !== 'delete' || deleteDialog?.isDeleting}
+              className={`inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+                deleteDialog?.confirmText.toLowerCase() === 'delete' && !deleteDialog?.isDeleting
+                  ? 'bg-red-600 text-white hover:bg-red-700'
+                  : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+              }`}
+            >
+              {deleteDialog?.isDeleting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                'Delete User'
+              )}
+            </button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
