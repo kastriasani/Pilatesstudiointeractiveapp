@@ -2138,7 +2138,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                 ]).map(tab => {
                   const count = users.filter(u => {
                     if (tab.key === 'all') return true;
-                    if (tab.key === 'needs_attention') return u.flag === 'needs_payment' || u.flag === 'new_user';
+                    if (tab.key === 'needs_attention') return u.flag === 'new_user';
                     if (tab.key === 'active') return u.flag === 'active';
                     if (tab.key === 'inactive') return u.flag === 'inactive';
                     return true;
@@ -2206,7 +2206,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                 {(() => {
                   const filtered = users.filter(u => {
                     if (userFilter === 'all') return true;
-                    if (userFilter === 'needs_attention') return u.flag === 'needs_payment' || u.flag === 'new_user';
+                    if (userFilter === 'needs_attention') return u.flag === 'new_user';
                     if (userFilter === 'active') return u.flag === 'active';
                     if (userFilter === 'inactive') return u.flag === 'inactive';
                     return true;
@@ -2292,7 +2292,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                         >
                           <div className="flex items-center justify-between">
                             <span className="text-sm text-[#3d2f28] font-medium flex items-center gap-1.5">
-                              {(user.flag === 'needs_payment' || user.flag === 'new_user') && (
+                              {user.flag === 'new_user' && (
                                 <span className="w-2.5 h-2.5 rounded-full bg-orange-400 flex-shrink-0" />
                               )}
                               {user.name} {user.surname}
@@ -2629,7 +2629,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                 {/* Empty State */}
                 {users.filter(u => {
                   if (userFilter === 'all') return true;
-                  if (userFilter === 'needs_attention') return u.flag === 'needs_payment' || u.flag === 'new_user';
+                  if (userFilter === 'needs_attention') return u.flag === 'new_user';
                   if (userFilter === 'active') return u.flag === 'active';
                   if (userFilter === 'inactive') return u.flag === 'inactive';
                   return true;
