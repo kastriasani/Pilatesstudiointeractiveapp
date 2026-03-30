@@ -400,8 +400,32 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
     }
   };
 
+  // Auto-archive previous month's changes on first load
+  const hasAutoArchived = useRef(false);
+  const autoArchivePreviousMonth = async () => {
+    if (hasAutoArchived.current) return;
+    hasAutoArchived.current = true;
+    try {
+      const now = new Date();
+      const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+      await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/admin/booking-changes/archive`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${publicAnonKey}`,
+          'X-Session-Token': getSessionToken(),
+        },
+        body: JSON.stringify({ before: firstOfMonth }),
+      });
+    } catch (error) {
+      console.error('Auto-archive error:', error);
+    }
+  };
+
   const fetchBookingChanges = async (archived = false) => {
     try {
+      // Silently archive last month's changes before first fetch
+      if (!archived) await autoArchivePreviousMonth();
       const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/admin/booking-changes?limit=200&archived=${archived}`, {
         method: 'GET',
         headers: {
