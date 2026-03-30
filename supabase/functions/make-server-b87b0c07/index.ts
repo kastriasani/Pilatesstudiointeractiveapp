@@ -3610,6 +3610,15 @@ app.delete("/make-server-b87b0c07/admin/packages/:id", async (c) => {
       .eq('package_id', packageId)
       .select('id');
 
+    // Clean up booking_changes referencing these reservations
+    if (deletedRes && deletedRes.length > 0) {
+      const resIds = deletedRes.map((r: any) => r.id);
+      await supabase
+        .from('booking_changes')
+        .delete()
+        .in('reservation_id', resIds);
+    }
+
     // Delete the package
     const { error: delError } = await supabase
       .from('user_packages')
@@ -3768,9 +3777,20 @@ app.delete("/make-server-b87b0c07/users/:email", async (c) => {
       return c.json({ error: 'User not found' }, 404);
     }
 
-    // Delete in cascade order:
+    // Delete in cascade order — abort if any step fails to avoid partial deletes:
 
-    // 1. Delete reservations
+    // 1. Delete booking_changes (audit trail)
+    const { error: changeErr } = await supabase
+      .from('booking_changes')
+      .delete()
+      .eq('user_email', normalizedEmail);
+
+    if (changeErr) {
+      console.error('Error deleting booking_changes:', changeErr);
+      return c.json({ error: 'Failed to delete booking changes', details: changeErr.message }, 500);
+    }
+
+    // 2. Delete reservations
     const { error: resError } = await supabase
       .from('reservations')
       .delete()
@@ -3778,9 +3798,10 @@ app.delete("/make-server-b87b0c07/users/:email", async (c) => {
 
     if (resError) {
       console.error('Error deleting reservations:', resError);
+      return c.json({ error: 'Failed to delete reservations', details: resError.message }, 500);
     }
 
-    // 2. Delete user_packages
+    // 3. Delete user_packages
     const { error: pkgError } = await supabase
       .from('user_packages')
       .delete()
@@ -3788,9 +3809,10 @@ app.delete("/make-server-b87b0c07/users/:email", async (c) => {
 
     if (pkgError) {
       console.error('Error deleting packages:', pkgError);
+      return c.json({ error: 'Failed to delete packages', details: pkgError.message }, 500);
     }
 
-    // 3. Delete user
+    // 4. Delete user
     const { error: userError } = await supabase
       .from('users')
       .delete()
@@ -5531,6 +5553,12 @@ app.get("/make-server-b87b0c07/user/packages", async (c) => {
         if (!expErr) {
           pkg.package_status = 'expired';
           pkg.remaining_sessions = 0;
+          // Cancel any future pending/confirmed reservations linked to this expired package
+          await supabase
+            .from('reservations')
+            .update({ reservation_status: 'cancelled', updated_at: new Date().toISOString() })
+            .eq('package_id', pkg.id)
+            .in('reservation_status', ['pending', 'confirmed']);
           console.log(`⏰ Auto-expired package ${pkg.id} for ${session.email} (expired ${pkg.expiry_date})`);
         }
       }
@@ -6043,11 +6071,15 @@ app.post("/make-server-b87b0c07/user/packages/:id/book-session", async (c) => {
       return c.json({ error: "Package not found" }, 404);
     }
 
-    // Check package expiry — also persist the status change
+    // Check package expiry — also persist the status change and cancel future reservations
     if (pkg.expiry_date && getSkopjeTime() > new Date(pkg.expiry_date)) {
       await supabase.from('user_packages')
         .update({ package_status: 'expired', remaining_sessions: 0, updated_at: now })
         .eq('id', pkg.id);
+      await supabase.from('reservations')
+        .update({ reservation_status: 'cancelled', updated_at: now })
+        .eq('package_id', pkg.id)
+        .in('reservation_status', ['pending', 'confirmed']);
       return c.json({ error: "Package has expired" }, 400);
     }
 
@@ -6065,10 +6097,14 @@ app.post("/make-server-b87b0c07/user/packages/:id/book-session", async (c) => {
     const stillBlocking = [];
     for (const older of (olderActivePkgs || [])) {
       if (older.expiry_date && new Date(older.expiry_date) < skopjeNow) {
-        // Auto-expire stale package
+        // Auto-expire stale package and cancel its future reservations
         await supabase.from('user_packages')
           .update({ package_status: 'expired', remaining_sessions: 0, updated_at: now })
           .eq('id', older.id);
+        await supabase.from('reservations')
+          .update({ reservation_status: 'cancelled', updated_at: now })
+          .eq('package_id', older.id)
+          .in('reservation_status', ['pending', 'confirmed']);
         console.log(`⏰ Auto-expired blocking package ${older.id} for ${pkg.user_email}`);
       } else if (extractServiceType(older.package_type) === serviceType) {
         // Only block if the older package is the same service type
