@@ -482,6 +482,154 @@ print('yes' if ok else 'no')
   test_logic "Packages list returns data" '"success":true|packages' \
     "$BASE/packages"
 
+  # ── Admin Slot CRUD ─────────────────────────────────────────────
+  echo ""
+  echo "── Admin Slot Management (Create → Edit → Delete) ──"
+
+  if [[ -n "${ADMIN_USERNAME:-}" && -n "${ADMIN_PASSWORD:-}" ]]; then
+    # Login as admin to get session token
+    ADMIN_LOGIN=$(curl -s -H "$AUTH" -H "$CT" -X POST "$BASE/auth/admin/login" \
+      -d "{\"username\":\"$ADMIN_USERNAME\",\"password\":\"$ADMIN_PASSWORD\"}")
+    ADMIN_TOKEN=$(json_field "$ADMIN_LOGIN" "d.get('sessionToken',d.get('token',''))")
+
+    if [[ -z "$ADMIN_TOKEN" ]]; then
+      echo "  SKIP  Admin login failed — cannot test slot CRUD"
+      echo "        Response: $(echo "$ADMIN_LOGIN" | head -c 200)"
+    else
+      printf "  PASS  %-55s\n" "Admin login → got session token"
+      PASS=$((PASS + 1))
+
+      ADMIN_HDR="X-Session-Token: $ADMIN_TOKEN"
+
+      # Pick a future test date (use a Saturday so we don't pollute real calendar)
+      SLOT_TEST_DATE="2026-12-26"
+
+      # ── CREATE: Add a new slot ──
+      CREATE_RESP=$(curl -s -H "$AUTH" -H "$CT" -H "$ADMIN_HDR" -X POST "$BASE/admin/slots" \
+        -d "{\"date\":\"$SLOT_TEST_DATE\",\"startTime\":\"08:00\",\"maxCapacity\":2,\"classType\":\"individual\"}")
+      CREATED_ID=$(json_field "$CREATE_RESP" "d.get('slot',{}).get('id',d.get('id',''))")
+      CREATE_OK=$(echo "$CREATE_RESP" | grep -c '"success":true' || true)
+
+      if [[ "$CREATE_OK" -ge 1 && -n "$CREATED_ID" ]]; then
+        printf "  PASS  %-55s (id: %.8s…)\n" "POST /admin/slots → create 08:00 individual" "$CREATED_ID"
+        PASS=$((PASS + 1))
+      else
+        printf "  FAIL  %-55s\n" "POST /admin/slots → create 08:00 individual"
+        printf "        Response: %.200s\n" "$CREATE_RESP"
+        FAIL=$((FAIL + 1))
+        CREATED_ID=""
+      fi
+
+      # ── CREATE duplicate → 409 conflict ──
+      DUP_CODE=$(curl -s -o /tmp/smoke_body -w '%{http_code}' -H "$AUTH" -H "$CT" -H "$ADMIN_HDR" \
+        -X POST "$BASE/admin/slots" \
+        -d "{\"date\":\"$SLOT_TEST_DATE\",\"startTime\":\"08:00\",\"maxCapacity\":2,\"classType\":\"individual\"}")
+      if [[ "$DUP_CODE" == "409" ]]; then
+        printf "  PASS  %-55s %s\n" "POST /admin/slots duplicate → 409 conflict" "$DUP_CODE"
+        PASS=$((PASS + 1))
+      else
+        printf "  WARN  %-55s got %s (expected 409)\n" "POST /admin/slots duplicate" "$DUP_CODE"
+        WARN=$((WARN + 1))
+      fi
+
+      if [[ -n "$CREATED_ID" ]]; then
+        # ── EDIT: Change time, capacity, classType ──
+        EDIT_RESP=$(curl -s -H "$AUTH" -H "$CT" -H "$ADMIN_HDR" -X PATCH "$BASE/admin/slots/$CREATED_ID" \
+          -d "{\"startTime\":\"08:30\",\"maxCapacity\":3,\"classType\":\"duo\",\"date\":\"$SLOT_TEST_DATE\"}")
+        EDIT_OK=$(echo "$EDIT_RESP" | grep -c '"success":true' || true)
+
+        if [[ "$EDIT_OK" -ge 1 ]]; then
+          printf "  PASS  %-55s\n" "PATCH /admin/slots/:id → edit time/capacity/type"
+          PASS=$((PASS + 1))
+        else
+          printf "  FAIL  %-55s\n" "PATCH /admin/slots/:id → edit time/capacity/type"
+          printf "        Response: %.200s\n" "$EDIT_RESP"
+          FAIL=$((FAIL + 1))
+        fi
+
+        # ── VERIFY: Fetch admin slots and confirm edit ──
+        VERIFY_RESP=$(curl -s -H "$AUTH" -H "$ADMIN_HDR" "$BASE/admin/slots?date=$SLOT_TEST_DATE")
+        HAS_EDITED=$(echo "$VERIFY_RESP" | python3 -c "
+import sys, json
+data = json.loads(sys.stdin.read())
+slots = data.get('slots', data.get('data', []))
+found = any(s.get('start_time','') == '08:30' and s.get('class_type','') == 'duo' for s in slots)
+print('yes' if found else 'no')
+" 2>/dev/null || echo "no")
+
+        if [[ "$HAS_EDITED" == "yes" ]]; then
+          printf "  PASS  %-55s\n" "GET /admin/slots → verified edit (08:30 duo)"
+          PASS=$((PASS + 1))
+        else
+          printf "  FAIL  %-55s\n" "GET /admin/slots → verify edit (expected 08:30 duo)"
+          printf "        Response: %.300s\n" "$VERIFY_RESP"
+          FAIL=$((FAIL + 1))
+        fi
+
+        # ── DELETE: Remove the slot ──
+        DEL_CODE=$(curl -s -o /tmp/smoke_body -w '%{http_code}' -H "$AUTH" -H "$ADMIN_HDR" \
+          -X DELETE "$BASE/admin/slots/$CREATED_ID")
+        DEL_BODY=$(cat /tmp/smoke_body)
+
+        if [[ "$DEL_CODE" == "200" ]]; then
+          printf "  PASS  %-55s %s\n" "DELETE /admin/slots/:id → removed slot" "$DEL_CODE"
+          PASS=$((PASS + 1))
+        else
+          printf "  FAIL  %-55s got %s\n" "DELETE /admin/slots/:id → remove slot" "$DEL_CODE"
+          printf "        Response: %.200s\n" "$DEL_BODY"
+          FAIL=$((FAIL + 1))
+        fi
+
+        # ── VERIFY DELETE: Slot should be gone ──
+        VERIFY_DEL=$(curl -s -H "$AUTH" -H "$ADMIN_HDR" "$BASE/admin/slots?date=$SLOT_TEST_DATE")
+        SLOT_GONE=$(echo "$VERIFY_DEL" | python3 -c "
+import sys, json
+data = json.loads(sys.stdin.read())
+slots = data.get('slots', data.get('data', []))
+found = any(s.get('id','') == '$CREATED_ID' for s in slots)
+print('no' if found else 'yes')
+" 2>/dev/null || echo "no")
+
+        if [[ "$SLOT_GONE" == "yes" ]]; then
+          printf "  PASS  %-55s\n" "GET /admin/slots → confirmed slot deleted"
+          PASS=$((PASS + 1))
+        else
+          printf "  FAIL  %-55s\n" "GET /admin/slots → slot still exists after delete"
+          FAIL=$((FAIL + 1))
+        fi
+
+      else
+        echo "  SKIP  Edit/Delete tests — no slot was created"
+      fi
+
+      # ── DELETE non-existent → 404 ──
+      DEL404_CODE=$(curl -s -o /dev/null -w '%{http_code}' -H "$AUTH" -H "$ADMIN_HDR" \
+        -X DELETE "$BASE/admin/slots/$FAKE_UUID")
+      if [[ "$DEL404_CODE" == "404" ]]; then
+        printf "  PASS  %-55s %s\n" "DELETE /admin/slots (fake id) → 404" "$DEL404_CODE"
+        PASS=$((PASS + 1))
+      else
+        printf "  WARN  %-55s got %s (expected 404)\n" "DELETE /admin/slots (fake id)" "$DEL404_CODE"
+        WARN=$((WARN + 1))
+      fi
+
+      # ── Cleanup: remove any leftover test slots for the test date ──
+      if [[ -n "${SUPABASE_ACCESS_TOKEN:-}" ]]; then
+        SLOT_CLEANUP="DELETE FROM time_slots WHERE date = '$SLOT_TEST_DATE';"
+        SLOT_CLEANUP_PAYLOAD=$(python3 -c "import json; print(json.dumps({'query': '''$SLOT_CLEANUP'''}))")
+        curl -s -X POST \
+          "https://api.supabase.com/v1/projects/azqkguctispoctvmpmci/database/query" \
+          -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+          -H "Content-Type: application/json" \
+          -d "$SLOT_CLEANUP_PAYLOAD" > /dev/null 2>&1
+        echo "  ✓ Test slots for $SLOT_TEST_DATE cleaned up"
+      fi
+    fi
+  else
+    echo "  SKIP  ADMIN_USERNAME / ADMIN_PASSWORD not set — slot CRUD tests skipped"
+    echo "        Set these env vars to enable admin slot management tests"
+  fi
+
   # ── Cleanup ──────────────────────────────────────────────────────
   echo ""
   echo "── Cleanup ──"

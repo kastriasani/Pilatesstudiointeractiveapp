@@ -1,355 +1,361 @@
 {
-  "generatedAt": "2026-03-27T15:00:34.653Z",
+  "generatedAt": "2026-03-30T16:32:57.476Z",
   "source": "supabase/functions/make-server-b87b0c07/index.ts",
-  "routeCount": 58,
-  "uniquePathCount": 53,
+  "routeCount": 59,
+  "uniquePathCount": 54,
   "routes": [
     {
       "method": "POST",
       "path": "/activate",
-      "line": 2384,
+      "line": 2396,
       "source": "supabase/functions/make-server-b87b0c07/index.ts"
     },
     {
       "method": "POST",
       "path": "/admin/archived-users/send-email",
-      "line": 6475,
+      "line": 6533,
       "source": "supabase/functions/make-server-b87b0c07/index.ts"
     },
     {
       "method": "GET",
       "path": "/admin/booking-changes",
-      "line": 6394,
+      "line": 6443,
       "source": "supabase/functions/make-server-b87b0c07/index.ts"
     },
     {
       "method": "POST",
       "path": "/admin/booking-changes/archive",
-      "line": 6448,
+      "line": 6497,
       "source": "supabase/functions/make-server-b87b0c07/index.ts"
     },
     {
       "method": "GET",
       "path": "/admin/calendar",
-      "line": 3956,
+      "line": 4022,
       "source": "supabase/functions/make-server-b87b0c07/index.ts"
     },
     {
       "method": "POST",
       "path": "/admin/cancel-class",
-      "line": 4671,
+      "line": 4720,
       "source": "supabase/functions/make-server-b87b0c07/index.ts"
     },
     {
       "method": "GET",
       "path": "/admin/consistency-check",
-      "line": 2978,
+      "line": 2990,
       "source": "supabase/functions/make-server-b87b0c07/index.ts"
     },
     {
       "method": "PATCH",
       "path": "/admin/days/:date/status",
-      "line": 4354,
+      "line": 4421,
       "source": "supabase/functions/make-server-b87b0c07/index.ts"
     },
     {
       "method": "GET",
       "path": "/admin/login-requests",
-      "line": 2627,
+      "line": 2639,
       "source": "supabase/functions/make-server-b87b0c07/index.ts"
     },
     {
       "method": "POST",
       "path": "/admin/login-requests/:id/approve",
-      "line": 2684,
+      "line": 2696,
       "source": "supabase/functions/make-server-b87b0c07/index.ts"
     },
     {
       "method": "POST",
       "path": "/admin/login-requests/:id/dismiss",
-      "line": 2775,
+      "line": 2787,
+      "source": "supabase/functions/make-server-b87b0c07/index.ts"
+    },
+    {
+      "method": "DELETE",
+      "path": "/admin/packages/:id",
+      "line": 3580,
       "source": "supabase/functions/make-server-b87b0c07/index.ts"
     },
     {
       "method": "PATCH",
       "path": "/admin/packages/:id/payment",
-      "line": 3407,
+      "line": 3419,
       "source": "supabase/functions/make-server-b87b0c07/index.ts"
     },
     {
       "method": "GET",
       "path": "/admin/slots",
-      "line": 4299,
+      "line": 4365,
       "source": "supabase/functions/make-server-b87b0c07/index.ts"
     },
     {
       "method": "POST",
       "path": "/admin/slots",
-      "line": 4428,
+      "line": 4496,
       "source": "supabase/functions/make-server-b87b0c07/index.ts"
     },
     {
       "method": "DELETE",
       "path": "/admin/slots/:id",
-      "line": 4573,
+      "line": 4622,
       "source": "supabase/functions/make-server-b87b0c07/index.ts"
     },
     {
       "method": "PATCH",
       "path": "/admin/slots/:id",
-      "line": 4493,
+      "line": 4542,
       "source": "supabase/functions/make-server-b87b0c07/index.ts"
     },
     {
       "method": "POST",
       "path": "/admin/sync-user-sessions",
-      "line": 6333,
+      "line": 6382,
       "source": "supabase/functions/make-server-b87b0c07/index.ts"
     },
     {
       "method": "GET",
       "path": "/admin/users",
-      "line": 2804,
+      "line": 2816,
       "source": "supabase/functions/make-server-b87b0c07/index.ts"
     },
     {
       "method": "PATCH",
       "path": "/admin/users/:email/adjust-sessions",
-      "line": 3569,
+      "line": 3635,
       "source": "supabase/functions/make-server-b87b0c07/index.ts"
     },
     {
       "method": "PATCH",
       "path": "/admin/users/:email/payment",
-      "line": 3236,
+      "line": 3248,
       "source": "supabase/functions/make-server-b87b0c07/index.ts"
     },
     {
       "method": "POST",
       "path": "/admin/users/:email/resend-login-email",
-      "line": 2539,
+      "line": 2551,
       "source": "supabase/functions/make-server-b87b0c07/index.ts"
     },
     {
       "method": "POST",
       "path": "/auth/admin/login",
-      "line": 5363,
+      "line": 5412,
       "source": "supabase/functions/make-server-b87b0c07/index.ts"
     },
     {
       "method": "POST",
       "path": "/auth/forgot-password",
-      "line": 5090,
+      "line": 5139,
       "source": "supabase/functions/make-server-b87b0c07/index.ts"
     },
     {
       "method": "POST",
       "path": "/auth/login",
-      "line": 5229,
+      "line": 5278,
       "source": "supabase/functions/make-server-b87b0c07/index.ts"
     },
     {
       "method": "POST",
       "path": "/auth/logout",
-      "line": 5342,
+      "line": 5391,
       "source": "supabase/functions/make-server-b87b0c07/index.ts"
     },
     {
       "method": "POST",
       "path": "/auth/register",
-      "line": 4984,
+      "line": 5033,
       "source": "supabase/functions/make-server-b87b0c07/index.ts"
     },
     {
       "method": "POST",
       "path": "/auth/request-login",
-      "line": 5162,
+      "line": 5211,
       "source": "supabase/functions/make-server-b87b0c07/index.ts"
     },
     {
       "method": "POST",
       "path": "/auth/setup-password",
-      "line": 4874,
+      "line": 4923,
       "source": "supabase/functions/make-server-b87b0c07/index.ts"
     },
     {
       "method": "GET",
       "path": "/auth/verify",
-      "line": 5305,
+      "line": 5354,
       "source": "supabase/functions/make-server-b87b0c07/index.ts"
     },
     {
       "method": "GET",
       "path": "/bookings",
-      "line": 3755,
+      "line": 3821,
       "source": "supabase/functions/make-server-b87b0c07/index.ts"
     },
     {
       "method": "GET",
       "path": "/debug/check-users",
-      "line": 6307,
+      "line": 6356,
       "source": "supabase/functions/make-server-b87b0c07/index.ts"
     },
     {
       "method": "POST",
       "path": "/dev/clear-all-data",
-      "line": 4798,
+      "line": 4847,
       "source": "supabase/functions/make-server-b87b0c07/index.ts"
     },
     {
       "method": "POST",
       "path": "/dev/generate-mock-data",
-      "line": 4827,
+      "line": 4876,
       "source": "supabase/functions/make-server-b87b0c07/index.ts"
     },
     {
       "method": "GET",
       "path": "/health",
-      "line": 1007,
+      "line": 1019,
       "source": "supabase/functions/make-server-b87b0c07/index.ts"
     },
     {
       "method": "POST",
       "path": "/migrate-bookings",
-      "line": 3820,
+      "line": 3886,
       "source": "supabase/functions/make-server-b87b0c07/index.ts"
     },
     {
       "method": "GET",
       "path": "/packages",
-      "line": 1562,
+      "line": 1574,
       "source": "supabase/functions/make-server-b87b0c07/index.ts"
     },
     {
       "method": "POST",
       "path": "/packages",
-      "line": 1092,
+      "line": 1104,
       "source": "supabase/functions/make-server-b87b0c07/index.ts"
     },
     {
       "method": "GET",
       "path": "/packages/:id",
-      "line": 1621,
+      "line": 1633,
       "source": "supabase/functions/make-server-b87b0c07/index.ts"
     },
     {
       "method": "POST",
       "path": "/packages/:id/first-session",
-      "line": 1373,
+      "line": 1385,
       "source": "supabase/functions/make-server-b87b0c07/index.ts"
     },
     {
       "method": "GET",
       "path": "/reservations",
-      "line": 1903,
+      "line": 1915,
       "source": "supabase/functions/make-server-b87b0c07/index.ts"
     },
     {
       "method": "POST",
       "path": "/reservations",
-      "line": 1679,
+      "line": 1691,
       "source": "supabase/functions/make-server-b87b0c07/index.ts"
     },
     {
       "method": "DELETE",
       "path": "/reservations/:id",
-      "line": 2269,
+      "line": 2281,
       "source": "supabase/functions/make-server-b87b0c07/index.ts"
     },
     {
       "method": "GET",
       "path": "/reservations/:id",
-      "line": 1970,
+      "line": 1982,
       "source": "supabase/functions/make-server-b87b0c07/index.ts"
     },
     {
       "method": "PATCH",
       "path": "/reservations/:id/status",
-      "line": 2017,
+      "line": 2029,
       "source": "supabase/functions/make-server-b87b0c07/index.ts"
     },
     {
       "method": "GET",
       "path": "/slots",
-      "line": 4049,
+      "line": 4115,
       "source": "supabase/functions/make-server-b87b0c07/index.ts"
     },
     {
       "method": "GET",
       "path": "/slots/availability",
-      "line": 4129,
+      "line": 4195,
       "source": "supabase/functions/make-server-b87b0c07/index.ts"
     },
     {
       "method": "GET",
       "path": "/slots/live-days",
-      "line": 4105,
+      "line": 4171,
       "source": "supabase/functions/make-server-b87b0c07/index.ts"
     },
     {
       "method": "GET",
       "path": "/slots/user-calendar",
-      "line": 4210,
+      "line": 4276,
       "source": "supabase/functions/make-server-b87b0c07/index.ts"
     },
     {
       "method": "POST",
       "path": "/upload-logo",
-      "line": 6644,
+      "line": 6702,
       "source": "supabase/functions/make-server-b87b0c07/index.ts"
     },
     {
       "method": "PATCH",
       "path": "/user/language",
-      "line": 5409,
+      "line": 5458,
       "source": "supabase/functions/make-server-b87b0c07/index.ts"
     },
     {
       "method": "GET",
       "path": "/user/packages",
-      "line": 5449,
+      "line": 5498,
       "source": "supabase/functions/make-server-b87b0c07/index.ts"
     },
     {
       "method": "POST",
       "path": "/user/packages/:id/book-session",
-      "line": 5960,
+      "line": 6009,
       "source": "supabase/functions/make-server-b87b0c07/index.ts"
     },
     {
       "method": "POST",
       "path": "/user/packages/:id/reschedule",
-      "line": 5629,
+      "line": 5678,
       "source": "supabase/functions/make-server-b87b0c07/index.ts"
     },
     {
       "method": "DELETE",
       "path": "/user/packages/:id/reservations/:reservationId",
-      "line": 6173,
+      "line": 6222,
       "source": "supabase/functions/make-server-b87b0c07/index.ts"
     },
     {
       "method": "POST",
       "path": "/user/packages/purchase",
-      "line": 5787,
+      "line": 5836,
       "source": "supabase/functions/make-server-b87b0c07/index.ts"
     },
     {
       "method": "POST",
       "path": "/user/upload-avatar",
-      "line": 6545,
+      "line": 6603,
       "source": "supabase/functions/make-server-b87b0c07/index.ts"
     },
     {
       "method": "DELETE",
       "path": "/users/:email",
-      "line": 3671,
+      "line": 3737,
       "source": "supabase/functions/make-server-b87b0c07/index.ts"
     },
     {
       "method": "POST",
       "path": "/validate-coupon",
-      "line": 1013,
+      "line": 1025,
       "source": "supabase/functions/make-server-b87b0c07/index.ts"
     }
   ]

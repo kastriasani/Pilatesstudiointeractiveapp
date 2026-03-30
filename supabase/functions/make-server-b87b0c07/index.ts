@@ -42,6 +42,18 @@ const MONTH_NAMES = {
 const DEFAULT_TIME_SLOTS = ['09:00', '10:00', '11:00', '17:00', '18:00', '19:00', '20:00'];
 const DEFAULT_MAX_CAPACITY = 4;
 
+// Date-aware defaults from 2026-04-05 onward:
+//   Weekdays (Mon-Fri): 17:00, 18:00, 19:00, 20:00
+//   Weekends (Sat-Sun): 09:00, 10:00, 11:00
+const SLOT_CUTOFF_DATE = '2026-04-05';
+const WEEKDAY_SLOTS = ['17:00', '18:00', '19:00', '20:00'];
+const WEEKEND_SLOTS = ['09:00', '10:00', '11:00'];
+function getDefaultSlotsForDate(date: string): string[] {
+  if (date < SLOT_CUTOFF_DATE) return DEFAULT_TIME_SLOTS;
+  const day = new Date(date + 'T00:00:00').getDay(); // 0=Sun, 6=Sat
+  return (day === 0 || day === 6) ? WEEKEND_SLOTS : WEEKDAY_SLOTS;
+}
+
 const VALID_PACKAGE_TYPES = [
   'single', 'package8', 'package10', 'package12',
   'individual1', 'individual8', 'individual12',
@@ -3564,6 +3576,60 @@ app.patch("/make-server-b87b0c07/admin/packages/:id/payment", async (c) => {
   }
 });
 
+// DELETE /admin/packages/:id - Remove an unpaid package (admin only)
+app.delete("/make-server-b87b0c07/admin/packages/:id", async (c) => {
+  try {
+    const adminAuth = await verifyAdminSession(c);
+    if (!adminAuth.valid) {
+      return c.json({ error: adminAuth.error }, 401);
+    }
+
+    const packageId = c.req.param('id');
+    const supabase = getSupabase();
+
+    // Fetch the package
+    const { data: pkg, error: pkgError } = await supabase
+      .from('user_packages')
+      .select('id, user_email, package_type, payment_status, package_status')
+      .eq('id', packageId)
+      .single();
+
+    if (pkgError || !pkg) {
+      return c.json({ error: 'Package not found' }, 404);
+    }
+
+    // Only allow deleting unpaid packages
+    if (pkg.payment_status === 'paid') {
+      return c.json({ error: 'Cannot remove a paid package' }, 400);
+    }
+
+    // Delete linked reservations first (pending ones for this package)
+    const { data: deletedRes } = await supabase
+      .from('reservations')
+      .delete()
+      .eq('package_id', packageId)
+      .in('reservation_status', ['pending', 'confirmed'])
+      .select('id');
+
+    // Delete the package
+    const { error: delError } = await supabase
+      .from('user_packages')
+      .delete()
+      .eq('id', packageId);
+
+    if (delError) {
+      console.error('Error deleting package:', delError);
+      return c.json({ error: 'Failed to delete package', details: delError.message }, 500);
+    }
+
+    console.log(`🗑️ Package ${packageId} (${pkg.package_type}) removed for ${pkg.user_email}, ${deletedRes?.length || 0} reservations deleted`);
+    return c.json({ success: true, deletedReservations: deletedRes?.length || 0 });
+  } catch (error) {
+    console.error('Error deleting package:', error);
+    return c.json({ error: 'Failed to delete package', details: (error as Error).message }, 500);
+  }
+});
+
 // Adjust remaining sessions for a user (+1 or -1)
 // PATCH /admin/users/:email/adjust-sessions
 app.patch("/make-server-b87b0c07/admin/users/:email/adjust-sessions", async (c) => {
@@ -3993,7 +4059,7 @@ app.get("/make-server-b87b0c07/admin/calendar", async (c) => {
       }
     }
 
-    const calendarData = DEFAULT_TIME_SLOTS.map((timeSlot) => {
+    const calendarData = getDefaultSlotsForDate(dateKey).map((timeSlot) => {
       // Filter pending/confirmed/attended reservations for this slot (all active bookings)
       const slotReservations = dateReservations.filter((r: any) =>
         r.time_slot === timeSlot &&
@@ -4081,7 +4147,7 @@ app.get("/make-server-b87b0c07/slots", async (c) => {
 
     // If no custom slots, use defaults
     if (!slots || slots.length === 0) {
-      const defaultSlots = DEFAULT_TIME_SLOTS.map(time => ({
+      const defaultSlots = getDefaultSlotsForDate(date).map(time => ({
         start_time: time,
         max_capacity: DEFAULT_MAX_CAPACITY
       }));
@@ -4332,7 +4398,8 @@ app.get("/make-server-b87b0c07/admin/slots", async (c) => {
 
     // If no custom slots, return default slots
     if (!slots || slots.length === 0) {
-      const defaultSlots = DEFAULT_TIME_SLOTS.map((time, index) => ({
+      const dateSlotsArr = getDefaultSlotsForDate(date);
+      const defaultSlots = dateSlotsArr.map((time, index) => ({
         id: `default-${index + 1}`,
         date,
         start_time: time,
@@ -4394,7 +4461,8 @@ app.patch("/make-server-b87b0c07/admin/days/:date/status", async (c) => {
 
       // Only create default slots if none exist
       if (!existingSlots || existingSlots.length === 0) {
-        const defaultSlotsToInsert = DEFAULT_TIME_SLOTS.map(time => ({
+        const dateSlotsArr = getDefaultSlotsForDate(date);
+        const defaultSlotsToInsert = dateSlotsArr.map(time => ({
           date,
           start_time: time, // HH:MM format
           max_capacity: DEFAULT_MAX_CAPACITY,
@@ -4411,7 +4479,7 @@ app.patch("/make-server-b87b0c07/admin/days/:date/status", async (c) => {
           console.error('Error creating default slots:', slotsError);
           // Don't fail the request, slots can be added manually
         } else {
-          console.log(`📅 Created ${DEFAULT_TIME_SLOTS.length} default slots for ${date}`);
+          console.log(`📅 Created ${dateSlotsArr.length} default slots for ${date}`);
         }
       }
     }
@@ -4442,26 +4510,7 @@ app.post("/make-server-b87b0c07/admin/slots", async (c) => {
 
     const supabase = getSupabase();
 
-    // Check if we're adding to a date that only has default slots
-    // If so, we need to first initialize with default slots, then add the new one
-    const { data: existingSlots } = await supabase
-      .from('time_slots')
-      .select('id')
-      .eq('date', date)
-      .limit(1);
-
-    if (!existingSlots || existingSlots.length === 0) {
-      // Initialize with default slots first
-      const defaultInserts = DEFAULT_TIME_SLOTS.map(time => ({
-        date,
-        start_time: time,
-        max_capacity: DEFAULT_MAX_CAPACITY,
-        class_type: 'group',
-      }));
-      await supabase.from('time_slots').insert(defaultInserts);
-    }
-
-    // Now add the new slot
+    // Just add the requested slot — no longer auto-initializing defaults
     const { data, error } = await supabase
       .from('time_slots')
       .insert({
@@ -4509,15 +4558,16 @@ app.patch("/make-server-b87b0c07/admin/slots/:id", async (c) => {
       }
 
       // Get the original default slot time from the index
+      const dateSlotsArr = getDefaultSlotsForDate(date);
       const defaultIndex = parseInt(id.replace('default-', '')) - 1;
-      const originalTime = DEFAULT_TIME_SLOTS[defaultIndex];
+      const originalTime = dateSlotsArr[defaultIndex];
 
       if (!originalTime) {
         return c.json({ error: 'Invalid default slot ID' }, 400);
       }
 
-      // Initialize all default slots for this date, but with the edited time for this slot
-      const slotsToInsert = DEFAULT_TIME_SLOTS.map((time, idx) => ({
+      // Materialize all default slots for this date, with the edited one modified
+      const slotsToInsert = dateSlotsArr.map((time, idx) => ({
         date,
         start_time: idx === defaultIndex ? (startTime || time) : time,
         max_capacity: idx === defaultIndex ? (maxCapacity ?? DEFAULT_MAX_CAPACITY) : DEFAULT_MAX_CAPACITY,
@@ -4534,7 +4584,6 @@ app.patch("/make-server-b87b0c07/admin/slots/:id", async (c) => {
         return c.json({ error: 'Failed to update slot', details: insertError.message }, 500);
       }
 
-      // Find the updated slot
       const updatedSlot = inserted?.find((s: any) =>
         s.start_time === (startTime || originalTime)
       );
@@ -4603,7 +4652,7 @@ app.delete("/make-server-b87b0c07/admin/slots/:id", async (c) => {
       }
 
       // Initialize custom slots for this date, excluding the one being deleted
-      const slotsToInsert = DEFAULT_TIME_SLOTS
+      const slotsToInsert = getDefaultSlotsForDate(date)
         .filter(time => time !== startTime)
         .map(time => ({
           date,
@@ -6453,11 +6502,20 @@ app.post("/make-server-b87b0c07/admin/booking-changes/archive", async (c) => {
     }
 
     const supabase = getSupabase();
-    const { data, error } = await supabase
+    // Optional: only archive changes created before a given ISO timestamp
+    const body = await c.req.json().catch(() => ({}));
+    const before = body?.before; // ISO timestamp, e.g. "2026-03-23T00:00:00"
+
+    let query = supabase
       .from('booking_changes')
       .update({ is_archived: true })
-      .eq('is_archived', false)
-      .select('id');
+      .eq('is_archived', false);
+
+    if (before) {
+      query = query.lt('created_at', before);
+    }
+
+    const { data, error } = await query.select('id');
 
     if (error) {
       console.error('Error archiving booking changes:', error);

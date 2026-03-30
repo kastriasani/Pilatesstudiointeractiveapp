@@ -198,7 +198,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
   };
   const [bookingChanges, setBookingChanges] = useState<BookingChange[]>([]);
   const [showChanges, setShowChanges] = useState(false);
-  const [showArchived, setShowArchived] = useState(false);
+  const [changesView, setChangesView] = useState<'recent' | 'archive'>('recent');
   const [isArchiving, setIsArchiving] = useState(false);
 
   // Timeslot management state
@@ -221,19 +221,19 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
   // Fetch all bookings on component mount
   useEffect(() => {
     fetchBookings();
-    fetchBookingChanges(showArchived);
+    fetchBookingChanges(changesView === 'archive');
   }, [activeTab]);
 
-  // Refetch when archive view toggles
+  // Refetch when view toggles
   useEffect(() => {
-    fetchBookingChanges(showArchived);
-  }, [showArchived]);
+    fetchBookingChanges(changesView === 'archive');
+  }, [changesView]);
 
   // Realtime: silent refresh when any reservation changes (replaces 30s polling)
   useRealtimeAvailability(useCallback(() => {
     fetchBookings(true);
-    fetchBookingChanges(showArchived);
-  }, [showArchived]));
+    fetchBookingChanges(changesView === 'archive');
+  }, [changesView]));
 
   // Scroll to top whenever tab changes
   useEffect(() => {
@@ -402,7 +402,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
 
   const fetchBookingChanges = async (archived = false) => {
     try {
-      const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/admin/booking-changes?limit=50&archived=${archived}`, {
+      const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/admin/booking-changes?limit=200&archived=${archived}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -422,6 +422,8 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
   const handleArchiveChanges = async () => {
     setIsArchiving(true);
     try {
+      // Archive everything older than 7 days
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
       const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/admin/booking-changes/archive`, {
         method: 'POST',
         headers: {
@@ -429,9 +431,11 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
           'Authorization': `Bearer ${publicAnonKey}`,
           'X-Session-Token': getSessionToken(),
         },
+        body: JSON.stringify({ before: sevenDaysAgo }),
       });
       if (response.ok) {
-        toast.success('Changes archived');
+        const result = await response.json();
+        toast.success(`Archived ${result.archivedCount || 0} changes`);
         await fetchBookingChanges(false);
       }
     } catch (error) {
@@ -440,6 +444,36 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
     } finally {
       setIsArchiving(false);
     }
+  };
+
+  // Group booking changes by date category
+  const groupChangesByDate = (changes: BookingChange[]) => {
+    const now = new Date();
+    const todayStr = now.toLocaleDateString('en-CA', { timeZone: 'Europe/Skopje' });
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = yesterday.toLocaleDateString('en-CA', { timeZone: 'Europe/Skopje' });
+    const sevenDaysAgo = new Date(now);
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+    const groups: { label: string; items: BookingChange[] }[] = [
+      { label: 'Today', items: [] },
+      { label: 'Yesterday', items: [] },
+      { label: 'Last 7 Days', items: [] },
+    ];
+
+    for (const change of changes) {
+      const changeDate = new Date(change.createdAt).toLocaleDateString('en-CA', { timeZone: 'Europe/Skopje' });
+      if (changeDate === todayStr) {
+        groups[0].items.push(change);
+      } else if (changeDate === yesterdayStr) {
+        groups[1].items.push(change);
+      } else {
+        groups[2].items.push(change);
+      }
+    }
+
+    return groups.filter(g => g.items.length > 0);
   };
 
   // Convert "M-D" format to "YYYY-MM-DD" for backend
@@ -954,6 +988,35 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
     } catch (error: any) {
       console.error('Error updating package payment:', error);
       toast.error(error.message || 'Failed to update payment');
+    }
+  };
+
+  const [deletingPackageId, setDeletingPackageId] = useState<string | null>(null);
+
+  const handleRemovePackage = async (packageId: string, userEmail: string) => {
+    if (!confirm('Remove this unpaid package? Any linked reservations will also be deleted.')) return;
+    setDeletingPackageId(packageId);
+    try {
+      const res = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/make-server-b87b0c07/admin/packages/${packageId}`,
+        {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${publicAnonKey}`,
+            'Content-Type': 'application/json',
+            'X-Session-Token': getSessionToken(),
+          },
+        }
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to remove');
+      toast.success(`Package removed${data.deletedReservations > 0 ? ` (${data.deletedReservations} reservations deleted)` : ''}`);
+      await fetchBookings();
+    } catch (error: any) {
+      console.error('Error removing package:', error);
+      toast.error(error.message || 'Failed to remove package');
+    } finally {
+      setDeletingPackageId(null);
     }
   };
 
@@ -1803,8 +1866,8 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
               className="flex items-center gap-2 w-full bg-[#F5F0EE] rounded-lg px-4 py-3 text-sm font-medium text-[#3d2f28] hover:bg-[#ede5df] transition-colors"
             >
               <Clock className="w-4 h-4 text-[#8b7764]" />
-              <span>{showArchived ? 'Archived Changes' : 'Recent Changes'}</span>
-              {!showArchived && bookingChanges.length > 0 && (
+              <span>Changes</span>
+              {changesView === 'recent' && bookingChanges.length > 0 && (
                 <span className="bg-[#c96442] text-white text-xs font-bold px-2 py-0.5 rounded-full">
                   {bookingChanges.length}
                 </span>
@@ -1815,30 +1878,45 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
             </button>
             {showChanges && (
               <div className="bg-[#F5F0EE] rounded-b-lg border-t border-[#e8dfd8]">
-                {/* Archive controls */}
-                <div className="flex items-center justify-between px-4 py-2 border-b border-[#e8dfd8]">
+                {/* Tab bar: Recent / Archive */}
+                <div className="flex items-center border-b border-[#e8dfd8]">
                   <button
-                    onClick={() => setShowArchived(!showArchived)}
-                    className="text-xs text-[#8b7764] hover:text-[#6b5949] transition-colors"
+                    onClick={() => setChangesView('recent')}
+                    className={`flex-1 text-xs font-medium py-2 text-center transition-colors ${
+                      changesView === 'recent'
+                        ? 'text-[#3d2f28] border-b-2 border-[#c96442]'
+                        : 'text-[#8b7764] hover:text-[#6b5949]'
+                    }`}
                   >
-                    {showArchived ? '← Back to recent' : 'View archived'}
+                    Recent
                   </button>
-                  {!showArchived && bookingChanges.length > 0 && (
+                  <button
+                    onClick={() => setChangesView('archive')}
+                    className={`flex-1 text-xs font-medium py-2 text-center transition-colors ${
+                      changesView === 'archive'
+                        ? 'text-[#3d2f28] border-b-2 border-[#c96442]'
+                        : 'text-[#8b7764] hover:text-[#6b5949]'
+                    }`}
+                  >
+                    Archive
+                  </button>
+                  {changesView === 'recent' && bookingChanges.length > 0 && (
                     <button
                       onClick={handleArchiveChanges}
                       disabled={isArchiving}
-                      className="text-xs font-medium text-[#8b7764] hover:text-[#6b5949] disabled:opacity-50 transition-colors"
+                      className="text-xs font-medium text-[#8b7764] hover:text-[#6b5949] disabled:opacity-50 transition-colors px-3"
                     >
-                      {isArchiving ? 'Archiving...' : 'Archive all'}
+                      {isArchiving ? 'Archiving...' : 'Archive old'}
                     </button>
                   )}
                 </div>
-                <div className="max-h-80 overflow-y-auto">
+                <div className="max-h-96 overflow-y-auto">
                 {bookingChanges.length === 0 ? (
                   <p className="text-sm text-stone-500 text-center py-4">
-                    {showArchived ? 'No archived changes' : 'No recent changes'}
+                    {changesView === 'archive' ? 'No archived changes' : 'No recent changes'}
                   </p>
-                ) : (
+                ) : changesView === 'archive' ? (
+                  /* Archive view: flat list */
                   <div className="divide-y divide-[#e8dfd8]">
                     {bookingChanges.map((change) => (
                       <div key={change.id} className="px-4 py-3 flex items-start gap-3">
@@ -1868,9 +1946,6 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                 : change.changeType === 'session_correction' ? 'Session Correction'
                                 : 'Rescheduled'}
                             </span>
-                            {change.packageType && (
-                              <span className="text-xs text-[#8b7764]">{change.packageType}</span>
-                            )}
                           </div>
                           <div className="text-xs text-[#8b7764] mt-1">
                             {change.changeType === 'session_correction' ? (
@@ -1897,6 +1972,81 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                             timeZone: 'Europe/Skopje'
                           })}
                         </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  /* Recent view: grouped by Today / Yesterday / Last 7 Days */
+                  <div>
+                    {groupChangesByDate(bookingChanges).map((group) => (
+                      <div key={group.label}>
+                        <div className="px-4 py-2 bg-[#ede5df] sticky top-0 z-10">
+                          <span className="text-xs font-semibold text-[#6b5949] uppercase tracking-wide">
+                            {group.label}
+                          </span>
+                          <span className="text-xs text-[#8b7764] ml-2">({group.items.length})</span>
+                        </div>
+                        <div className="divide-y divide-[#e8dfd8]">
+                          {group.items.map((change) => (
+                            <div key={change.id} className="px-4 py-3 flex items-start gap-3">
+                              <div className={`mt-0.5 w-2 h-2 rounded-full flex-shrink-0 ${
+                                change.changeType === 'cancelled' || change.changeType === 'class_cancelled'
+                                  ? 'bg-red-500'
+                                  : change.changeType === 'session_correction'
+                                  ? 'bg-amber-500'
+                                  : 'bg-blue-500'
+                              }`} />
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="text-sm font-medium text-[#3d2f28]">
+                                    {change.userName} {change.userSurname}
+                                  </span>
+                                  <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${
+                                    change.changeType === 'cancelled'
+                                      ? 'bg-red-100 text-red-700'
+                                      : change.changeType === 'class_cancelled'
+                                      ? 'bg-red-100 text-red-700'
+                                      : change.changeType === 'session_correction'
+                                      ? 'bg-amber-100 text-amber-700'
+                                      : 'bg-blue-100 text-blue-700'
+                                  }`}>
+                                    {change.changeType === 'cancelled' ? 'Cancelled'
+                                      : change.changeType === 'class_cancelled' ? 'Class Cancelled'
+                                      : change.changeType === 'session_correction' ? 'Session Correction'
+                                      : 'Rescheduled'}
+                                  </span>
+                                  {change.packageType && (
+                                    <span className="text-xs text-[#8b7764]">{change.packageType}</span>
+                                  )}
+                                </div>
+                                <div className="text-xs text-[#8b7764] mt-1">
+                                  {change.changeType === 'session_correction' ? (
+                                    <span>
+                                      Sessions: <span className="line-through">{change.newDateKey}</span>
+                                      {' → '}
+                                      <span className="font-medium text-[#3d2f28]">{change.newTimeSlot}</span>
+                                      {' '}(corrected for {change.oldDateKey} at {change.oldTimeSlot})
+                                    </span>
+                                  ) : change.changeType === 'cancelled' || change.changeType === 'class_cancelled' ? (
+                                    <span>{change.oldDateKey} at {change.oldTimeSlot}</span>
+                                  ) : (
+                                    <span>
+                                      <span className="line-through">{change.oldDateKey} {change.oldTimeSlot}</span>
+                                      {' → '}
+                                      <span className="font-medium text-[#3d2f28]">{change.newDateKey} {change.newTimeSlot}</span>
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <span className="text-xs text-[#8b7764] flex-shrink-0 whitespace-nowrap">
+                                {new Date(change.createdAt).toLocaleString('en-GB', {
+                                  hour: '2-digit', minute: '2-digit',
+                                  timeZone: 'Europe/Skopje'
+                                })}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -2289,6 +2439,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                     <div className="text-sm text-[#3d2f28] font-medium">
                                       {pkgLabel}{pkgBonus > 0 ? ` + ${pkgBonus} Bonus` : ''}
                                     </div>
+                                    <div className="flex flex-col items-end gap-1">
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation();
@@ -2308,6 +2459,19 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                         isPaid ? 'Paid' : 'Unpaid'
                                       )}
                                     </button>
+                                      {!isPaid && (
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleRemovePackage(pkg.id, user.email);
+                                          }}
+                                          disabled={deletingPackageId === pkg.id}
+                                          className="px-2 py-0.5 rounded text-[10px] font-medium text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
+                                        >
+                                          {deletingPackageId === pkg.id ? <Loader2 className="w-3 h-3 animate-spin inline" /> : 'Remove package'}
+                                        </button>
+                                      )}
+                                    </div>
                                   </div>
 
                                   {/* Sessions bar */}

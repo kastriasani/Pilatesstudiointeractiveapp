@@ -230,6 +230,18 @@ export const getAllCalendarDates = (startDate: Date, endDate: Date): Date[] => {
  */
 export const TIME_SLOTS = ['09:00', '10:00', '11:00', '17:00', '18:00', '19:00', '20:00'] as const;
 
+// Date-aware defaults from 2026-04-05 onward:
+//   Weekdays (Mon-Fri): 17:00, 18:00, 19:00, 20:00
+//   Weekends (Sat-Sun): 09:00, 10:00, 11:00
+const SLOT_CUTOFF_DATE = '2026-04-05';
+const WEEKDAY_SLOTS = ['17:00', '18:00', '19:00', '20:00'];
+const WEEKEND_SLOTS = ['09:00', '10:00', '11:00'];
+export function getTimeSlotsForDate(date: string): string[] {
+  if (date < SLOT_CUTOFF_DATE) return [...TIME_SLOTS];
+  const day = new Date(date + 'T00:00:00').getDay();
+  return (day === 0 || day === 6) ? [...WEEKEND_SLOTS] : [...WEEKDAY_SLOTS];
+}
+
 /**
  * Maximum capacity per time slot
  */
