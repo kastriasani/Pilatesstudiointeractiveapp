@@ -3603,12 +3603,11 @@ app.delete("/make-server-b87b0c07/admin/packages/:id", async (c) => {
       return c.json({ error: 'Cannot remove a paid package' }, 400);
     }
 
-    // Delete linked reservations first (pending ones for this package)
+    // Delete all reservations linked to this package (pending, confirmed, cancelled, no_show, etc.)
     const { data: deletedRes } = await supabase
       .from('reservations')
       .delete()
       .eq('package_id', packageId)
-      .in('reservation_status', ['pending', 'confirmed'])
       .select('id');
 
     // Delete the package
