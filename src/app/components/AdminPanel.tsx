@@ -2466,7 +2466,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                             handleRemovePackage(pkg.id, user.email);
                                           }}
                                           disabled={deletingPackageId === pkg.id}
-                                          className="px-2 py-0.5 rounded text-[10px] font-medium text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
+                                          className="px-2 py-0.5 rounded text-[10px] font-semibold uppercase text-red-600 bg-red-50 border border-red-200 hover:bg-red-100 hover:border-red-300 active:bg-red-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                         >
                                           {deletingPackageId === pkg.id ? <Loader2 className="w-3 h-3 animate-spin inline" /> : 'Remove package'}
                                         </button>
