@@ -1048,8 +1048,8 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
     setDeleteDialog({ open: true, user, confirmText: '', isDeleting: false });
   };
 
-  // Handle session adjustment (+1 or -1)
-  const handleAdjustSessions = async (user: User, adjustment: 1 | -1) => {
+  // Handle session adjustment (+1 or -1) for a specific package
+  const handleAdjustSessions = async (user: User, adjustment: 1 | -1, packageId: string) => {
     // Save previous values for rollback
     const previousRemaining = user.remainingSessions;
 
@@ -1074,7 +1074,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
             'Authorization': `Bearer ${publicAnonKey}`,
             'X-Session-Token': getSessionToken(),
           },
-          body: JSON.stringify({ adjustment }),
+          body: JSON.stringify({ adjustment, packageId }),
         }
       );
 
@@ -2586,7 +2586,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                   {isActive && pkgBaseCount > 1 && (
                                     <div className="mt-2 flex gap-3">
                                       <button
-                                        onClick={() => handleAdjustSessions(user, -1)}
+                                        onClick={() => handleAdjustSessions(user, -1, pkg.id)}
                                         disabled={remainingSessions <= 0 || adjustingSessionsEmail === user.email}
                                         className={`w-8 h-8 rounded text-sm font-bold flex items-center justify-center transition-colors ${
                                           remainingSessions <= 0 || adjustingSessionsEmail === user.email
@@ -2597,7 +2597,7 @@ export function AdminPanel({ onLogout, sessionToken: propSessionToken }: AdminPa
                                         {adjustingSessionsEmail === user.email ? <Loader2 className="w-3 h-3 animate-spin" /> : '−'}
                                       </button>
                                       <button
-                                        onClick={() => handleAdjustSessions(user, 1)}
+                                        onClick={() => handleAdjustSessions(user, 1, pkg.id)}
                                         disabled={remainingSessions >= totalSessions || adjustingSessionsEmail === user.email}
                                         className={`w-8 h-8 rounded text-sm font-bold flex items-center justify-center transition-colors ${
                                           remainingSessions >= totalSessions || adjustingSessionsEmail === user.email

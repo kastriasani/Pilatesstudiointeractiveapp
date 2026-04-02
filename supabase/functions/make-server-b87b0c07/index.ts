@@ -3650,7 +3650,7 @@ app.patch("/make-server-b87b0c07/admin/users/:email/adjust-sessions", async (c) 
 
     const email = c.req.param('email');
     const body = await c.req.json();
-    const { adjustment } = body; // +1 or -1
+    const { adjustment, packageId } = body; // +1 or -1, optional packageId
 
     if (!email) {
       return c.json({ error: "Email is required" }, 400);
@@ -3663,15 +3663,31 @@ app.patch("/make-server-b87b0c07/admin/users/:email/adjust-sessions", async (c) 
     const normalizedEmail = normalizeEmail(email);
     const supabase = getSupabase();
 
-    // Get active/pending package (source of truth for remaining sessions)
-    const { data: activePkg, error: pkgFetchError } = await supabase
-      .from('user_packages')
-      .select('id, remaining_sessions, total_sessions, package_type, package_status')
-      .eq('user_email', normalizedEmail)
-      .in('package_status', ['active', 'pending'])
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
+    // Get the target package — use explicit packageId if provided, otherwise fall back to most recent active
+    let activePkg;
+    let pkgFetchError;
+    if (packageId) {
+      const result = await supabase
+        .from('user_packages')
+        .select('id, remaining_sessions, total_sessions, package_type, package_status')
+        .eq('id', packageId)
+        .eq('user_email', normalizedEmail)
+        .in('package_status', ['active', 'pending'])
+        .single();
+      activePkg = result.data;
+      pkgFetchError = result.error;
+    } else {
+      const result = await supabase
+        .from('user_packages')
+        .select('id, remaining_sessions, total_sessions, package_type, package_status')
+        .eq('user_email', normalizedEmail)
+        .in('package_status', ['active', 'pending'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+      activePkg = result.data;
+      pkgFetchError = result.error;
+    }
 
     if (pkgFetchError || !activePkg) {
       console.error('Error fetching active package:', pkgFetchError);
