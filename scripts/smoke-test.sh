@@ -437,10 +437,15 @@ print('yes' if ok else 'no')
     -X POST "$BASE/reservations" \
     -d '{"userId":"magdalena_si@hotmail.com","serviceType":"single","name":"Test","surname":"Block","mobile":"070","email":"magdalena_si@hotmail.com","dateKey":"'"$FIRST_LIVE_DATE"'","timeSlot":"'"$GROUP_TIME"'","packageType":"single","language":"en"}'
 
-  # Registered user blocked from /packages too
-  test_logic "Registered user blocked from public /packages" 'EMAIL_ALREADY_REGISTERED' \
+  # Registered user via public /packages: allowed when no active same-service-type package
+  # with >1 remaining (so users with fully-used / expired packages can repurchase without
+  # logging in). Hard block via EMAIL_ALREADY_REGISTERED only kicks in when a blocking
+  # active package exists — covered separately when fixture data is available.
+  test_logic "Registered user without blocking package allowed via /packages" '"success":true' \
     -X POST "$BASE/packages" \
     -d '{"userId":"magdalena_si@hotmail.com","packageType":"package8","name":"Test","surname":"Block","mobile":"070","email":"magdalena_si@hotmail.com","language":"en"}'
+  # Capture the stray pending package id so cleanup can remove it (avoid leaking smoke data).
+  MAGDALENA_STRAY_PKG_ID=$(json_field "$LAST_RESPONSE" "d.get('package',{}).get('id','') or d.get('packageId','')")
 
   # ── Auth Flows ───────────────────────────────────────────────────
   echo ""
@@ -636,7 +641,13 @@ print('no' if found else 'yes')
 
   # Clean up all test data via Supabase Management API
   if [[ -n "${SUPABASE_ACCESS_TOKEN:-}" ]]; then
-    CLEANUP_SQL="DELETE FROM reservations WHERE user_email LIKE 'smoketest%' OR user_email LIKE 'smokepkg%' OR user_email LIKE 'typetest%'; DELETE FROM user_packages WHERE user_email LIKE 'smokepkg%'; DELETE FROM users WHERE email LIKE 'smoketest%' OR email LIKE 'smokepkg%' OR email LIKE 'typetest%';"
+    # Build cleanup SQL: smoke test users + the stray pending package the registered-user
+    # test created for magdalena_si@hotmail.com (only delete if still pending/unpaid).
+    STRAY_CLEANUP=""
+    if [[ -n "${MAGDALENA_STRAY_PKG_ID:-}" ]]; then
+      STRAY_CLEANUP="DELETE FROM reservations WHERE package_id = '${MAGDALENA_STRAY_PKG_ID}'; DELETE FROM user_packages WHERE id = '${MAGDALENA_STRAY_PKG_ID}' AND package_status = 'pending' AND payment_status = 'unpaid';"
+    fi
+    CLEANUP_SQL="DELETE FROM reservations WHERE user_email LIKE 'smoketest%' OR user_email LIKE 'smokepkg%' OR user_email LIKE 'typetest%'; DELETE FROM user_packages WHERE user_email LIKE 'smokepkg%'; DELETE FROM users WHERE email LIKE 'smoketest%' OR email LIKE 'smokepkg%' OR email LIKE 'typetest%'; ${STRAY_CLEANUP}"
     CLEANUP_PAYLOAD=$(python3 -c "import json; print(json.dumps({'query': '''$CLEANUP_SQL'''}))")
     curl -s -X POST \
       "https://api.supabase.com/v1/projects/azqkguctispoctvmpmci/database/query" \

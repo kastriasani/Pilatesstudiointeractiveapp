@@ -1169,12 +1169,29 @@ app.post("/make-server-b87b0c07/packages", async (c) => {
     }
 
     if (existingUser && existingUser.password_hash) {
-      // Block fully registered users (with password) from using the public booking flow
-      console.log(`⚠️ Blocked duplicate registration for ${normalizedEmail} via /packages`);
-      return c.json({
-        error: 'This email is already registered. Please log in to your account to purchase a new package.',
-        errorType: 'EMAIL_ALREADY_REGISTERED'
-      }, 400);
+      // Registered user via the public flow — only allow if they're eligible for a new package.
+      // Eligibility mirrors the dashboard endpoint: block only when an active package of the same
+      // service type still has >1 remaining sessions. This lets users with fully-used / expired
+      // packages purchase again without forcing a login (admins can also create on their behalf).
+      const requestedServiceType = extractServiceType(packageType as PackageType);
+      const { data: activePackages } = await supabase
+        .from('user_packages')
+        .select('package_type, remaining_sessions, package_status')
+        .eq('user_email', normalizedEmail)
+        .eq('package_status', 'active')
+        .gt('remaining_sessions', 1);
+
+      const blockingPackages = (activePackages || []).filter(
+        (p: any) => extractServiceType(p.package_type) === requestedServiceType
+      );
+      if (blockingPackages.length > 0) {
+        console.log(`⚠️ Blocked duplicate purchase for registered ${normalizedEmail}: active ${requestedServiceType} package still has sessions remaining`);
+        return c.json({
+          error: 'This email is already registered. Please log in to your account to purchase a new package.',
+          errorType: 'EMAIL_ALREADY_REGISTERED'
+        }, 400);
+      }
+      console.log(`✅ Allowing public package purchase for registered ${normalizedEmail} (no blocking active ${requestedServiceType} package)`);
     }
 
     if (existingUser) {
@@ -6006,9 +6023,9 @@ app.post("/make-server-b87b0c07/user/packages/purchase", async (c) => {
         activation_date: null,
         expiry_date: null,
         first_reservation_id: null,
-        name: user.name,
-        surname: user.surname,
-        mobile: user.mobile,
+        name: user.name ?? '',
+        surname: user.surname ?? '',
+        mobile: user.mobile ?? '',
         email: normalizedEmail,
         language: user.language || 'sq',
         created_at: now,
@@ -6018,7 +6035,12 @@ app.post("/make-server-b87b0c07/user/packages/purchase", async (c) => {
       .single();
 
     if (packageError) {
-      console.error('Error creating package (dashboard):', packageError);
+      console.error('Error creating package (dashboard):', {
+        email: normalizedEmail,
+        packageType,
+        userFields: { name: user.name, surname: user.surname, mobile: user.mobile },
+        error: packageError,
+      });
       return c.json({ error: 'Failed to create package', details: packageError.message }, 500);
     }
 
